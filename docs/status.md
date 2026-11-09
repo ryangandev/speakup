@@ -2,11 +2,13 @@
 
 ## Now
 
-Milestone 0, validation, as defined in [product.md#roadmap](product.md#roadmap).
-Positioning, scope, the practice loop, feedback rules and the system shape are written in [product.md](product.md) and [architecture.md](architecture.md).
-The speech-to-text bake-off is built and works end to end; it is waiting on Ryan's recordings.
-How to run it is in [bakeoff.md](bakeoff.md).
-The M1 system contract (data shapes, API, storage, module boundaries and screens) is written in [architecture.md#domain-model](architecture.md#domain-model) onward and [product.md#screens](product.md#screens), so M1 can be built in parallel.
+Milestone 1, home practice end to end, as defined in [product.md#roadmap](product.md#roadmap).
+The analysis server is built and runs end to end on synthesized takes: upload, transcription with local CrisperWhisper, analysis, a retry linked to its previous take, and the comparison.
+Coaching is built and tested against fakes; it has not run against Claude yet, because there is no Anthropic API key.
+The analysis rules have only seen synthesized speech; their block thresholds (0.5 s inside a phrase, 1.0 s for a pause plus a filler between ideas) are starting values to calibrate on Ryan's recordings.
+The iPhone app (home mode) is being built.
+The visual direction is in [design/README.md](design/README.md), with a clickable prototype.
+The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bakeoff.md](bakeoff.md).
 
 ## Decided with Ryan
 
@@ -40,7 +42,17 @@ The M1 system contract (data shapes, API, storage, module boundaries and screens
 ## Next steps
 
 1. Run the bake-off on Ryan's recordings and record the engine decision in [architecture.md#speech-to-text](architecture.md#speech-to-text).
-2. Write the coaching prompt and rubric v1 and iterate it on the same recordings with Ryan.
+2. Iterate the coaching prompt and rubric v1 on the same recordings with Ryan, once an Anthropic API key is in `server/.env`.
+3. Calibrate the block thresholds in `speakup.analysis.thresholds` on Ryan's recordings.
+4. Set up the server on the Mac mini as [server.md](server.md) describes, outside `~/Documents`.
+
+## Known issues
+
+- `PUT /v1/takes` reads the database on the event loop; harmless with SQLite WAL, but it belongs in a thread.
+- A chunked upload without `Content-Length` is spooled in full before the 100 MB limit applies.
+- Session list paging can skip a session whose `started_at` ties at a page boundary.
+- The analysis misses a restart that has no pause, comma or written cut-off; coaching's self-correction annotation covers it.
+- Without an Anthropic API key, impromptu questions come only from the built-in bank, which runs out after 8 per category.
 
 ## Deliberately not doing
 
