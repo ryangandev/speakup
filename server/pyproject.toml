@@ -14,7 +14,9 @@ dependencies = [
 [project.optional-dependencies]
 # Local CrisperWhisper. Its fast CTranslate2 backend ships Linux wheels only, so macOS uses
 # the PyTorch (transformers) backend. Model weights download on first run (several GB).
-crisper = ["crisperwhisper[transformers]>=2.0.4"]
+# transformers 5.22 breaks Whisper generation ('EncoderDecoderCache' object has no attribute
+# 'layers' in its stop check), so stay on 4.x until a 5.x release is verified.
+crisper = ["crisperwhisper[transformers]>=2.0.4", "transformers>=4.57,<5"]
 
 [project.scripts]
 speakup-bakeoff = "speakup.bakeoff.cli:main"

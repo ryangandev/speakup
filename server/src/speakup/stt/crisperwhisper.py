@@ -34,6 +34,11 @@ class CrisperWhisperEngine:
         if self._model is not None:
             return
         from crisperwhisper import CrisperWhisperModel
+        from transformers.utils import logging as transformers_logging
+
+        # CrisperWhisper drives Whisper generation in ways transformers warns about on every call
+        # (generation flags, attention mask); the warnings are not actionable from here.
+        transformers_logging.set_verbosity_error()
 
         device = setting("SPEAKUP_CRISPER_DEVICE", "mps")
         compute_type = "float16" if device != "cpu" else "float32"

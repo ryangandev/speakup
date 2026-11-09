@@ -7,6 +7,7 @@ it a fair yardstick for comparing their word timings.
 
 from __future__ import annotations
 
+import warnings
 from functools import cache
 from pathlib import Path
 
@@ -21,7 +22,11 @@ from speakup.bakeoff.metrics import MIN_PAUSE_SECONDS, Gap
 def _model():
     from silero_vad import load_silero_vad
 
-    return load_silero_vad()
+    # silero-vad 6.2 loads its model with torch.jit.load, which torch 2.15 deprecates.
+    # Nothing to change on our side until silero-vad moves off it.
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*torch.jit.load.*", category=FutureWarning)
+        return load_silero_vad()
 
 
 def speech_segments(wav_path: Path) -> list[tuple[float, float]]:
