@@ -7,6 +7,7 @@ v1 is English, work scenarios, used only by Ryan.
 
 The repository is building milestone 1, home practice end to end.
 `server/` holds the analysis server (store, pipeline worker, API, coaching, analysis) and the speech-to-text bake-off; `tools/apple-transcribe/` is the Apple engine for the bake-off.
+`ios/` holds the iPhone app (SwiftUI, iOS 26 or later); start from [ios/AGENTS.md](ios/AGENTS.md).
 What is decided, what is open and what comes next is in [docs/status.md](docs/status.md).
 
 ## Start here
@@ -27,6 +28,8 @@ From `server/` (Python, managed by `uv`):
 - `uv run python -m speakup.coaching <analysis.json> --prompt "..." [--dry-run]` coaches one take, for iterating on the coaching prompt; `--dry-run` prints the request and needs no key.
 - `SPEAKUP_UPDATE_SNAPSHOTS=1 uv run pytest tests/test_coaching_request.py` accepts an intended change to the coaching request snapshots.
 
+From `ios/`: `xcodebuild test -project SpeakUp.xcodeproj -scheme SpeakUp -destination 'platform=iOS Simulator,name=<simulator>' -derivedDataPath build/DerivedData` runs the unit tests; `-scheme SpeakUpUITests` runs the screen walkthrough against the in-app mock server, and its `RealServerTests` runs one practice loop against a running server. Details are in [ios/AGENTS.md](ios/AGENTS.md).
+
 From the repository root: `swift build -c release --package-path tools/apple-transcribe` builds the Apple engine.
 
 ## Rules that fail silently when broken
@@ -38,6 +41,7 @@ From the repository root: `swift build -c release --package-path tools/apple-tra
 - Never commit anything under `data/`: it holds Ryan's recordings and transcripts.
 - Recordings contain Ryan's work content. Do not add a new service that receives audio or transcripts without updating [Data and privacy](docs/architecture.md#data-and-privacy).
 - Before writing code that calls Claude, load the `claude-api` skill for current model IDs and API usage.
+- The iOS app builds to the Server API contract in [architecture.md](docs/architecture.md#server-api); its JSON examples are copied verbatim into `ios/SpeakUpTests/Fixtures/`, so a contract change updates both.
 
 ## Keeping docs current
 

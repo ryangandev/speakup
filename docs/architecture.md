@@ -16,8 +16,8 @@ The M1 system contract runs from [Domain model](#domain-model) to [Pipeline orch
 | `server/src/speakup/config.py` | Settings and secrets from the environment and `server/.env` |
 | `server/tests/` | Unit tests |
 | `tools/apple-transcribe/` | Swift command-line tool that runs Apple's `SpeechTranscriber` and prints JSON |
-| `server/src/speakup/{coaching,store,pipeline,api}` | M1, planned: see [Module boundaries and ownership](#module-boundaries-and-ownership) |
-| `ios/` | M1, planned: the SwiftUI app |
+| `server/src/speakup/{coaching,store,pipeline,api}` | Coaching, storage, the pipeline worker and the HTTP API: see [Module boundaries and ownership](#module-boundaries-and-ownership) |
+| `ios/` | The SwiftUI app; its layout and commands are in `ios/AGENTS.md` |
 | `data/` | Ryan's recordings, transcripts and reports; ignored by git |
 
 ## System shape
