@@ -37,10 +37,15 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 4. Put an ElevenLabs API key in `server/.env` for the bake-off (`server/.env.example` shows the names), and an AssemblyAI key if you want it compared too.
    An Anthropic API key goes there later, for coaching.
 5. Driving mode decisions:
-   1. Prepared prompts in the car: impromptu only (built), or also a "for the drive" queue built at home and read aloud before the tone. The agent recommends impromptu only for M2.
-   2. Interrupting the app while it talks: today it finishes what it is saying before it listens. The agent recommends the steering-wheel next or pause button skipping the current speech, because the better version can run for a minute.
-   3. Starting on a locked phone, and going on after a call: this needs a Live Activity on the lock screen and `AudioRecordingIntent`, which means a widget extension; it is not built until this is decided. Today Siri asks to unlock first, and a call pauses the drive.
-   4. Late feedback: when waiting gives up, should the feedback be spoken later in the same drive, once it is ready? Today it is only in History. The agent recommends yes, at the next break.
+   1. Prepared prompts in the car: impromptu only (built), or also a "for the drive" queue built at home and read aloud before the tone.
+      The agent recommends impromptu only for M2.
+   2. Interrupting the app while it talks: today it finishes what it is saying before it listens.
+      The agent recommends the steering-wheel next or pause button skipping the current speech, because the better version can run for a minute.
+   3. Starting on a locked phone, and going on after a call: this needs a Live Activity on the lock screen and `AudioRecordingIntent`, which means a widget extension; it is not built until this is decided.
+      Today Siri asks to unlock first, and a call pauses the drive.
+   4. Late feedback: when waiting gives up, should the feedback be spoken later in the same drive, once it is ready?
+      Today it is only in History.
+      The agent recommends yes, at the next break.
 6. Run a drive on the iPhone in the car, with AirPods, with the phone locked, with a call mid-take, and with a navigation prompt, and say how the defaults below feel.
 
 ## Open decisions
