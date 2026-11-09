@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 @main
@@ -14,7 +15,10 @@ struct SpeakUpApp: App {
         #if DEBUG
         DebugLaunch.apply(store: store)
         #endif
-        _app = State(initialValue: AppModel(settings: AppSettings(), store: store))
+        let app = AppModel(settings: AppSettings(), store: store)
+        // `StartDriveIntent` starts its drive through the same model as the screens.
+        AppDependencyManager.shared.add(dependency: app)
+        _app = State(initialValue: app)
     }
 
     var body: some Scene {
@@ -38,7 +42,10 @@ struct SpeakUpApp: App {
 ///   simulators with no audio input.
 /// - `-debug.microphoneFile <path>` records that audio file instead, for real speech in an
 ///   end-to-end run against the server.
+/// - `-debug.startDrive` starts a drive at launch, as the Home card or Siri would.
 enum DebugLaunch {
+    static var startsDrive: Bool { ProcessInfo.processInfo.arguments.contains("-debug.startDrive") }
+
     @MainActor
     static func apply(store: PracticeStore) {
         let arguments = ProcessInfo.processInfo.arguments
