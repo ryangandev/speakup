@@ -1,0 +1,24 @@
+{
+  "id": "e98b1f37-2a4c-4d1e-9f60-6b5c8a0d3e21",
+  "prompt_id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8",
+  "session_id": "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10",
+  "attempt": 2,
+  "recorded_at": "2026-11-09T08:19:47.530Z",
+  "duration_s": 78.2,
+  "mic_route": "built_in",
+  "status": "done",
+  "status_changed_at": "2026-11-09T08:21:41.712Z",
+  "coaching_status": "done",
+  "previous_take_id": "c41a7e02-5b9d-4c66-8e1f-0a7b3d92f5c4",
+  "error": null,
+  "summary": {
+    "verdict": "Much clearer: the decision comes first and the reasons are numbered. The ending still fades out.",
+    "focus_titles": ["Close on purpose"],
+    "fillers_per_100_words": 2.9,
+    "blocks": 1,
+    "restarts": 2,
+    "wpm_voiced": 171.4
+  },
+  "created_at": "2026-11-09T08:21:06.004Z",
+  "updated_at": "2026-11-09T08:21:41.712Z"
+}

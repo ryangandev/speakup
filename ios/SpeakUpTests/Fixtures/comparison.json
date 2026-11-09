@@ -1,0 +1,30 @@
+{
+  "take_id": "e98b1f37-2a4c-4d1e-9f60-6b5c8a0d3e21",
+  "previous_take_id": "c41a7e02-5b9d-4c66-8e1f-0a7b3d92f5c4",
+  "attempt": 2,
+  "previous_attempt": 1,
+  "coaching_status": "done",
+  "summary": "The reasons are now numbered and the long block is gone; the ending still trails off.",
+  "focus_outcomes": [
+    {"title": "Number your reasons", "dimension": "layering", "outcome": "improved", "evidence": "You announced two reasons and numbered them.", "anchor": {"quote": "Two reasons. First,", "word_start": 6, "word_end": 9, "start": 2.1, "end": 3.0}},
+    {"title": "Stop silently, not mid-phrase", "dimension": "fluency", "outcome": "partly_improved", "evidence": "No block before the main reason this time, but two \"like\" fillers came back in the second reason.", "anchor": null}
+  ],
+  "dimension_changes": [
+    {"dimension": "answer_first", "before": "strong", "after": "strong", "change": "same"},
+    {"dimension": "layering", "before": "needs_work", "after": "strong", "change": "better"},
+    {"dimension": "focus", "before": "okay", "after": "strong", "change": "better"},
+    {"dimension": "concision", "before": "okay", "after": "okay", "change": "same"},
+    {"dimension": "fluency", "before": "okay", "after": "okay", "change": "same"},
+    {"dimension": "close", "before": "needs_work", "after": "needs_work", "change": "same"}
+  ],
+  "metric_changes": [
+    {"metric": "fillers_per_100_words", "label": "Fillers per 100 words", "unit": "per 100 words", "before": 3.74, "after": 2.9, "change": "better"},
+    {"metric": "blocks", "label": "Blocks", "unit": "count", "before": 4, "after": 1, "change": "better"},
+    {"metric": "restarts", "label": "Restarts", "unit": "count", "before": 2, "after": 2, "change": "same"},
+    {"metric": "repetitions", "label": "Repetitions", "unit": "count", "before": 3, "after": 4, "change": "worse"},
+    {"metric": "wpm_voiced", "label": "Pace", "unit": "words per minute", "before": 180.1, "after": 171.4, "change": "info"},
+    {"metric": "duration_s", "label": "Length", "unit": "seconds", "before": 96.4, "after": 78.2, "change": "info"},
+    {"metric": "pitch_variation_st", "label": "Pitch variation", "unit": "semitones", "before": 2.3, "after": 2.6, "change": "info"},
+    {"metric": "volume_variation_db", "label": "Volume variation", "unit": "dB", "before": 4.1, "after": 4.0, "change": "info"}
+  ]
+}

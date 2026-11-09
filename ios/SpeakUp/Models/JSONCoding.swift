@@ -37,8 +37,14 @@ enum JSONCoding {
         (try? withFraction.parse(text)) ?? (try? withoutFraction.parse(text))
     }
 
+    /// Rounds to the nearest millisecond. `ISO8601FormatStyle` truncates instead, so a time
+    /// parsed from "…50.020Z" (stored as …50.01999…) would go back out as "…50.019Z".
     static func formatDate(_ date: Date) -> String {
-        date.formatted(withFraction)
+        let milliseconds = (date.timeIntervalSince1970 * 1000).rounded()
+        let seconds = (milliseconds / 1000).rounded(.down)
+        let fraction = Int(milliseconds - seconds * 1000)
+        let whole = Date(timeIntervalSince1970: seconds).formatted(withoutFraction)
+        return "\(whole.dropLast()).\(String(format: "%03d", fraction))Z"
     }
 }
 

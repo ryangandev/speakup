@@ -1,0 +1,17 @@
+{
+  "summary": "The reasons are now numbered and the long block is gone; the ending still trails off.",
+  "focus_outcomes": [
+    {
+      "previous_focus_index": 0,
+      "outcome": "improved",
+      "evidence": "You announced two reasons and numbered them.",
+      "anchor": {"quote": "Two reasons. First,", "word_start": 6, "word_end": 9, "start": 2.1, "end": 3.0}
+    },
+    {
+      "previous_focus_index": 1,
+      "outcome": "partly_improved",
+      "evidence": "No block before the main reason this time, but two \"like\" fillers came back in the second reason.",
+      "anchor": null
+    }
+  ]
+}

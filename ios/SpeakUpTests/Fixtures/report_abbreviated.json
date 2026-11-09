@@ -1,0 +1,7 @@
+{
+  "take": {"id": "c41a7e02-5b9d-4c66-8e1f-0a7b3d92f5c4", "attempt": 1, "status": "done", "coaching_status": "done"},
+  "prompt": {"id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8", "kind": "impromptu", "text": "Why did we choose Postgres over DynamoDB for the billing service?"},
+  "analysis": {"schema_version": "analysis/1"},
+  "coaching": {"schema_version": "coaching/1"},
+  "has_comparison": false
+}

@@ -1,0 +1,8 @@
+{
+  "source": "claude",
+  "questions": [
+    {"text": "Your manager asks why the search rewrite slipped two weeks. Explain what happened and what you are doing about it.", "category": "status", "target_seconds": 90},
+    {"text": "Why did you split the notifications service out of the monolith instead of fixing it in place?", "category": "decision", "target_seconds": 90},
+    {"text": "A product manager wants a feature by Friday that you think needs two weeks. Push back.", "category": "pushback", "target_seconds": 60}
+  ]
+}
