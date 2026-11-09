@@ -32,6 +32,10 @@ Debug builds only; none of this exists in Release.
   Simulated input of either kind skips the microphone permission prompt.
 - In a drive, either flag replaces the drive engine's input with `ScriptedMicrophone` (`Drive/DriveDebug.swift`): silence in real time, with the `-debug.microphoneFile` clip played once each time a take opens, so a WAV that ends with a spoken "done" drives a take.
   The simulator's input node reports 0 Hz and cannot be tapped, so a drive there needs one of these flags.
+- `-debug.recognizerScript <json>` replaces a drive's speech recognizer with `ScriptedRecognizer` (`Drive/ScriptedRecognizer.swift`), which hears scripted words on the drive clock, such as `{"recording": ["so that is my answer@0.5 done@4.2"], "betweenTakes": ["again@0.5"]}`.
+  Each listening window takes the next line of its mode, and `answer@0.5` starts the phrase that ends with it 0.5 s into the window.
+  A window starts at the time given to `listen`, or at the drive clock if `listen` comes later, which is about when the scripted microphone starts the take clip.
+  The simulator has no recognizer for commands (`SpeechTranscriber` is unsupported and `DictationTranscriber` has no model), so a drive there needs this flag; an invalid script makes the drive report commands unavailable.
 - `-serverAddress <url>` sets the server address for this launch.
 
 Settings shows the same mock toggle and scenario picker in Debug builds.
@@ -41,7 +45,8 @@ Settings shows the same mock toggle and scenario picker in Debug builds.
 - `App/`: the app entry, `AppModel` (settings, API client, store, server status) and `RootView` (tabs, sheets, the take flow cover).
 - `Models/`: Codable types for every contract shape. `Networking/`: the `SpeakUpAPI` protocol and its HTTP client.
 - `Audio/`: the `AVAudioEngine` recorder, the WAV writer and playback.
-- `Drive/`: driving mode: the drive audio core (`DriveAudio`: one engine for the whole drive, the take gate and trim, the driving audio session), command spotting and the spoken script.
+- `Drive/`: driving mode: the drive audio core (`DriveAudio`: one engine for the whole drive, the take gate and trim, the driving audio session), command recognition (`SpeechCommandRecognizer` on `SpeechAnalyzer`, its pure decisions in `CommandRecognition.swift`, the Debug `ScriptedRecognizer`), command spotting and the spoken script.
+  `tools/drive-commands` runs the recognition files on the Mac against real speech; keep them free of iOS-only APIs.
 - `Practice/`: the phone's local store, upload sync, the polling state machine and transcript layout.
 - `Screens/`: one file per screen group. `Settings/`: settings and the Keychain.
 - `Theme/`: every color, font, spacing value and transcript mark, plus reusable components.
