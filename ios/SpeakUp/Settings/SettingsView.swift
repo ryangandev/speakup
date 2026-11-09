@@ -59,6 +59,9 @@ struct SettingsView: View {
                 .accessibilityLabel("Server address")
             if let newToken {
                 SecureField("Token", text: Binding(get: { newToken }, set: { self.newToken = $0 }))
+                    // Not a password: without a content type iOS offers "Save Password?" when
+                    // Settings closes, and the token would land in the user's password manager.
+                    .textContentType(.oneTimeCode)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityLabel("Token")

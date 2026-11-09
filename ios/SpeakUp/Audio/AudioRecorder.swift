@@ -207,9 +207,17 @@ final class AudioRecorder {
     /// Debug builds only, set by `-debug.syntheticMicrophone`: records a generated signal
     /// instead of the microphone, for simulators that have no audio input.
     static var usesSyntheticInput = false
+    /// Debug builds only, set by `-debug.microphoneFile <path>`: plays this audio file into the
+    /// recording in real time, looping, so a simulator can record real speech for an end-to-end
+    /// run against the server.
+    static var syntheticInputFile: URL?
     private var synthetic: Task<Void, Never>?
 
     private func startSynthetic(to url: URL) throws {
+        if let file = Self.syntheticInputFile {
+            try startFilePlayback(of: file, to: url)
+            return
+        }
         let rate = 48_000.0
         guard let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1) else {
             throw RecorderError.noInput
@@ -234,6 +242,35 @@ final class AudioRecorder {
                     samples[index] = Float(0.3 * envelope * sin(2 * .pi * 220 * t))
                 }
                 frame += chunk
+                sink.append(buffer)
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        didStart()
+    }
+
+    private func startFilePlayback(of file: URL, to url: URL) throws {
+        let sink = try RecordingSink(url: url, inputFormat: AVAudioFile(forReading: file).processingFormat)
+        self.sink = sink
+        micRoute = .builtIn
+        micName = "Simulated microphone: \(file.lastPathComponent)"
+        synthetic = Task.detached {
+            // Opened here, not captured: AVAudioFile is not Sendable.
+            guard let source = try? AVAudioFile(forReading: file) else { return }
+            let format = source.processingFormat
+            let chunk = AVAudioFrameCount(format.sampleRate / 10)
+            // 100 ms of audio every 100 ms, from the start of the file again when it ends.
+            while !Task.isCancelled {
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { return }
+                do {
+                    try source.read(into: buffer, frameCount: chunk)
+                } catch {
+                    return
+                }
+                if buffer.frameLength == 0 {
+                    source.framePosition = 0
+                    continue
+                }
                 sink.append(buffer)
                 try? await Task.sleep(for: .milliseconds(100))
             }
@@ -391,6 +428,10 @@ enum MicrophonePermission {
 
     /// Asks when undetermined; returns whether recording is allowed.
     static func request() async -> Bool {
+        #if DEBUG
+        // Simulated input never opens the microphone, so it needs no permission.
+        if await AudioRecorder.usesSyntheticInput { return true }
+        #endif
         switch state {
         case .granted: return true
         case .denied: return false

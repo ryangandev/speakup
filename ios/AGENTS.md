@@ -13,6 +13,7 @@ Use one simulator and one `xcodebuild` at a time.
 - Test: `xcodebuild test -project SpeakUp.xcodeproj -scheme SpeakUp -destination 'platform=iOS Simulator,name=<simulator>' -derivedDataPath build/DerivedData`
 - One suite: add `-only-testing:SpeakUpTests/ProcessingControllerTests`.
 - Screen walkthrough: the same `test` command with `-scheme SpeakUpUITests`. It drives every home-mode screen against the mock server and attaches a screenshot of each to the result bundle. Set `TEST_RUNNER_SHOT_DIR=<dir>` to also write the PNGs there, and `TEST_RUNNER_SHOT_SUFFIX=<name>` to tell runs apart. Switch appearance and text size between runs with `xcrun simctl ui <udid> appearance dark` and `xcrun simctl ui <udid> content_size accessibility-large`. It is slow (several minutes), so it is a separate scheme, not part of `SpeakUp`'s tests.
+- Real server: `-scheme SpeakUpUITests -only-testing:SpeakUpUITests/RealServerTests` runs one practice loop (settings, take, report, retry, comparison) against a running `speakup-server`. Pass `TEST_RUNNER_SPEAKUP_SERVER=http://127.0.0.1:<port>`, `TEST_RUNNER_SPEAKUP_TOKEN=<token>` and `TEST_RUNNER_SPEAKUP_MIC_FILE=<a speech WAV>`; without them it is skipped. A speech WAV can be made with `say -o take.wav --data-format=LEI16@16000 "..."`.
 - Install and launch on a booted simulator: `xcrun simctl install <udid> build/DerivedData/Build/Products/Debug-iphonesimulator/SpeakUp.app`, then `xcrun simctl launch <udid> dev.ryangan.speakup <arguments>`.
 
 `build/` is ignored.
@@ -27,6 +28,9 @@ Debug builds only; none of this exists in Release.
 - `-resetState` clears the phone's practice state at launch. The mock server keeps its data in memory, so it starts fresh on every launch anyway; pass `-resetState` with it so the phone does not point at takes the mock no longer has.
 - `-slowAfter <seconds>` shortens the "Taking longer than usual" threshold.
 - `-debug.syntheticMicrophone` records a generated tone instead of the microphone. Simulators usually have no audio input, so recording fails there without it.
+- `-debug.microphoneFile <path>` records an audio file on the Mac instead, played in real time and looped, so the server gets real speech to transcribe.
+  Simulated input of either kind skips the microphone permission prompt.
+- `-serverAddress <url>` sets the server address for this launch.
 
 Settings shows the same mock toggle and scenario picker in Debug builds.
 

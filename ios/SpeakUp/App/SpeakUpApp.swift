@@ -36,12 +36,18 @@ struct SpeakUpApp: App {
 /// - `-slowAfter <seconds>` shortens the "Taking longer than usual" threshold.
 /// - `-debug.syntheticMicrophone` records a generated signal instead of the microphone, for
 ///   simulators with no audio input.
+/// - `-debug.microphoneFile <path>` records that audio file instead, for real speech in an
+///   end-to-end run against the server.
 enum DebugLaunch {
     @MainActor
     static func apply(store: PracticeStore) {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-resetState") { store.removeAll() }
         if arguments.contains("-debug.syntheticMicrophone") { AudioRecorder.usesSyntheticInput = true }
+        if let index = arguments.firstIndex(of: "-debug.microphoneFile"), index + 1 < arguments.count {
+            AudioRecorder.usesSyntheticInput = true
+            AudioRecorder.syntheticInputFile = URL(fileURLWithPath: arguments[index + 1])
+        }
         if let index = arguments.firstIndex(of: "-slowAfter"), index + 1 < arguments.count,
             let seconds = TimeInterval(arguments[index + 1])
         {
