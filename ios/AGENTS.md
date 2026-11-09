@@ -14,6 +14,10 @@ Use one simulator and one `xcodebuild` at a time.
 - One suite: add `-only-testing:SpeakUpTests/ProcessingControllerTests`.
 - Screen walkthrough: the same `test` command with `-scheme SpeakUpUITests`. It drives every home-mode screen against the mock server and attaches a screenshot of each to the result bundle. Set `TEST_RUNNER_SHOT_DIR=<dir>` to also write the PNGs there, and `TEST_RUNNER_SHOT_SUFFIX=<name>` to tell runs apart. Switch appearance and text size between runs with `xcrun simctl ui <udid> appearance dark` and `xcrun simctl ui <udid> content_size accessibility-large`. It is slow (several minutes), so it is a separate scheme, not part of `SpeakUp`'s tests.
 - Real server: `-scheme SpeakUpUITests -only-testing:SpeakUpUITests/RealServerTests` runs one practice loop (settings, take, report, retry, comparison) against a running `speakup-server`. Pass `TEST_RUNNER_SPEAKUP_SERVER=http://127.0.0.1:<port>`, `TEST_RUNNER_SPEAKUP_TOKEN=<token>` and `TEST_RUNNER_SPEAKUP_MIC_FILE=<a speech WAV>`; without them it is skipped. A speech WAV can be made with `say -o take.wav --data-format=LEI16@16000 "..."`.
+- Drives: `-scheme SpeakUpUITests -only-testing:SpeakUpUITests/DriveUITests` runs four drives against the mock server in about two minutes: every command, no coaching, offline, and a drive started over an open sheet. They assert on the spoken log, so they prove the wiring; `DriveLoopTests` covers the loop itself.
+- Real server drive: `-only-testing:SpeakUpUITests/DriveRealServerTests` runs one drive (rating, answer, "again", answer, "stop") against a running `speakup-server` and checks the server got both takes cut at "done", the second a retry of the first. It takes the `RealServerTests` variables plus `TEST_RUNNER_SPEAKUP_DRIVE_SCRIPT`, the clip's words as a recognizer script line ending in `done@<seconds>`. The clip must end in a spoken "done" after a pause: `say -o take.wav --data-format=LEI16@16000 "<answer> [[slnc 1000]] done [[slnc 2000]]"`, with "done" at about the length of the same `say` without it plus one second. For a throwaway server, run `uv run speakup-server` from `server/` with `SPEAKUP_API_TOKEN`, a scratch `SPEAKUP_DATA_DIR` and a free `SPEAKUP_PORT` in the environment; the environment wins over `server/.env`.
+- Both real-server tests type the token into Settings, so the test log holds it: keep the log private and delete it after.
+- `xcodebuild test` can sit idle after the UI tests report; once the log says "Executed N tests", it is safe to stop it.
 - Install and launch on a booted simulator: `xcrun simctl install <udid> build/DerivedData/Build/Products/Debug-iphonesimulator/SpeakUp.app`, then `xcrun simctl launch <udid> dev.ryangan.speakup <arguments>`.
 
 `build/` is ignored.
@@ -67,7 +71,7 @@ Settings shows the same mock toggle and scenario picker in Debug builds.
 - `Theme/`: every color, font, spacing value and transcript mark, plus reusable components.
 - `Mock/`: the Debug-only mock server.
 - `SpeakUpTests/Fixtures/`: the JSON examples from the contract, copied verbatim.
-- `SpeakUpUITests/`: the screen walkthrough, and `DriveUITests`: one scripted drive from the Home card checked through the spoken log, and a drive started over an open sheet.
+- `SpeakUpUITests/`: the screen walkthrough, `DriveUITests` (scripted drives checked through the spoken log), and the opt-in `RealServerTests` and `DriveRealServerTests`, which share `RealServerSupport.swift`.
 
 The project uses synchronized folders: a new file under `SpeakUp/`, `SpeakUpTests/` or `SpeakUpUITests/` is in its target with no project edit.
 
