@@ -25,6 +25,7 @@ Load only the document and section a request needs.
 | Which Python package owns what, and the functions between them | [architecture.md#module-boundaries-and-ownership](architecture.md#module-boundaries-and-ownership) |
 | How a take moves through stages, retries, and running without coaching | [architecture.md#pipeline-orchestration](architecture.md#pipeline-orchestration) |
 | Server settings and secrets | [architecture.md#configuration](architecture.md#configuration) |
+| Running the server on the Mac mini: setup, launchd, Tailscale, logs, backups | [server.md](server.md) |
 | Which speech-to-text engine and why | [architecture.md#speech-to-text](architecture.md#speech-to-text), [research.md#speech-to-text](research.md#speech-to-text) |
 | Running the M0 bake-off, reading its report, and deciding | [bakeoff.md](bakeoff.md) |
 | Which files a change touches | [architecture.md#code-map](architecture.md#code-map) |
@@ -45,5 +46,7 @@ List a document's headings with `rg '^##' docs/<file>.md` and read only the matc
 - `architecture.md` says how each part works, why it is built that way, and where its code is.
   It holds no history.
 - `bakeoff.md` owns the M0 bake-off procedure and decision criteria.
+- `server.md` owns operating the server: install, launchd, Tailscale, logs, restarts and backups.
+  How the server works stays in `architecture.md`.
 - `research.md` holds external findings with sources and dates.
   Update an entry when a re-check changes it; do not stack old versions.

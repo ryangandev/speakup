@@ -5,7 +5,8 @@ Ryan records short solo answers, gets direct feedback on fluency and structure, 
 It has an iPhone app, written in SwiftUI, and an analysis server that runs on Ryan's home Mac mini.
 v1 is English, work scenarios, used only by Ryan.
 
-The repository is in milestone 0: the only code is the speech-to-text bake-off in `server/` and `tools/apple-transcribe/`.
+The repository is building milestone 1, home practice end to end.
+`server/` holds the analysis server (store, pipeline worker, API, coaching, analysis) and the speech-to-text bake-off; `tools/apple-transcribe/` is the Apple engine for the bake-off.
 What is decided, what is open and what comes next is in [docs/status.md](docs/status.md).
 
 ## Start here
@@ -22,6 +23,7 @@ From `server/` (Python, managed by `uv`):
 - `uv sync --extra crisper` installs everything, including local CrisperWhisper.
 - `uv run pytest` runs the tests; `uv run ruff format` and `uv run ruff check` format and lint.
 - `uv run speakup-bakeoff --help` runs the bake-off; the procedure is in [docs/bakeoff.md](docs/bakeoff.md).
+- `uv run speakup-server` runs the analysis server on 127.0.0.1; it needs `SPEAKUP_API_TOKEN` (32 characters or more) in `server/.env`. Operating it is in [docs/server.md](docs/server.md).
 - `uv run python -m speakup.coaching <analysis.json> --prompt "..." [--dry-run]` coaches one take, for iterating on the coaching prompt; `--dry-run` prints the request and needs no key.
 - `SPEAKUP_UPDATE_SNAPSHOTS=1 uv run pytest tests/test_coaching_request.py` accepts an intended change to the coaching request snapshots.
 
