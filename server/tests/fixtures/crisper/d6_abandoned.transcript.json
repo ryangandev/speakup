@@ -1,0 +1,183 @@
+{
+  "engine": "crisper-turbo",
+  "text": "We should we need to rethink the whole approach to caching, I want to I would start with the read path, because the [UH] the right path is fine.",
+  "words": [
+    {
+      "text": "We",
+      "start": 0.04,
+      "end": 0.12000000000000001,
+      "confidence": 0.9922462105751038
+    },
+    {
+      "text": "should",
+      "start": 0.12000000000000001,
+      "end": 0.4,
+      "confidence": 0.9811005592346191
+    },
+    {
+      "text": "we",
+      "start": 0.78,
+      "end": 0.88,
+      "confidence": 0.44743579626083374
+    },
+    {
+      "text": "need",
+      "start": 0.88,
+      "end": 1.11,
+      "confidence": 0.9976807832717896
+    },
+    {
+      "text": "to",
+      "start": 1.11,
+      "end": 1.24,
+      "confidence": 0.9998944997787476
+    },
+    {
+      "text": "rethink",
+      "start": 1.24,
+      "end": 1.6600000000000001,
+      "confidence": 0.9786238670349121
+    },
+    {
+      "text": "the",
+      "start": 1.6600000000000001,
+      "end": 1.76,
+      "confidence": 0.9998660087585449
+    },
+    {
+      "text": "whole",
+      "start": 1.76,
+      "end": 2.0,
+      "confidence": 0.9991304278373718
+    },
+    {
+      "text": "approach",
+      "start": 2.0,
+      "end": 2.46,
+      "confidence": 0.9993045330047607
+    },
+    {
+      "text": "to",
+      "start": 2.46,
+      "end": 2.59,
+      "confidence": 0.9998992681503296
+    },
+    {
+      "text": "caching,",
+      "start": 2.59,
+      "end": 3.1,
+      "confidence": 0.8154598673184713
+    },
+    {
+      "text": "I",
+      "start": 3.36,
+      "end": 3.52,
+      "confidence": 0.9989309906959534
+    },
+    {
+      "text": "want",
+      "start": 3.52,
+      "end": 3.8200000000000003,
+      "confidence": 0.9942588806152344
+    },
+    {
+      "text": "to",
+      "start": 3.8200000000000003,
+      "end": 4.0600000000000005,
+      "confidence": 0.9985440969467163
+    },
+    {
+      "text": "I",
+      "start": 4.5600000000000005,
+      "end": 4.66,
+      "confidence": 0.9091421365737915
+    },
+    {
+      "text": "would",
+      "start": 4.66,
+      "end": 4.84,
+      "confidence": 0.996772825717926
+    },
+    {
+      "text": "start",
+      "start": 4.84,
+      "end": 5.18,
+      "confidence": 0.9991412162780762
+    },
+    {
+      "text": "with",
+      "start": 5.18,
+      "end": 5.33,
+      "confidence": 0.9998466968536377
+    },
+    {
+      "text": "the",
+      "start": 5.33,
+      "end": 5.460000000000001,
+      "confidence": 0.9983595013618469
+    },
+    {
+      "text": "read",
+      "start": 5.460000000000001,
+      "end": 5.71,
+      "confidence": 0.9248377084732056
+    },
+    {
+      "text": "path,",
+      "start": 5.71,
+      "end": 6.12,
+      "confidence": 0.7973167598247528
+    },
+    {
+      "text": "because",
+      "start": 6.38,
+      "end": 6.74,
+      "confidence": 0.9960054755210876
+    },
+    {
+      "text": "the",
+      "start": 6.74,
+      "end": 6.9,
+      "confidence": 0.9864909648895264
+    },
+    {
+      "text": "[UH]",
+      "start": 6.9,
+      "end": 7.1000000000000005,
+      "confidence": 0.9965823292732239
+    },
+    {
+      "text": "the",
+      "start": 7.44,
+      "end": 7.54,
+      "confidence": 0.9907324314117432
+    },
+    {
+      "text": "right",
+      "start": 7.54,
+      "end": 7.78,
+      "confidence": 0.8209441304206848
+    },
+    {
+      "text": "path",
+      "start": 7.78,
+      "end": 8.05,
+      "confidence": 0.9994999170303345
+    },
+    {
+      "text": "is",
+      "start": 8.05,
+      "end": 8.25,
+      "confidence": 0.9998823404312134
+    },
+    {
+      "text": "fine.",
+      "start": 8.25,
+      "end": 8.66,
+      "confidence": 0.9954650104045868
+    }
+  ],
+  "audio_seconds": 8.8839375,
+  "elapsed_seconds": 0.0,
+  "raw": {}
+}

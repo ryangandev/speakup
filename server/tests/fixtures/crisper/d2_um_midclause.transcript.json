@@ -1,0 +1,153 @@
+{
+  "engine": "crisper-turbo",
+  "text": "The main reason we picked it was [UM] the cost of running it ourselves, it was just [UH] too high for a small team.",
+  "words": [
+    {
+      "text": "The",
+      "start": 0.02,
+      "end": 0.08,
+      "confidence": 0.989018440246582
+    },
+    {
+      "text": "main",
+      "start": 0.08,
+      "end": 0.32,
+      "confidence": 0.9998420476913452
+    },
+    {
+      "text": "reason",
+      "start": 0.32,
+      "end": 0.7,
+      "confidence": 0.9997609257698059
+    },
+    {
+      "text": "we",
+      "start": 0.7,
+      "end": 0.8600000000000001,
+      "confidence": 0.999816358089447
+    },
+    {
+      "text": "picked",
+      "start": 0.8600000000000001,
+      "end": 1.1400000000000001,
+      "confidence": 0.9954719543457031
+    },
+    {
+      "text": "it",
+      "start": 1.1400000000000001,
+      "end": 1.26,
+      "confidence": 0.9993399977684021
+    },
+    {
+      "text": "was",
+      "start": 1.26,
+      "end": 1.62,
+      "confidence": 0.9977884292602539
+    },
+    {
+      "text": "[UM]",
+      "start": 2.3000000000000003,
+      "end": 2.54,
+      "confidence": 0.9908632040023804
+    },
+    {
+      "text": "the",
+      "start": 2.94,
+      "end": 3.05,
+      "confidence": 0.9234198331832886
+    },
+    {
+      "text": "cost",
+      "start": 3.05,
+      "end": 3.34,
+      "confidence": 0.9996091723442078
+    },
+    {
+      "text": "of",
+      "start": 3.34,
+      "end": 3.44,
+      "confidence": 0.9999873638153076
+    },
+    {
+      "text": "running",
+      "start": 3.44,
+      "end": 3.7600000000000002,
+      "confidence": 0.9998353719711304
+    },
+    {
+      "text": "it",
+      "start": 3.7600000000000002,
+      "end": 3.86,
+      "confidence": 0.999212384223938
+    },
+    {
+      "text": "ourselves,",
+      "start": 3.86,
+      "end": 4.38,
+      "confidence": 0.758163183927536
+    },
+    {
+      "text": "it",
+      "start": 4.82,
+      "end": 4.9399999999999995,
+      "confidence": 0.9933116436004639
+    },
+    {
+      "text": "was",
+      "start": 4.9399999999999995,
+      "end": 5.12,
+      "confidence": 0.9999370574951172
+    },
+    {
+      "text": "just",
+      "start": 5.12,
+      "end": 5.48,
+      "confidence": 0.9984034895896912
+    },
+    {
+      "text": "[UH]",
+      "start": 6.12,
+      "end": 6.42,
+      "confidence": 0.9994358420372009
+    },
+    {
+      "text": "too",
+      "start": 6.7,
+      "end": 6.880000000000001,
+      "confidence": 0.9941500425338745
+    },
+    {
+      "text": "high",
+      "start": 6.880000000000001,
+      "end": 7.17,
+      "confidence": 0.9995154142379761
+    },
+    {
+      "text": "for",
+      "start": 7.17,
+      "end": 7.300000000000001,
+      "confidence": 0.99983811378479
+    },
+    {
+      "text": "a",
+      "start": 7.300000000000001,
+      "end": 7.42,
+      "confidence": 0.998554527759552
+    },
+    {
+      "text": "small",
+      "start": 7.42,
+      "end": 7.79,
+      "confidence": 0.9984891414642334
+    },
+    {
+      "text": "team.",
+      "start": 7.79,
+      "end": 8.24,
+      "confidence": 0.9862632751464844
+    }
+  ],
+  "audio_seconds": 8.464125,
+  "elapsed_seconds": 0.0,
+  "raw": {}
+}

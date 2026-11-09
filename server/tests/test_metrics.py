@@ -7,7 +7,7 @@ from speakup.bakeoff.metrics import (
     score_pauses,
     word_gaps,
 )
-from speakup.bakeoff.text import Token, tokens_from_text
+from speakup.text import Token, tokens_from_text
 
 
 def test_repetitions_skip_fillers_and_cover_phrases():

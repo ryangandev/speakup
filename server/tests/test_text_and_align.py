@@ -1,6 +1,6 @@
 from speakup.bakeoff.align import align
-from speakup.bakeoff.text import Token, tokens_from_text, tokens_from_words
 from speakup.stt import Word
+from speakup.text import Token, tokens_from_text, tokens_from_words
 
 
 def texts(tokens: list[Token]) -> list[str]:

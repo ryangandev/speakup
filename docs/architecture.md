@@ -10,11 +10,13 @@ The M1 system contract runs from [Domain model](#domain-model) to [Pipeline orch
 | --- | --- |
 | `server/` | Python package `speakup`, managed by `uv`; the future analysis server |
 | `server/src/speakup/stt/` | Speech-to-text engines behind one interface: `Word`, `Transcript`, `Engine` in `__init__.py`, one module per engine, `registry.py` |
-| `server/src/speakup/bakeoff/` | M0 bake-off: token normalization (`text.py`), alignment (`align.py`), scoring (`metrics.py`), reference pauses (`vad.py`), report and command line |
+| `server/src/speakup/bakeoff/` | M0 bake-off: alignment (`align.py`), scoring (`metrics.py`), reference pauses (`vad.py`, on the analysis voice-activity track), report and command line |
+| `server/src/speakup/text.py` | Token normalization, shared by analysis and the bake-off |
+| `server/src/speakup/analysis/` | Analysis: acoustics, event rules, metrics, `Thresholds`, finalization and metric comparison |
 | `server/src/speakup/config.py` | Settings and secrets from the environment and `server/.env` |
 | `server/tests/` | Unit tests |
 | `tools/apple-transcribe/` | Swift command-line tool that runs Apple's `SpeechTranscriber` and prints JSON |
-| `server/src/speakup/{text.py,analysis,coaching,store,pipeline,api}` | M1, planned: see [Module boundaries and ownership](#module-boundaries-and-ownership) |
+| `server/src/speakup/{coaching,store,pipeline,api}` | M1, planned: see [Module boundaries and ownership](#module-boundaries-and-ownership) |
 | `ios/` | M1, planned: the SwiftUI app |
 | `data/` | Ryan's recordings, transcripts and reports; ignored by git |
 
@@ -187,13 +189,13 @@ Events point into it, so the transcript the app renders and the indexes coaching
 | --- | --- | --- |
 | `i` | integer | Index in `words` |
 | `text` | string | The word as the engine wrote it, with its punctuation, for display |
-| `norm` | string | Normalized tokens joined by one space, from `tokens_from_words` (see `bakeoff/text.py`); empty for non-speech |
+| `norm` | string | Normalized tokens joined by one space, from `tokens_from_words` (see `speakup/text.py`); empty for non-speech |
 | `start`, `end` | number | Seconds |
 | `confidence` | number or null | Engine confidence, 0 to 1 |
 | `kind` | `word`, `filled_pause`, or `non_speech` | `filled_pause` when `norm` is um, uh or hmm; `non_speech` for sounds such as "(laughter)" |
 | `cutoff` | boolean | The word was broken off mid-way ("th-") |
 
-Normalization reuses the existing token rules instead of duplicating them: the analysis implementer moves `bakeoff/text.py` to `speakup/text.py` and the bake-off imports it from there.
+Normalization reuses the bake-off's token rules instead of duplicating them: they live in `speakup/text.py`, which both import.
 
 ### Word ranges
 
@@ -210,7 +212,7 @@ All events share one flat shape, so the app and JSON Schema need a single type.
 | --- | --- | --- |
 | `id` | string | Stable within the take: `e0`, `e1`, ... from analysis, `c0`, `c1`, ... from coaching |
 | `type` | see below | |
-| `start`, `end` | number | Seconds; for a pause, the silence itself |
+| `start`, `end` | number | Seconds; for a pause, the whole hesitation (see below) |
 | `word_start`, `word_end` | integer | Half-open word range |
 | `source` | `rules` or `coaching` | Who found it |
 | `reason` | string or null | Sub-kind, listed per type below |
@@ -233,7 +235,12 @@ Lexical filler candidates are "like", "you know", "so", "basically", "kind of", 
 Analysis sets `is_filler` from rules (for example, sentence-initial "so" followed by a pause, or "like" not followed by a noun phrase) with `filler_resolution: "rules"`; coaching overrides it in context.
 
 Pauses are silences of at least 250 ms between the first and last word, from the voice-activity track cross-checked against word gaps.
-Each becomes exactly one `block` or `boundary_pause` event.
+Silences and filled pauses between the same two words are one hesitation: "was [0.6 s] um [0.3 s] the" is one hesitation, not two.
+Each hesitation becomes at most one `block` or `boundary_pause` event, which spans from the start of its first silence or filled pause to the end of its last, with an empty word range just before its first word; its filled pauses are still marked on their own.
+A hesitation in which a silence is followed by a filled pause is a `before_filler` block, and one right before a restart or repetition is a `before_restart` block, from 250 ms.
+At a sentence or clause boundary a hesitation is a `boundary_pause`, unless a silence is followed by a filled pause and the whole hesitation lasts at least 1 second, which makes it a `before_filler` block: getting stuck between ideas.
+Inside a phrase a hesitation is an `inside_phrase` block from 500 ms; a shorter one is no event, and no pause metric counts it.
+These two values (`Thresholds.block_min_s` and `boundary_filler_block_min_s`) are starting points, to be calibrated on Ryan's takes.
 Silence before the first word is the `speech_start_s` metric, not an event; for an impromptu prompt it is thinking time.
 
 ### Metrics
@@ -253,10 +260,10 @@ Denominators: `word_count` counts words of kind `word` (lexical fillers and cut-
 | `fillers.lexical_candidates` | integer | All lexical candidates |
 | `fillers.per_100_words` | number | (filled pauses + lexical fillers) / `word_count` × 100 |
 | `fillers.resolution` | `rules` or `coaching` | Whether coaching has judged the lexical candidates |
-| `blocks.count` | integer | |
+| `blocks.count` | integer | Block events, one per hesitation |
 | `blocks.per_minute` | number | Per minute of `speaking_s` |
 | `blocks.longest_s`, `blocks.total_s` | number | |
-| `boundary_pauses.count` | integer | |
+| `boundary_pauses.count` | integer | Boundary pause events, one per hesitation |
 | `boundary_pauses.median_s` | number or null | |
 | `restarts`, `repetitions` | integer | Event counts |
 | `pace.wpm_voiced` | number | `word_count` / `voiced_s` × 60; the product's pace metric |
@@ -279,10 +286,10 @@ Pace, pitch and volume are shown for information and are not graded in v1, as [p
 `nervousness_signs` lists only the signs present, each `{type, start, end, value, detail}`.
 They are shown next to the self-rating and never combined into a score.
 
-| `type` | Present when (thresholds v0, calibrated in M0) | `value` |
+| `type` | Present when (thresholds v1, to be calibrated on Ryan's takes) | `value` |
 | --- | --- | --- |
 | `pace_rise` | Last-quarter pace is at least 15% above first-quarter pace | Percent change |
-| `block_cluster` | 3 or more blocks within 15 seconds | Number of blocks |
+| `block_cluster` | 3 or more blocks (hesitations) within 15 seconds | Number of blocks |
 | `pitch_rise` | Last-quarter median pitch is at least 2 semitones above the first quarter | Semitones |
 
 `detail` is one plain English sentence for display.
@@ -316,7 +323,7 @@ The prompt was "Why did we choose Postgres over DynamoDB for the billing service
     "stt": {"engine": "crisperwhisper", "model": "nyrahealth/CrisperWhisper", "version": "2.0.4"},
     "vad": {"engine": "silero-vad", "version": "6.2.0"},
     "prosody": {"engine": "parselmouth", "version": "0.4.6"},
-    "thresholds_version": "thresholds/0"
+    "thresholds_version": "thresholds/1"
   },
   "words": [
     {"i": 0, "text": "So", "norm": "so", "start": 0.84, "end": 1.02, "confidence": 0.98, "kind": "word", "cutoff": false},
@@ -343,7 +350,7 @@ The prompt was "Why did we choose Postgres over DynamoDB for the billing service
     {"id": "e1", "type": "restart", "start": 1.71, "end": 2.02, "word_start": 2, "word_end": 4, "source": "rules", "reason": "cutoff", "repair_word": 4, "is_filler": null, "filler_resolution": null, "note": null},
     {"id": "e2", "type": "lexical_filler", "start": 4.0, "end": 4.2, "word_start": 8, "word_end": 9, "source": "rules", "reason": null, "repair_word": null, "is_filler": true, "filler_resolution": "coaching", "note": null},
     {"id": "e3", "type": "block", "start": 4.2, "end": 5.3, "word_start": 9, "word_end": 9, "source": "rules", "reason": "inside_phrase", "repair_word": null, "is_filler": null, "filler_resolution": null, "note": null},
-    {"id": "e4", "type": "boundary_pause", "start": 7.1, "end": 7.8, "word_start": 14, "word_end": 14, "source": "rules", "reason": "sentence", "repair_word": null, "is_filler": null, "filler_resolution": null, "note": null},
+    {"id": "e4", "type": "block", "start": 7.1, "end": 8.1, "word_start": 14, "word_end": 14, "source": "rules", "reason": "before_filler", "repair_word": null, "is_filler": null, "filler_resolution": null, "note": null},
     {"id": "e5", "type": "filled_pause", "start": 7.8, "end": 8.1, "word_start": 14, "word_end": 15, "source": "rules", "reason": null, "repair_word": null, "is_filler": null, "filler_resolution": null, "note": null},
     {"id": "e6", "type": "repetition", "start": 8.3, "end": 8.5, "word_start": 15, "word_end": 17, "source": "rules", "reason": "word", "repair_word": 16, "is_filler": null, "filler_resolution": null, "note": null},
     {"id": "c0", "type": "off_topic", "start": 31.2, "end": 52.6, "word_start": 74, "word_end": 121, "source": "coaching", "reason": null, "repair_word": null, "is_filler": null, "filler_resolution": null, "note": "The story about the old team's DynamoDB migration does not answer why we chose Postgres."}
@@ -1024,7 +1031,7 @@ The JSON examples in this doc are the canonical fixtures; copy them into tests r
 | Package | Owner | Owns |
 | --- | --- | --- |
 | `speakup.stt` (exists) | analysis | Speech-to-text engines, `Word`, `Transcript`, `Engine`, `registry.all_engines()` |
-| `speakup.text` (moved from `bakeoff/text.py`) | analysis | Token normalization |
+| `speakup.text` | analysis | Token normalization |
 | `speakup.analysis` | analysis | Acoustics, disfluency rules, metrics, nervousness signs, `Thresholds`, finalization, metric comparison |
 | `speakup.coaching` | coaching | Claude calls, coaching prompt and rubric files, output validation, question generation, question bank |
 | `speakup.store` | API and storage | SQLite schema, migrations, audio files |
@@ -1178,7 +1185,7 @@ The bake-off also runs two reference engines: AssemblyAI Universal-3.5 Pro with 
 The procedure and decision criteria are in [bakeoff.md](bakeoff.md).
 
 Every engine returns words with start and end times in seconds.
-Engines write the same speech differently ("[UM]", "Um,", "th-", "(laughter)"), so analysis normalizes tokens first (`bakeoff/text.py`).
+Engines write the same speech differently ("[UM]", "Um,", "th-", "(laughter)"), so analysis normalizes tokens first (`speakup/text.py`).
 
 Ruled out: Whisper and its variants (they drop fillers), OpenAI's newer transcription models (no word timestamps), Parakeet and Canary (weak on fillers).
 Evidence and alternatives are in [research.md#speech-to-text](research.md#speech-to-text).

@@ -1,0 +1,132 @@
+{
+ "_comment": "Silero VAD speech segments of the synthesized takes these crisper-turbo transcripts came from, so tests replay the voice-activity path without audio.",
+ "d2_um_midclause": {
+  "duration_s": 8.464,
+  "speech": [
+   [
+    0.0,
+    1.792
+   ],
+   [
+    2.304,
+    2.656
+   ],
+   [
+    2.944,
+    4.64
+   ],
+   [
+    4.832,
+    5.696
+   ],
+   [
+    6.144,
+    6.528
+   ],
+   [
+    6.72,
+    8.288
+   ]
+  ]
+ },
+ "d5_boundary_um": {
+  "duration_s": 10.416,
+  "speech": [
+   [
+    0.032,
+    1.888
+   ],
+   [
+    2.912,
+    3.264
+   ],
+   [
+    3.744,
+    6.784
+   ],
+   [
+    7.52,
+    7.904
+   ],
+   [
+    8.256,
+    10.272
+   ]
+  ]
+ },
+ "d6_abandoned": {
+  "duration_s": 8.884,
+  "speech": [
+   [
+    0.032,
+    0.544
+   ],
+   [
+    0.768,
+    3.2
+   ],
+   [
+    3.392,
+    4.192
+   ],
+   [
+    4.576,
+    6.176
+   ],
+   [
+    6.4,
+    7.168
+   ],
+   [
+    7.424,
+    8.736
+   ]
+  ]
+ },
+ "g1_conj_pause": {
+  "duration_s": 9.267,
+  "speech": [
+   [
+    0.032,
+    1.536
+   ],
+   [
+    1.856,
+    3.36
+   ],
+   [
+    3.552,
+    4.384
+   ],
+   [
+    4.768,
+    6.208
+   ],
+   [
+    6.368,
+    9.12
+   ]
+  ]
+ },
+ "g2_boundary_um_capital": {
+  "duration_s": 7.94,
+  "speech": [
+   [
+    0.032,
+    1.344
+   ],
+   [
+    2.688,
+    3.04
+   ],
+   [
+    3.616,
+    5.92
+   ],
+   [
+    6.08,
+    7.776
+   ]
+  ]
+ }
+}
