@@ -1,0 +1,371 @@
+{
+  "schema_version": "analysis/1",
+  "take_id": "c41a7e02-5b9d-4c66-8e1f-0a7b3d92f5c4",
+  "created_at": "2026-11-09T08:17:02.481Z",
+  "coaching_applied": false,
+  "provenance": {
+    "pipeline_version": "0.2.0",
+    "stt": {
+      "engine": "crisperwhisper",
+      "model": "nyrahealth/CrisperWhisper",
+      "version": "2.0.4"
+    },
+    "vad": {
+      "engine": "silero-vad",
+      "version": "6.2.0"
+    },
+    "prosody": {
+      "engine": "parselmouth",
+      "version": "0.4.6"
+    },
+    "thresholds_version": "thresholds/0"
+  },
+  "words": [
+    {
+      "i": 0,
+      "text": "So",
+      "norm": "so",
+      "start": 0.84,
+      "end": 1.02,
+      "confidence": 0.98,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 1,
+      "text": "um",
+      "norm": "um",
+      "start": 1.1,
+      "end": 1.46,
+      "confidence": 0.91,
+      "kind": "filled_pause",
+      "cutoff": false
+    },
+    {
+      "i": 2,
+      "text": "we",
+      "norm": "we",
+      "start": 1.71,
+      "end": 1.8,
+      "confidence": 0.97,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 3,
+      "text": "nee-",
+      "norm": "nee",
+      "start": 1.86,
+      "end": 2.02,
+      "confidence": 0.62,
+      "kind": "word",
+      "cutoff": true
+    },
+    {
+      "i": 4,
+      "text": "we",
+      "norm": "we",
+      "start": 2.45,
+      "end": 2.55,
+      "confidence": 0.98,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 5,
+      "text": "picked",
+      "norm": "picked",
+      "start": 2.6,
+      "end": 2.9,
+      "confidence": 0.99,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 6,
+      "text": "Postgres",
+      "norm": "postgres",
+      "start": 2.95,
+      "end": 3.5,
+      "confidence": 0.95,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 7,
+      "text": "because,",
+      "norm": "because",
+      "start": 3.55,
+      "end": 3.9,
+      "confidence": 0.99,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 8,
+      "text": "like,",
+      "norm": "like",
+      "start": 4.0,
+      "end": 4.2,
+      "confidence": 0.96,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 9,
+      "text": "the",
+      "norm": "the",
+      "start": 5.3,
+      "end": 5.4,
+      "confidence": 0.99,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 10,
+      "text": "reporting",
+      "norm": "reporting",
+      "start": 5.42,
+      "end": 5.9,
+      "confidence": 0.99,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 11,
+      "text": "queries",
+      "norm": "queries",
+      "start": 5.95,
+      "end": 6.4,
+      "confidence": 0.98,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 12,
+      "text": "need",
+      "norm": "need",
+      "start": 6.45,
+      "end": 6.65,
+      "confidence": 0.99,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 13,
+      "text": "joins.",
+      "norm": "joins",
+      "start": 6.7,
+      "end": 7.1,
+      "confidence": 0.97,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 14,
+      "text": "Uh",
+      "norm": "uh",
+      "start": 7.8,
+      "end": 8.1,
+      "confidence": 0.88,
+      "kind": "filled_pause",
+      "cutoff": false
+    },
+    {
+      "i": 15,
+      "text": "the",
+      "norm": "the",
+      "start": 8.3,
+      "end": 8.4,
+      "confidence": 0.97,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 16,
+      "text": "the",
+      "norm": "the",
+      "start": 8.42,
+      "end": 8.5,
+      "confidence": 0.95,
+      "kind": "word",
+      "cutoff": false
+    },
+    {
+      "i": 17,
+      "text": "team",
+      "norm": "team",
+      "start": 8.55,
+      "end": 8.8,
+      "confidence": 0.99,
+      "kind": "word",
+      "cutoff": false
+    }
+  ],
+  "events": [
+    {
+      "id": "e0",
+      "type": "filled_pause",
+      "start": 1.1,
+      "end": 1.46,
+      "word_start": 1,
+      "word_end": 2,
+      "source": "rules",
+      "reason": null,
+      "repair_word": null,
+      "is_filler": null,
+      "filler_resolution": null,
+      "note": null
+    },
+    {
+      "id": "e1",
+      "type": "restart",
+      "start": 1.71,
+      "end": 2.02,
+      "word_start": 2,
+      "word_end": 4,
+      "source": "rules",
+      "reason": "cutoff",
+      "repair_word": 4,
+      "is_filler": null,
+      "filler_resolution": null,
+      "note": null
+    },
+    {
+      "id": "e2",
+      "type": "lexical_filler",
+      "start": 4.0,
+      "end": 4.2,
+      "word_start": 8,
+      "word_end": 9,
+      "source": "rules",
+      "reason": null,
+      "repair_word": null,
+      "is_filler": true,
+      "filler_resolution": "rules",
+      "note": null
+    },
+    {
+      "id": "e3",
+      "type": "block",
+      "start": 4.2,
+      "end": 5.3,
+      "word_start": 9,
+      "word_end": 9,
+      "source": "rules",
+      "reason": "inside_phrase",
+      "repair_word": null,
+      "is_filler": null,
+      "filler_resolution": null,
+      "note": null
+    },
+    {
+      "id": "e4",
+      "type": "boundary_pause",
+      "start": 7.1,
+      "end": 7.8,
+      "word_start": 14,
+      "word_end": 14,
+      "source": "rules",
+      "reason": "sentence",
+      "repair_word": null,
+      "is_filler": null,
+      "filler_resolution": null,
+      "note": null
+    },
+    {
+      "id": "e5",
+      "type": "filled_pause",
+      "start": 7.8,
+      "end": 8.1,
+      "word_start": 14,
+      "word_end": 15,
+      "source": "rules",
+      "reason": null,
+      "repair_word": null,
+      "is_filler": null,
+      "filler_resolution": null,
+      "note": null
+    },
+    {
+      "id": "e6",
+      "type": "repetition",
+      "start": 8.3,
+      "end": 8.5,
+      "word_start": 15,
+      "word_end": 17,
+      "source": "rules",
+      "reason": "word",
+      "repair_word": 16,
+      "is_filler": null,
+      "filler_resolution": null,
+      "note": null
+    }
+  ],
+  "metrics": {
+    "duration_s": 96.4,
+    "speech_start_s": 0.84,
+    "speaking_s": 94.1,
+    "voiced_s": 71.3,
+    "word_count": 214,
+    "fillers": {
+      "filled_pauses": 5,
+      "lexical": 3,
+      "lexical_candidates": 7,
+      "per_100_words": 3.74,
+      "resolution": "rules"
+    },
+    "blocks": {
+      "count": 4,
+      "per_minute": 2.55,
+      "longest_s": 1.1,
+      "total_s": 3.6
+    },
+    "boundary_pauses": {
+      "count": 21,
+      "median_s": 0.55
+    },
+    "restarts": 2,
+    "repetitions": 3,
+    "pace": {
+      "wpm_voiced": 180.1,
+      "wpm_speaking": 136.5,
+      "by_quarter_wpm": [
+        166.0,
+        174.2,
+        181.5,
+        196.8
+      ]
+    },
+    "pitch": {
+      "median_hz": 121.4,
+      "variation_st": 2.3,
+      "range_st": 9.8,
+      "by_quarter_median_hz": [
+        118.2,
+        120.5,
+        122.0,
+        125.9
+      ]
+    },
+    "volume": {
+      "median_db": 61.2,
+      "variation_db": 4.1,
+      "by_quarter_median_db": [
+        60.8,
+        61.5,
+        61.0,
+        61.9
+      ]
+    }
+  },
+  "nervousness_signs": [
+    {
+      "type": "pace_rise",
+      "start": 71.4,
+      "end": 94.9,
+      "value": 18.6,
+      "detail": "Pace rose 19% from the first quarter to the last (166 to 197 words per minute)."
+    }
+  ]
+}
