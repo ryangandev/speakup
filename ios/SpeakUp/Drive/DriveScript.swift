@@ -84,11 +84,7 @@ enum DriveScript {
         -> Feedback
     {
         if take.status == .failed {
-            if take.error?.code == .noSpeech {
-                return Feedback(
-                    kind: .noSpeech, segments: ["I didn't catch an answer."],
-                    options: "Say: again, next, or stop.")
-            }
+            if take.error?.code == .noSpeech { return noAnswer }
             return Feedback(
                 kind: .failed,
                 segments: ["That one didn't process. Your answer is saved for when you're home."],
@@ -107,6 +103,22 @@ enum DriveScript {
         }
         if take.coachingStatus == .pending { return later }
         return metricsOnly(take.summary)
+    }
+
+    /// No answer: the server found too little speech, or the take held no audio at all
+    /// (`DriveAudio.TakeEnd.empty`).
+    static var noAnswer: Feedback {
+        Feedback(
+            kind: .noSpeech, segments: ["I didn't catch an answer."],
+            options: "Say: again, next, or stop.")
+    }
+
+    /// The take could not be written to the phone (`DriveAudio.TakeEnd.failed`), so nothing
+    /// was kept.
+    static var notSaved: Feedback {
+        Feedback(
+            kind: .failed, segments: ["I couldn't save that answer."],
+            options: "Say: again, next, or stop.")
     }
 
     /// The server could not be reached, or the result is not ready: feedback comes later.

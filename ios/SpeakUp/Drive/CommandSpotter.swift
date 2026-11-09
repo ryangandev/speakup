@@ -41,12 +41,16 @@ struct CommandSpotter: Sendable {
     }
 
     /// A command spoken between takes.
-    enum Command: Sendable, Equatable, CaseIterable {
+    enum Command: Sendable, Equatable {
         case again
         case next
         case repeatThat
         case betterVersion
         case stop
+        /// An answer to a nervousness question, 1 to 5. The loop only accepts it there.
+        case rating(Int)
+        /// Skips a nervousness question.
+        case skip
     }
 
     enum Event: Sendable, Equatable {
@@ -283,8 +287,9 @@ struct CommandSpotter: Sendable {
 
     // MARK: - Words
 
-    /// What may be said between takes. Only the synonyms the plan lists; the whole
-    /// utterance must match, so "stop the car" is not "stop".
+    /// What may be said between takes, and the answers to a nervousness question. Only the
+    /// synonyms the plan lists; the whole utterance must match, so "stop the car" is not "stop"
+    /// and "three things" is not a rating.
     ///
     /// "say that again" means repeat that, not again. Known risk: a pause of 0.8 s or more
     /// after "say that" splits it into "say that" (unrecognized) and "again" (retry).
@@ -302,6 +307,14 @@ struct CommandSpotter: Sendable {
         "read the better version": .betterVersion,
         "better version": .betterVersion,
         "stop": .stop,
+        // Answers to "How nervous are you, one to five?". A recognizer writes a number said
+        // alone as a digit or a word, and can hear a lone "two" or "four" as its homophone.
+        "1": .rating(1), "one": .rating(1), "won": .rating(1),
+        "2": .rating(2), "two": .rating(2), "to": .rating(2), "too": .rating(2),
+        "3": .rating(3), "three": .rating(3),
+        "4": .rating(4), "four": .rating(4), "for": .rating(4),
+        "5": .rating(5), "five": .rating(5),
+        "skip": .skip,
     ]
 
     private struct Token: Sendable {
