@@ -19,3 +19,6 @@ __pycache__/
 .swiftpm/
 
 .DS_Store
+
+# Agent worktrees
+.claude/worktrees/
