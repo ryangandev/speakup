@@ -67,6 +67,8 @@ tailscale serve status
 
 The app's server address is then `https://<machine>.<tailnet>.ts.net`, and the app sends the token as a bearer header.
 Use the port from `SPEAKUP_PORT` if you changed it.
+If 8765 is taken by another app, set another port in `SPEAKUP_PORT` and use it as the serve target.
+With the standalone Tailscale app on macOS, the CLI is `/Applications/Tailscale.app/Contents/MacOS/Tailscale`.
 To stop publishing, run `tailscale serve --https=443 off`.
 
 ## Backups
