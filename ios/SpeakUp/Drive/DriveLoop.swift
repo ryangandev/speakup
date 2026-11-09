@@ -154,10 +154,10 @@ final class DriveLoop {
     var spokenLog: SpokenLog?
     #endif
 
-    /// How many answers the drive has kept.
-    var takesSaved: Int {
-        sessionID.flatMap { store.session(id: $0)?.takes.count } ?? 0
-    }
+    /// How many answers the drive has kept. Counted here, not read from the store: once the
+    /// server has every take and the session's end, the store drops the session, and the
+    /// summary still shows what the drive saved.
+    private(set) var takesSaved = 0
 
     // MARK: Dependencies
 
@@ -943,6 +943,7 @@ final class DriveLoop {
                 Self.log.error("A take could not be kept: its prompt is gone")
                 return .failed("The prompt is no longer on this phone.")
             }
+            takesSaved += 1
             return .kept(kept)
         case .empty:
             return .empty
