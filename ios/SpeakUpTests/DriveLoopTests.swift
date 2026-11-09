@@ -260,6 +260,8 @@ struct DriveLoopTests {
         #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
         #expect(drive.server.uploaded.first?.id == first.id)
         #expect(drive.ended != nil)
+        // The summary counts the offline answer's feedback as coming later.
+        #expect(drive.loop.feedbackLater.first == first.id)
     }
 
     @Test func aRetryReachesTheServerAfterTheOfflineTakeItRetries() async throws {

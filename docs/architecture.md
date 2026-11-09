@@ -19,6 +19,8 @@ The M1 system contract runs from [Domain model](#domain-model) to [Pipeline orch
 | `tools/drive-commands/` | Swift command-line tool that runs the app's voice-command recognition on the Mac over spoken clips and checks the commands and cut times |
 | `server/src/speakup/{coaching,store,pipeline,api}` | Coaching, storage, the pipeline worker and the HTTP API: see [Module boundaries and ownership](#module-boundaries-and-ownership) |
 | `ios/` | The SwiftUI app; its layout and commands are in `ios/AGENTS.md` |
+| `ios/SpeakUp/Drive/` | Driving mode: the voice loop (`DriveLoop`), the drive's audio engine and take trim (`DriveAudio`), command recognition (`SpeechCommandRecognizer`, `CommandRecognition.swift`, `CommandSpotter`), speech output (`SpeechOutput`), what is said (`DriveScript`), questions for the car (`DriveQuestions`), the Siri start (`DriveIntents.swift`), and the Debug scripted recognizer, microphone and spoken log |
+| `ios/SpeakUp/Screens/DriveView.swift` | The drive's screen, shown in place of the tabs: its state in large text, Stop, and the end summary |
 | `data/` | Ryan's recordings, transcripts and reports; ignored by git |
 
 ## System shape
@@ -55,9 +57,14 @@ Why this split:
   Volatile results carry no word times, so the app asks for final results when the text ends in a command, and finalizes again after the silence window so silence after "done" is confirmed by the recognizer, not the microphone clock (`Drive/CommandRecognition.swift`).
   Each finalization waits until the recognizer has had 1.5 s to report more words, because finalizing audio it has not reported makes it drop them; so the app acts about 3.5 s after the last word.
   The simulator has neither recognizer, so Debug builds can script the words instead; `tools/drive-commands` checks the real recognizer on the Mac.
+- **Drive loop:** `DriveLoop` is one sequence over protocols for audio, recognition, speech and a clock, so unit tests run it on fakes in milliseconds.
+  One `AVAudioEngine` runs for the whole drive on a `.playAndRecord` session, started in the foreground, which keeps it running when the app is backgrounded; the input tap feeds the recognizer and a take gate on one frame clock, and the player speaks and plays tones.
+  A take is written from the gate and cut at the start of "done" before it is kept, so the server never hears the command; from there it goes through the same local store, `ProcessingController` and upload queue as a home take, in a session with `mode: driving`.
+  `AppModel.startDrive()` is the one start path, for the Home card and `StartDriveIntent`; it refuses while a home take is open, and `RootView` shows `DriveView` in place of the tabs so no open sheet can hide it.
+  A drive left open when the app was killed is closed at the next launch, without an after-rating.
 - **Spoken prompts and feedback:** `AVSpeechSynthesizer` with a premium voice first; a server-side voice can replace it later.
 - **Offline queue:** takes are saved locally first and uploaded when the server is reachable.
-- **Local cache:** SwiftData keeps sessions and reports for offline viewing; the server stays the source of truth.
+- **Local store:** `PracticeStore` keeps sessions, prompts and takes in a JSON file on the phone until the server has them; reports are fetched from the server, which stays the source of truth.
 
 ## Analysis server
 
