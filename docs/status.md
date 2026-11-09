@@ -8,6 +8,10 @@ Coaching is built and tested against fakes; it has not run against Claude yet, b
 The analysis rules have only seen synthesized speech; their block thresholds (0.5 s inside a phrase, 1.0 s for a pause plus a filler between ideas) are starting values to calibrate on Ryan's recordings.
 The iPhone app's home mode is built and runs end to end against the real server in the simulator: settings, a prepared take, its report, a retry and the comparison.
 It still uses system colors; the visual direction below is not applied yet, and it has not run on a real iPhone.
+Driving mode (M2) is built and runs end to end in the simulator, against the mock server and the real server, with a scripted recognizer standing in for speech recognition, which the simulator lacks.
+The real recognizer is checked on the Mac with `tools/drive-commands` against spoken clips.
+No drive has run on a device yet: car Bluetooth, AirPods, a locked phone, a call mid-take and a navigation prompt are all unchecked.
+Starting with the phone locked, and going on after a call, wait on a decision under Waiting on Ryan.
 The visual direction is in [design/README.md](design/README.md), with a clickable prototype.
 The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bakeoff.md](bakeoff.md).
 
@@ -32,6 +36,12 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
    To run the app on the iPhone, sign in to Xcode with your Apple account and pick your team for the SpeakUp target; it stays local, not committed.
 4. Put an ElevenLabs API key in `server/.env` for the bake-off (`server/.env.example` shows the names), and an AssemblyAI key if you want it compared too.
    An Anthropic API key goes there later, for coaching.
+5. Driving mode decisions:
+   1. Prepared prompts in the car: impromptu only (built), or also a "for the drive" queue built at home and read aloud before the tone. The agent recommends impromptu only for M2.
+   2. Interrupting the app while it talks: today it finishes what it is saying before it listens. The agent recommends the steering-wheel next or pause button skipping the current speech, because the better version can run for a minute.
+   3. Starting on a locked phone, and going on after a call: this needs a Live Activity on the lock screen and `AudioRecordingIntent`, which means a widget extension; it is not built until this is decided. Today Siri asks to unlock first, and a call pauses the drive.
+   4. Late feedback: when waiting gives up, should the feedback be spoken later in the same drive, once it is ready? Today it is only in History. The agent recommends yes, at the next break.
+6. Run a drive on the iPhone in the car, with AirPods, with the phone locked, with a call mid-take, and with a navigation prompt, and say how the defaults below feel.
 
 ## Open decisions
 
@@ -40,6 +50,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - Which Claude model for driving mode, balancing quality and latency.
 - Does Ryan's car support CarPlay, and is it worth requesting the conversational app entitlement in M3?
 - M1 defaults set by an agent in the contract, pending Ryan's review: a retry is compared with the previous take, not the first; a session closes by itself 2 hours after its last take; takes stop at 15 minutes; the work-context profile is a file on the Mac mini; no deleting takes in M1; impromptu practice needs the server in M1.
+- Driving mode defaults set by an agent, to calibrate on a device: "done" needs 0.6 s of silence before it and 1.2 s after; each recognizer finalization waits 1.5 s for late words, so the app acts about 3.5 s after "done"; feedback waits 120 s; a drive ends after 10 minutes with no command; a take stops at 6 minutes; when iOS never reports the end of an interruption, the drive asks for the audio back after 3 minutes.
 
 ## Next steps
 
@@ -48,7 +59,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 3. Calibrate the block thresholds in `speakup.analysis.thresholds` on Ryan's recordings.
 4. Set up the server on the Mac mini as [server.md](server.md) describes, outside `~/Documents`.
 5. Apply the visual direction in [design/README.md](design/README.md) to the iOS app's `Theme` and screens.
-6. Build driving mode (M2), then history and polish.
+6. Finish driving mode (M2) once its decisions under Waiting on Ryan are settled: a locked start and going on after a call, then a device run. Then history and polish.
 7. Run the app on Ryan's iPhone over Tailscale: check background upload with the phone locked, and recording with AirPods and the car's microphone.
 
 ## Known issues
@@ -61,6 +72,9 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - iOS: the tab bar is hidden on pushed practice screens.
 - iOS: a recording cut off by an app crash is not recovered.
 - iOS: if the server is rebuilt, takes the phone already uploaded are not sent again.
+- Driving mode: a coaching instruction that quotes an unfinished example, such as the contract's "Second, ...", is read aloud cut short ("Second.").
+- Driving mode: the scripted recognizer in the simulator places words by script time, not by the audio, so the simulator tests prove the cut at "done" only for clips whose script matches them.
+- Driving mode: a navigation prompt spoken during a take is recorded into it.
 
 ## Deliberately not doing
 

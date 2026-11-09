@@ -111,16 +111,38 @@ Their sources are in [research.md#practice-methods](research.md#practice-methods
 
 Ryan's commute is by car, so practice there must be completely hands-free and eyes-free.
 
-- A session starts before driving, with one tap, by Siri ("start a SpeakUp drive"), or from CarPlay.
+- A drive starts before driving, with one tap on Home's "Start a drive" card, or by Siri.
+  The Siri phrases are "Start a SpeakUp drive", "Start driving with SpeakUp" and "SpeakUp drive".
+  Siri opens the app, so a locked phone asks to be unlocked first.
+  CarPlay comes later.
 - After that, nothing needs a glance or a touch.
-  The app speaks each prompt, plays a tone, and records.
-- Ryan ends a take by saying "done".
+  The screen shows what the drive is doing in large text, the question and the answers saved, with a Stop button, for a passenger or when parked.
+  It stays awake while the drive runs, and ends on a summary of answers saved and feedback still to come.
+- The drive opens with "SpeakUp drive. How nervous are you, one to five?".
+  Ryan answers one to five, or "skip"; an unclear answer is asked once more, then skipped.
+- Questions are impromptu: the server's, cached on the phone so a drive without a connection still has some, with a built-in list behind them.
+  Each question is read aloud, then "Answer after the tone.", then a tone, and the take records.
+- Ryan ends a take by saying "done" after a short pause.
+  The take is cut just before "done", so the command is not in the recording.
   Silence does not end a take, because long pauses are part of what is measured.
-  A take also ends at a generous maximum length.
-- Feedback is spoken and short: the verdict, one strength, one focus item, and on request the reference version.
+  A take also ends at 6 minutes, with "That's the time limit."
+- The app says "Got it." and waits for feedback for up to 120 seconds, saying "Still working." at 30 and 60 seconds.
+  After that it says feedback on that answer will come later, and the report shows in History.
+  Feedback that arrives later is not spoken in the same drive.
+- Feedback is spoken and short: the verdict, one strength ("What worked:") and the first focus item ("Next time:").
+  A retry leads with what changed, then the verdict and the new focus item.
+  Without coaching, the app says "No coaching right now." and reads the filler rate, stalls and restarts, and pace.
   The full annotated report waits for home.
-- Voice commands: "again" (retry the prompt), "next", "repeat that", "read the better version", "stop".
-- If the server cannot be reached, the app keeps the take, says feedback will come later, and offers the next prompt.
+- Voice commands between takes, each said on its own:
+  - "again" or "try again": the same question once more, as a retry.
+  - "next" or "next question": a new question.
+  - "repeat that" or "say that again": the last feedback again.
+  - "read the better version" or "better version": the reference version from coaching.
+  - "stop": the closing nervousness rating, then "Drive ended." with the number of answers saved.
+  Anything else gets the list of commands.
+- With no command for 10 minutes, the drive ends itself.
+- If the server cannot be reached, the app keeps the take on the phone, says "I couldn't reach the server. Your answer is saved; feedback will come later.", and offers the next question.
+  Kept takes upload when the server is reachable again, and wait on Home until then.
 - Nervousness self-ratings are spoken.
 
 CarPlay support depends on Apple granting the voice-based conversational app entitlement. See [research.md#commute-design](research.md#commute-design).
@@ -170,11 +192,14 @@ Shows:
 
 - The open session, if any: start time, number of takes, and End session.
 - Two primary actions: **Prepared** and **Impromptu**.
+- A **Start a drive** card, which starts a drive ([Driving mode](#driving-mode)).
+  The drive's screen replaces the tabs until Ryan taps Done on its summary, then the tabs come back as they were.
 - The open session's takes, newest first: prompt text, attempt number, and status or verdict.
   A take still on the phone shows "Not uploaded" with Retry upload.
+- Takes of ended sessions still on the phone, such as a drive's offline takes, under "Waiting to upload".
 - Server state: reachable, unreachable, or reachable without coaching; a gear opens Settings.
 
-Actions: Prepared, Impromptu, open a take's Report, End session, Settings.
+Actions: Prepared, Impromptu, Start a drive, open a take's Report, End session, Settings.
 
 ### Prepared prompt
 
