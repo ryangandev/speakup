@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd job for the SpeakUp analysis server on the Mac mini.
+  Replace __REPO_DIR__ with the absolute path of the repository and __HOME__ with your home
+  directory, save as ~/Library/LaunchAgents/com.speakup.server.plist, then
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.speakup.server.plist
+  The token and API keys are read from __REPO_DIR__/server/.env; do not put them in this file.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.speakup.server</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__REPO_DIR__/server/.venv/bin/speakup-server</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO_DIR__/server</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- ffmpeg lives in Homebrew's prefix, which launchd's default PATH lacks. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <!-- Wait before a restart so a crash loop does not spin. -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/speakup-server.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/speakup-server.log</string>
+</dict>
+</plist>

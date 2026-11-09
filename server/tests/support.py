@@ -148,7 +148,10 @@ class FakeEngine:
             self.statuses.append(self.store.get_take(wav_path.parent.name)["status"])
         if self.errors:
             raise self.errors.pop(0)
-        words = [Word(text=f"w{i}", start=i * 0.3, end=i * 0.3 + 0.2, confidence=0.9) for i in range(self.words)]
+        words = [
+            Word(text=f"w{i}", start=i * 0.3, end=i * 0.3 + 0.2, confidence=0.9)
+            for i in range(self.words)
+        ]
         return Transcript(
             engine=self.name,
             text=" ".join(w.text for w in words),
@@ -199,7 +202,9 @@ class FakeAnalyzer:
             doc["metrics"]["pace"]["wpm_voiced"] = 171.4
         return doc
 
-    def compare_metrics(self, previous: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
+    def compare_metrics(
+        self, previous: dict[str, Any], current: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         return copy.deepcopy(COMPARISON_EXAMPLE["metric_changes"])
 
 
@@ -249,7 +254,13 @@ class FakeCoach:
                     "title": "Close on purpose",
                     "problem": "The answer fades out.",
                     "evidence": [
-                        {"quote": "so yeah", "word_start": 203, "word_end": 205, "start": 70.1, "end": 71.0}
+                        {
+                            "quote": "so yeah",
+                            "word_start": 203,
+                            "word_end": 205,
+                            "start": 70.1,
+                            "end": 71.0,
+                        }
                     ],
                     "instruction": "End on the trade-off, then stop.",
                 }
@@ -260,7 +271,9 @@ class FakeCoach:
             report["comparison"] = copy.deepcopy(COACHING_COMPARISON_EXAMPLE)
         return report
 
-    def generate_questions(self, *, count: int, category: str | None, exclude: list[str]) -> dict[str, Any]:
+    def generate_questions(
+        self, *, count: int, category: str | None, exclude: list[str]
+    ) -> dict[str, Any]:
         self.question_calls.append({"count": count, "category": category, "exclude": exclude})
         return copy.deepcopy(QUESTIONS_EXAMPLE)
 
@@ -345,15 +358,14 @@ def build_env(
     *,
     clock: FakeClock | None = None,
     raise_server_exceptions: bool = True,
+    convert: Any = copy_convert,
 ) -> Env:
     clock = clock or FakeClock()
     store = Store(data_dir, clock=clock)
     engine = FakeEngine(store)
     analyzer = FakeAnalyzer(store)
     coach = FakeCoach(store)
-    worker = Worker(
-        store, engine, analyzer, coach, convert=copy_convert, stt_retry_delays=(0.0, 0.0)
-    )
+    worker = Worker(store, engine, analyzer, coach, convert=convert, stt_retry_delays=(0.0, 0.0))
     app = create_app(store=store, worker=worker, coach=coach, analyzer=analyzer, token=TOKEN)
     client = TestClient(
         app,

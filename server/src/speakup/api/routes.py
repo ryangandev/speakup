@@ -381,7 +381,9 @@ def get_report(take_id: str, store: StoreDep) -> dict[str, Any]:
     docs = store.analysis_docs(take["analysis_id"])
     prompt = store.get_prompt(take["prompt_id"])
     assert docs is not None and prompt is not None
-    coaching = store.coaching_doc(take["coaching_id"]) if take["coaching_status"] == "done" else None
+    coaching = (
+        store.coaching_doc(take["coaching_id"]) if take["coaching_status"] == "done" else None
+    )
     return {
         "take": resources.take_resource(take),
         "prompt": resources.prompt_resource(prompt),

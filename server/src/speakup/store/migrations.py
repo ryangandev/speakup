@@ -6,6 +6,9 @@ change and never edit an applied one.
 
 from __future__ import annotations
 
+# The DDL is kept verbatim from the doc, long lines included.
+# ruff: noqa: E501
+
 MIGRATION_1 = """
 CREATE TABLE schema_migrations (
   version INTEGER PRIMARY KEY,

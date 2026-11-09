@@ -188,7 +188,10 @@ class Store:
         if unknown:
             raise ValueError(f"Cannot update {sorted(unknown)}")
         with self._write() as conn:
-            if conn.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone() is None:
+            if (
+                conn.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,)).fetchone()
+                is None
+            ):
                 return None
             assignments = [f"{column} = ?" for column in changes]
             values = [*changes.values(), self.clock(), session_id]
@@ -458,7 +461,7 @@ class Store:
         with self._write() as conn:
             conn.execute(
                 "UPDATE takes SET status = 'failed', status_changed_at = ?, error_code = ?,"
-                " error_message = ?, updated_at = ? WHERE id = ?",
+                " error_message = ?, stage_failures = 0, updated_at = ? WHERE id = ?",
                 (now, code, message, now, take_id),
             )
 
@@ -467,7 +470,7 @@ class Store:
         with self._write() as conn:
             conn.execute(
                 "UPDATE takes SET status = 'done', status_changed_at = ?, error_code = NULL,"
-                " error_message = NULL, updated_at = ? WHERE id = ?",
+                " error_message = NULL, stage_failures = 0, updated_at = ? WHERE id = ?",
                 (now, now, take_id),
             )
 
@@ -533,8 +536,7 @@ class Store:
                 ),
             )
             conn.execute(
-                "UPDATE takes SET analysis_id = ?, coaching_id = NULL, updated_at = ?"
-                " WHERE id = ?",
+                "UPDATE takes SET analysis_id = ?, coaching_id = NULL, updated_at = ? WHERE id = ?",
                 (analysis_id, self.clock(), take_id),
             )
         return analysis_id
@@ -596,7 +598,9 @@ class Store:
             ).fetchone()
         return row["json"] if row else None
 
-    def analysis_docs(self, analysis_id: str | None) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    def analysis_docs(
+        self, analysis_id: str | None
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
         """(stage, final) analysis documents."""
         if analysis_id is None:
             return None

@@ -14,7 +14,6 @@ from support import (
     SESSION_DETAIL,
     SESSION_ID,
     SESSION_PATCH,
-    SESSION_RESOURCE,
     SESSIONS_LIST,
     TAKE1_ID,
     TAKE2_ID,

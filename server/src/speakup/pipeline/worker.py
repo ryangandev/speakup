@@ -39,7 +39,9 @@ class Analyzer(Protocol):  # satisfied by the speakup.analysis module
         self, analysis: AnalysisDoc, coaching: CoachingReportDoc | None
     ) -> AnalysisDoc: ...
 
-    def compare_metrics(self, previous: AnalysisDoc, current: AnalysisDoc) -> list[MetricChange]: ...
+    def compare_metrics(
+        self, previous: AnalysisDoc, current: AnalysisDoc
+    ) -> list[MetricChange]: ...
 
 
 class Coach(Protocol):  # satisfied by the speakup.coaching module

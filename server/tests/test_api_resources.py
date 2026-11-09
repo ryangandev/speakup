@@ -57,7 +57,9 @@ def test_patch_session_sets_clears_and_ends(env):
     assert cleared.json()["nervousness_before"] is None
     assert cleared.json()["nervousness_after"] == 2
 
-    ended = env.client.patch(f"/v1/sessions/{SESSION_ID}", json={"ended_at": "2026-11-09T08:41:50Z"})
+    ended = env.client.patch(
+        f"/v1/sessions/{SESSION_ID}", json={"ended_at": "2026-11-09T08:41:50Z"}
+    )
     assert ended.json()["ended_at"] == "2026-11-09T08:41:50.000Z"
 
     # A null ended_at cannot clear it; an unrelated change leaves it alone.
@@ -156,6 +158,14 @@ def test_questions_avoid_the_request_and_the_recent_prompts(env):
     env.client.post("/v1/questions", json={})
     assert env.coach.question_calls[1]["count"] == 3
     assert env.coach.question_calls[1]["category"] is None
+
+
+def test_an_empty_question_list_is_a_normal_answer(env):
+    # Without a key the bank can run out of unseen questions in a category.
+    env.coach.generate_questions = lambda **kwargs: {"source": "bank", "questions": []}
+    response = env.client.post("/v1/questions", json={"count": 3, "category": "decision"})
+    assert response.status_code == 200
+    assert response.json() == {"source": "bank", "questions": []}
 
 
 def test_upload_creates_the_take_and_is_idempotent(env):
