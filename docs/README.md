@@ -13,6 +13,7 @@ Load only the document and section a request needs.
 | What feedback says, how it is graded, and its tone | [product.md#feedback](product.md#feedback) |
 | How fillers, blocks, repetitions and pace are measured | [product.md#metrics](product.md#metrics) |
 | Hands-free practice in the car | [product.md#driving-mode](product.md#driving-mode) |
+| How the app looks: colors, type, components, screens, and the clickable prototype | [design/README.md](design/README.md) |
 | Milestones and their order | [product.md#roadmap](product.md#roadmap) |
 | System shape, components and why | [architecture.md](architecture.md) |
 | What the iOS app's screens show, their actions and navigation | [product.md#screens](product.md#screens) |
@@ -39,6 +40,8 @@ List a document's headings with `rg '^##' docs/<file>.md` and read only the matc
 - `status.md` says what is true now and what is left.
   Resolved items are deleted, not archived.
 - `product.md` is the behavior contract: what the app does and why.
+- `design/README.md` owns the visual spec: tokens, components and screen layouts, with the prototype and screenshots beside it.
+  Behavior stays in `product.md`.
 - `architecture.md` says how each part works, why it is built that way, and where its code is.
   It holds no history.
 - `bakeoff.md` owns the M0 bake-off procedure and decision criteria.

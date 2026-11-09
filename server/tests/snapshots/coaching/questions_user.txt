@@ -1,0 +1,7 @@
+<work_context>
+Backend engineer on the billing team.
+</work_context>
+<avoid>
+Why Postgres?
+</avoid>
+Write 1 new question in the decision category.

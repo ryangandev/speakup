@@ -1,0 +1,44 @@
+{
+  "$defs": {
+    "Question": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "decision",
+            "status",
+            "explain",
+            "pushback",
+            "other"
+          ],
+          "type": "string"
+        },
+        "target_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "category",
+        "target_seconds"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "questions": {
+      "items": {
+        "$ref": "#/$defs/Question"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "questions"
+  ],
+  "type": "object"
+}
