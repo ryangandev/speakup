@@ -42,9 +42,15 @@ struct SpeakUpApp: App {
 ///   simulators with no audio input.
 /// - `-debug.microphoneFile <path>` records that audio file instead, for real speech in an
 ///   end-to-end run against the server.
-/// - `-debug.startDrive` starts a drive at launch, as the Home card or Siri would.
+/// - `-debug.startDrive [seconds]` starts a drive at launch, as the Home card or Siri would,
+///   after the given delay (none by default), which leaves time to put a sheet in its way.
 enum DebugLaunch {
-    static var startsDrive: Bool { ProcessInfo.processInfo.arguments.contains("-debug.startDrive") }
+    /// The delay before the launch drive starts, or nil for no launch drive.
+    static var startDriveDelay: Double? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-debug.startDrive") else { return nil }
+        return index + 1 < arguments.count ? Double(arguments[index + 1]) ?? 0 : 0
+    }
 
     @MainActor
     static func apply(store: PracticeStore) {

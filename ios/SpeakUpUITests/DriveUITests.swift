@@ -69,6 +69,37 @@ final class DriveUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Stop drive"].exists)
     }
 
+    /// Siri starts a drive while Home's nervousness sheet is up: the drive's screen still
+    /// shows, and the sheet does not come back after it.
+    func testADriveStartedOverASheet() throws {
+        app = XCUIApplication()
+        app.launchArguments = [
+            "-debug.useMockServer", "YES", "-debug.mockScenario", "normal", "-resetState",
+            "-debug.syntheticMicrophone", "-debug.instantSpeech", "-debug.speechLog",
+            "-debug.startDrive", "6",
+            "-debug.recognizerScript", #"{"betweenTakes": ["three@0.5"], "recording": []}"#,
+        ]
+        app.launch()
+
+        app.buttons["start.prepared"].tap()
+        let sheet = app.buttons["3 of 5"]
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+
+        let status = app.descendants(matching: .any)["drive.status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 20), app.debugDescription)
+        // The sheet leaves with the tabs, after its own dismissal animation.
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+        shot("drive-over-sheet")
+
+        app.buttons["Stop drive"].tap()
+        XCTAssertTrue(app.staticTexts["Drive ended"].waitForExistence(timeout: 20), spoken())
+        app.buttons["Done"].tap()
+
+        XCTAssertTrue(app.buttons["start.drive"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Practice"].isSelected)
+        XCTAssertFalse(sheet.exists)
+    }
+
     /// Every line the drive said, from the Debug-only `drive.spokenLog` element.
     private func spoken() -> String {
         app.descendants(matching: .any)["drive.spokenLog"].value as? String ?? ""

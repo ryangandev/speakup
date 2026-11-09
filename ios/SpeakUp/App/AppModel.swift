@@ -157,7 +157,7 @@ extension AppModel {
     }
 
     /// Starts a drive: the Home card and the Siri intent both come here. It asks for the
-    /// microphone first, then shows the drive's cover and starts it.
+    /// microphone first, then puts the drive's screen in place of the tabs and starts it.
     ///
     /// A home take in progress is never touched: a recording is the user's answer, and a take
     /// on the Processing screen is one they are watching. Either way the drive does not start.
@@ -177,7 +177,7 @@ extension AppModel {
         guard !practice.hasTakeInProgress else { return .takeInProgress }
 
         player.stop()
-        // A sheet in the way would keep the drive's cover from showing.
+        // The drive takes Settings' sheet away with the tabs; it must not come back after.
         isSettingsPresented = false
         let loop = makeDrive(self)
         drive = loop
@@ -185,7 +185,7 @@ extension AppModel {
         return .started
     }
 
-    /// Done on the drive's summary: closes the cover. A drive still running is not closed.
+    /// Done on the drive's summary: the tabs come back. A drive still running is not closed.
     func closeDrive() {
         guard let drive, drive.hasEnded else { return }
         self.drive = nil
@@ -194,7 +194,7 @@ extension AppModel {
     }
 }
 
-extension DriveLoop: Identifiable {
+extension DriveLoop {
     /// The drive is over: its summary is what is left on screen.
     var hasEnded: Bool {
         if case .ended = state { true } else { false }

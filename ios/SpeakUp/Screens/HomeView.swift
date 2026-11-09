@@ -39,13 +39,6 @@ struct HomeView: View {
                 app.practice.path.append(route)
             }
         }
-        .onChange(of: app.isDriving) { _, driving in
-            // Siri can start a drive with a sheet up; the drive's cover goes over Home.
-            if driving {
-                pendingRoute = nil
-                isEndingSession = false
-            }
-        }
         .sheet(isPresented: $isEndingSession) {
             NervousnessSheet(title: "Ending the session: how nervous do you feel now?") { rating in
                 app.endOpenSession(nervousnessAfter: rating)
