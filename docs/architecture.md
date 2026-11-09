@@ -16,6 +16,7 @@ The M1 system contract runs from [Domain model](#domain-model) to [Pipeline orch
 | `server/src/speakup/config.py` | Settings and secrets from the environment and `server/.env` |
 | `server/tests/` | Unit tests |
 | `tools/apple-transcribe/` | Swift command-line tool that runs Apple's `SpeechTranscriber` and prints JSON |
+| `tools/drive-commands/` | Swift command-line tool that runs the app's voice-command recognition on the Mac over spoken clips and checks the commands and cut times |
 | `server/src/speakup/{coaching,store,pipeline,api}` | Coaching, storage, the pipeline worker and the HTTP API: see [Module boundaries and ownership](#module-boundaries-and-ownership) |
 | `ios/` | The SwiftUI app; its layout and commands are in `ios/AGENTS.md` |
 | `data/` | Ryan's recordings, transcripts and reports; ignored by git |
@@ -50,6 +51,10 @@ Why this split:
 - **Microphone in the car:** when the phone is connected to the car, iOS may route input to the car's hands-free microphone, which is often narrowband and noise-suppressed and may erase quiet fillers and short pauses.
   M0 tests this; if it hurts accuracy, the app prefers the iPhone's built-in microphone while playing audio through the car.
 - **Voice commands** in driving mode ("done", "again", "next") use on-device `SpeechAnalyzer`, so they work without the network.
+  They use `SpeechTranscriber` only, which needs no speech-recognition permission; a phone without it has no voice commands, because `DictationTranscriber` fails the command clips.
+  Volatile results carry no word times, so the app asks for final results when the text ends in a command, and finalizes again after the silence window so silence after "done" is confirmed by the recognizer, not the microphone clock (`Drive/CommandRecognition.swift`).
+  Each finalization waits until the recognizer has had 1.5 s to report more words, because finalizing audio it has not reported makes it drop them; so the app acts about 3.5 s after the last word.
+  The simulator has neither recognizer, so Debug builds can script the words instead; `tools/drive-commands` checks the real recognizer on the Mac.
 - **Spoken prompts and feedback:** `AVSpeechSynthesizer` with a premium voice first; a server-side voice can replace it later.
 - **Offline queue:** takes are saved locally first and uploaded when the server is reachable.
 - **Local cache:** SwiftData keeps sessions and reports for offline viewing; the server stays the source of truth.
