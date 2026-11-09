@@ -1,0 +1,9 @@
+{
+  "session_id": "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10",
+  "kind": "impromptu",
+  "text": "Why did we choose Postgres over DynamoDB for the billing service?",
+  "notes": null,
+  "category": "decision",
+  "target_seconds": 90,
+  "question_source": "claude"
+}

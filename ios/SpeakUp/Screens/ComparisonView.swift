@@ -1,0 +1,220 @@
+import SwiftUI
+
+/// Comparison (product.md#comparison).
+struct ComparisonView: View {
+    @Environment(AppModel.self) private var app
+    let takeID: String
+    let context: ReportContext
+    @State private var comparison: Comparison?
+    /// Whether the previous take has coaching, fetched only when this one has none.
+    @State private var previousHasCoaching: Bool?
+    @State private var errorMessage: String?
+    @State private var isLoading = false
+
+    var body: some View {
+        Group {
+            if let comparison {
+                content(comparison)
+            } else if let errorMessage {
+                ScrollView {
+                    Banner(
+                        tone: .error, systemImage: "exclamationmark.triangle.fill", message: errorMessage,
+                        actionTitle: "Try again", isWorking: isLoading
+                    ) { Task { await load() } }
+                    .screenContent()
+                }
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(Theme.Colors.background)
+        .navigationTitle("Comparison")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: app.apiGeneration) { await load() }
+        .onDisappear { app.player.stop() }
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let comparison = try await app.api.comparison(takeID: takeID)
+            if comparison.coachingStatus != .done {
+                previousHasCoaching = (try? await app.api.take(id: comparison.previousTakeId))
+                    .map { $0.coachingStatus == .done }
+            }
+            self.comparison = comparison
+            errorMessage = nil
+        } catch {
+            errorMessage = APIError.wrap(error).userMessage
+        }
+    }
+
+    /// Which take lacks coaching. The comparison's own status is this take's; the previous
+    /// take's comes from its Take resource. When that could not be fetched, only what is
+    /// known is said.
+    private func noCoachingMessage(_ comparison: Comparison) -> String {
+        let which: String
+        if comparison.coachingStatus == .done {
+            which = "Take \(comparison.previousAttempt) has no coaching"
+        } else if previousHasCoaching == false {
+            which = "Neither take has coaching"
+        } else {
+            which = "Take \(comparison.attempt) has no coaching"
+        }
+        return which + ", so only metric changes are shown."
+    }
+
+    /// Retry applies only to a prompt of the open session, from Practice.
+    private var retryPromptID: String? {
+        guard context == .practice, let take = app.store.take(id: takeID),
+            app.store.openSession?.id == take.sessionId
+        else { return nil }
+        return take.promptId
+    }
+
+    private func content(_ comparison: Comparison) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                Text("Take \(comparison.attempt) against take \(comparison.previousAttempt)")
+                    .font(Theme.Fonts.title)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let summary = comparison.summary {
+                    Text(summary).font(Theme.Fonts.body).fixedSize(horizontal: false, vertical: true)
+                }
+                listenCard(comparison)
+                if comparison.focusOutcomes.isEmpty && comparison.dimensionChanges.isEmpty {
+                    Banner(
+                        tone: .info, systemImage: "info.circle",
+                        message: noCoachingMessage(comparison))
+                }
+                if !comparison.focusOutcomes.isEmpty { focusCard(comparison) }
+                if !comparison.dimensionChanges.isEmpty { dimensionsCard(comparison) }
+                metricsCard(comparison)
+            }
+            .screenContent()
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let promptID = retryPromptID {
+                BottomBar {
+                    Button {
+                        Task { await app.practice.retry(promptID: promptID) }
+                    } label: {
+                        Label("Retry", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.primary(tint: Theme.Colors.recording))
+                }
+            }
+        }
+    }
+
+    private func listenCard(_ comparison: Comparison) -> some View {
+        Card {
+            SectionTitle("Hear the difference")
+            takeRow(attempt: comparison.previousAttempt, takeID: comparison.previousTakeId)
+            Divider()
+            takeRow(attempt: comparison.attempt, takeID: comparison.takeId)
+        }
+    }
+
+    private func takeRow(attempt: Int, takeID: String) -> some View {
+        HStack {
+            PlayButton(key: "whole-\(takeID)", takeID: takeID, label: "Take \(attempt)")
+            Spacer()
+            Button("Report") { openReport(takeID) }
+                .font(Theme.Fonts.secondary.weight(.semibold))
+        }
+    }
+
+    private func openReport(_ id: String) {
+        switch context {
+        case .practice: app.practice.path.append(.report(takeID: id))
+        case .history: app.historyPath.append(.report(takeID: id))
+        }
+    }
+
+    private func focusCard(_ comparison: Comparison) -> some View {
+        Card {
+            SectionTitle("Last take's focus")
+            ForEach(Array(comparison.focusOutcomes.enumerated()), id: \.offset) { index, item in
+                if index > 0 { Divider() }
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(item.title).font(Theme.Fonts.bodyEmphasis)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: Theme.Spacing.s)
+                        Badge(text: item.outcome.label, color: Theme.color(for: item.outcome))
+                    }
+                    Text(item.dimension.label).font(Theme.Fonts.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text(item.evidence).font(Theme.Fonts.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let anchor = item.anchor {
+                        QuoteButton(anchor: anchor, takeID: comparison.takeId)
+                    }
+                }
+            }
+        }
+    }
+
+    private func dimensionsCard(_ comparison: Comparison) -> some View {
+        Card {
+            SectionTitle("Dimensions", detail: "Before → after")
+            ForEach(comparison.dimensionChanges, id: \.dimension) { change in
+                LabeledRow {
+                    Text(change.dimension.label).font(Theme.Fonts.body)
+                } value: {
+                    levels(change)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private func levels(_ change: Comparison.DimensionChange) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Badge(text: change.before.label, color: Theme.color(for: change.before))
+            Image(systemName: "arrow.right").font(Theme.Fonts.caption)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .accessibilityLabel("to")
+            Badge(text: change.after.label, color: Theme.color(for: change.after))
+        }
+    }
+
+    private func metricsCard(_ comparison: Comparison) -> some View {
+        Card {
+            SectionTitle("Metrics", detail: "Before → after")
+            let graded = comparison.metricChanges.filter { $0.change != .info }
+            let informational = comparison.metricChanges.filter { $0.change == .info }
+            ForEach(graded, id: \.metric) { metricRow($0, showsChange: true) }
+            if !informational.isEmpty {
+                // Like the Report: pace, length, pitch and volume are context, not a grade.
+                Divider()
+                Text("For information, not graded").font(Theme.Fonts.captionEmphasis)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                ForEach(informational, id: \.metric) { metricRow($0, showsChange: false) }
+            }
+        }
+    }
+
+    private func metricRow(_ change: Comparison.MetricChange, showsChange: Bool) -> some View {
+        LabeledRow {
+            Text(change.label).font(Theme.Fonts.body)
+        } value: {
+            metricValues(change, showsChange: showsChange)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func metricValues(_ change: Comparison.MetricChange, showsChange: Bool) -> some View {
+        HStack(spacing: Theme.Spacing.s) {
+            Text("\(Format.metricValue(change.before, unit: change.unit)) → \(Format.metricValue(change.after, unit: change.unit))")
+                .font(Theme.Fonts.numeric)
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .fixedSize()
+            if showsChange {
+                Badge(text: change.change.label, color: Theme.color(for: change.change))
+            }
+        }
+    }
+}

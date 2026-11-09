@@ -1,0 +1,24 @@
+{
+  "id": "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10",
+  "mode": "home",
+  "started_at": "2026-11-09T08:12:03.115Z",
+  "ended_at": "2026-11-09T08:41:50.020Z",
+  "nervousness_before": 3,
+  "nervousness_after": 2,
+  "created_at": "2026-11-09T08:12:03.402Z",
+  "updated_at": "2026-11-09T08:41:50.311Z",
+  "prompts": [
+    {
+      "id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8",
+      "session_id": "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10",
+      "kind": "impromptu",
+      "text": "Why did we choose Postgres over DynamoDB for the billing service?",
+      "notes": null,
+      "category": "decision",
+      "target_seconds": 90,
+      "question_source": "claude",
+      "created_at": "2026-11-09T08:12:40.880Z",
+      "takes": []
+    }
+  ]
+}
