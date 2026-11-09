@@ -1,0 +1,8 @@
+# Xcode user data and build output
+xcuserdata/
+DerivedData/
+build/
+*.xcresult
+
+# The workspace inside the project holds only per-user state; there are no Swift packages yet.
+SpeakUp.xcodeproj/project.xcworkspace/
