@@ -6,6 +6,7 @@ Milestone 0, validation, as defined in [product.md#roadmap](product.md#roadmap).
 Positioning, scope, the practice loop, feedback rules and the system shape are written in [product.md](product.md) and [architecture.md](architecture.md).
 The speech-to-text bake-off is built and works end to end; it is waiting on Ryan's recordings.
 How to run it is in [bakeoff.md](bakeoff.md).
+The M1 system contract (data shapes, API, storage, module boundaries and screens) is written in [architecture.md#domain-model](architecture.md#domain-model) onward and [product.md#screens](product.md#screens), so M1 can be built in parallel.
 
 ## Decided with Ryan
 
@@ -34,6 +35,7 @@ How to run it is in [bakeoff.md](bakeoff.md).
 - Whether the car's hands-free microphone is good enough, or the app should force the iPhone microphone.
 - Which Claude model for driving mode, balancing quality and latency.
 - Does Ryan's car support CarPlay, and is it worth requesting the conversational app entitlement in M3?
+- M1 defaults set by an agent in the contract, pending Ryan's review: a retry is compared with the previous take, not the first; a session closes by itself 2 hours after its last take; takes stop at 15 minutes; the work-context profile is a file on the Mac mini; no deleting takes in M1; impromptu practice needs the server in M1.
 
 ## Next steps
 

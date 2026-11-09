@@ -133,6 +133,152 @@ At home, Ryan uses the full screen:
 - Review driving sessions: annotated transcripts, outlines and comparisons.
 - History: each metric and each dimension over time, and how the current focus item is trending.
 
+## Screens
+
+The M1 home-mode screens: what each shows, its primary actions, and how they connect.
+Visual design is decided separately; this section is the behavior the app must have.
+Data shapes and endpoints are in [architecture.md#server-api](architecture.md#server-api).
+
+### Navigation
+
+```text
+Practice tab
+  Home ─┬─▶ Prepared prompt ──┬─▶ Recording ──▶ Processing ──▶ Report ──▶ Comparison
+        └─▶ Impromptu prompt ─┘       ▲                          │
+                                      └──── Retry (same prompt) ─┘
+  Home ──▶ Settings (sheet)
+
+History tab
+  Sessions ──▶ Session ──▶ Report ──▶ Comparison
+```
+
+The app has two tabs, Practice and History.
+Recording and Processing are full-screen, so a take is never interrupted by navigation.
+On first launch, with no server address or token, Settings opens first.
+
+### Sessions in the app
+
+- A session opens when Ryan starts his first prompt from Home with no session open.
+  The app first asks his nervousness from 1 to 5, with Skip.
+- It stays open across prompts and retries.
+- **End session**, on Home and on the Report, asks his nervousness again (Skip allowed) and closes it.
+- If the app is opened more than 2 hours after the last take of an open session, it closes that session without an after-rating, with `ended_at` set to the end of its last take.
+
+### Home (practice picker)
+
+Shows:
+
+- The open session, if any: start time, number of takes, and End session.
+- Two primary actions: **Prepared** and **Impromptu**.
+- The open session's takes, newest first: prompt text, attempt number, and status or verdict.
+  A take still on the phone shows "Not uploaded" with Retry upload.
+- Server state: reachable, unreachable, or reachable without coaching; a gear opens Settings.
+
+Actions: Prepared, Impromptu, open a take's Report, End session, Settings.
+
+### Prepared prompt
+
+Shows a title field (placeholder "Today's stand-up"), a notes editor for the points Ryan wants to make (typed, or dictated with the keyboard's dictation key), and a target length picker: 30 seconds, 1, 2, 3 or 5 minutes, default 2 minutes.
+Notes are optional.
+
+Actions: **Record** (primary; needs a title).
+
+### Impromptu prompt
+
+Shows category chips (Any, Decision, Status, Explain, Push back), one question in large text, and its suggested length, which Ryan can change.
+Questions are fetched three at a time; a small note says when they came from the built-in bank instead of Claude.
+If the server cannot be reached, the screen says so and offers Retry; impromptu practice needs the server in M1.
+
+Actions: **Record** (primary), Another question, change category.
+
+### Recording
+
+Shows the prompt text, the prepared notes collapsed behind "Show notes", the elapsed time against the target (it keeps counting past the target and never stops the take there), a live input level, and the microphone in use.
+The screen stays awake.
+
+Actions: **Done** (primary; stops and keeps the take), Cancel (discards after a confirmation).
+There is no pause button, because a paused take would hide real pauses.
+
+Recording starts the moment Record is tapped.
+A take is saved on the phone before it is uploaded.
+At 14 minutes the screen warns, and at 15 minutes it stops and keeps the take; this is a technical limit, not a target.
+If a phone call or another app interrupts recording, the take stops and is kept up to that point.
+
+### Processing
+
+Shows upload progress, then the stage from the take's status (Transcribing, Analyzing, Coaching) and the elapsed time.
+After 3 minutes it adds "Taking longer than usual".
+When the take is done, the app moves to the Report by itself.
+
+Actions: Back to Home (processing continues on the server and the take appears on Home), and on errors:
+
+- Upload failed: "Saved on this phone" with **Retry upload**.
+- No speech detected: **Record again** on the same prompt.
+- Any other failure: the error message and **Try again**, which reprocesses the take.
+
+### Report
+
+Top to bottom:
+
+1. Header: prompt text, attempt number, length against target, date.
+2. For attempt 2 or later, a comparison card: the comparison summary and each previous focus item's outcome; tapping it opens Comparison.
+3. **Verdict.**
+4. **Strength**, with its quote; tapping the quote plays that audio.
+5. **Focus**: one or two items, each with title, problem, quotes to play, and the instruction for the next take.
+6. **Retry** as the primary action, pinned at the bottom of the screen, with Next prompt and End session beside it.
+7. **Dimensions**: six rows, each with its level and evidence.
+8. **Structure outline**: the points in order with their roles, and whether the main point came first.
+9. **Annotated transcript**: fillers, blocks, repetitions, restarts and off-topic stretches marked inline, boundary pauses shown faintly, with a legend.
+   Tapping a word plays from there; tapping a mark explains it.
+10. **Reference version**, collapsed until tapped.
+11. **Metrics**: fillers per 100 words with the normal range (about 2 to 6), blocks, restarts and repetitions; pace, pitch variation and volume variation marked "for information".
+    The fillers row expands to every filler with its timestamp and a play button.
+12. **Nervousness**: the session's self-ratings next to the signs found in this take, never as a score.
+
+Without coaching, sections 3 to 5, 7, 8 and 10 are replaced by one banner; the transcript, metrics and nervousness remain, and the comparison card shows metric changes only:
+
+- Coaching unavailable: "Coaching is off because the server has no Anthropic API key." When the server later reports coaching as available, the banner offers **Get coaching**, which reprocesses the take from coaching.
+- Coaching failed: "Coaching failed for this take." with **Try coaching again**.
+
+Actions: **Retry**, Next prompt (back to Home with the session still open), End session, play audio.
+
+### Comparison
+
+Shows "Take n against take n - 1", the summary, each previous focus item with its outcome (improved, partly improved, not improved, not applicable), evidence and quote to play, the six dimension levels before and after, and the metric changes before and after (graded metrics marked better, same or worse; others marked "for information").
+Two play buttons play the two takes, so Ryan can hear the difference.
+Without coaching on either take, only metric changes are shown, with a note why.
+
+Actions: play either take, open either take's Report, **Retry** again.
+
+### History
+
+**Sessions:** newest first, loading more on scroll.
+Each row shows the date, mode, the first prompt's text and the number of prompts, the number of takes, and nervousness before and after.
+
+**Session:** its prompts in order, each with its takes: attempt, length, verdict, fillers per 100 words and blocks.
+Tapping a take opens its Report.
+
+Trends over time and focus tracking are M3, per [Roadmap](#roadmap).
+
+### Settings
+
+Shows and edits:
+
+- Server address, such as `https://mac-mini.example-tailnet.ts.net`.
+- Token, entered once and kept in the Keychain; shown masked.
+- **Test connection**, which shows whether the server answered, the speech-to-text engine, whether coaching is available, the model and the rubric version.
+- Default prepared length.
+- App version.
+
+### Later: what driving mode needs from this contract
+
+Driving mode ([Driving mode](#driving-mode)) adds no M1 screens, but the M1 contract already supports it:
+
+- Sessions carry `mode: driving`.
+- The app creates ids itself, so takes recorded without a connection upload later in order, and repeated uploads are harmless.
+- The verdict, strength, first focus item and reference version are plain sentences that can be read aloud.
+- Driving sessions appear in History like home sessions, which is how Ryan reviews them at home.
+
 ## Out of scope for v1
 
 - Recording real meetings or conversations, or anyone other than the user.
