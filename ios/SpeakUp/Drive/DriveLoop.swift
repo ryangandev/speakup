@@ -145,8 +145,9 @@ final class DriveLoop {
     private(set) var prompt: LocalPrompt?
     /// The drive's session, once the opening question is answered.
     private(set) var sessionID: String?
-    /// Takes whose feedback was not given: waiting reached its limit, or a call or stop cut it
-    /// short. They keep uploading and processing, and show in History. This is the seam for late feedback: a later version can poll these and read
+    /// Takes whose feedback was not given: the server was unreachable, waiting reached its
+    /// limit, or a call or stop cut it short. They keep uploading and processing, and show in
+    /// History. This is the seam for late feedback: a later version can poll these and read
     /// `DriveScript.feedback` for them at the next break.
     private(set) var feedbackLater: [String] = []
     #if DEBUG
@@ -494,6 +495,7 @@ final class DriveLoop {
             if let error, !error.isUnreachable, error != .notConfigured {
                 return Self.spoken(DriveScript.serverError)
             }
+            feedbackLater.append(takeID)
             return Self.spoken(DriveScript.offline)
         case .done(let remote):
             var report: TakeReport?
