@@ -23,7 +23,7 @@ from speakup.pipeline import Worker
 from speakup.store import Store
 from speakup.stt import Transcript, Word
 
-TOKEN = "test-token-not-a-secret"
+TOKEN = "test-token-not-a-secret-0123456789abcdef"
 DOC = Path(__file__).resolve().parents[2] / "docs" / "architecture.md"
 
 SESSION_ID = "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10"
@@ -270,6 +270,10 @@ class FakeCoach:
                 report["dimensions"][name]["level"] = level
             report["comparison"] = copy.deepcopy(COACHING_COMPARISON_EXAMPLE)
         return report
+
+    def coach_take_with_usage(self, request: dict[str, Any]) -> tuple[dict[str, Any], list[dict]]:
+        report = self.coach_take(request)
+        return report, [{"input_tokens": 1200, "output_tokens": 800}]
 
     def generate_questions(
         self, *, count: int, category: str | None, exclude: list[str]

@@ -14,6 +14,8 @@ from speakup import config
 from speakup.api import cli, defaults
 from speakup.audio import to_wav16k
 
+GOOD_TOKEN = "t" * 32
+
 
 @pytest.fixture
 def clean_settings(monkeypatch):
@@ -38,12 +40,12 @@ def test_settings_defaults(clean_settings):
 
 
 def test_settings_from_the_environment(clean_settings, monkeypatch, tmp_path):
-    monkeypatch.setenv("SPEAKUP_API_TOKEN", "abc")
+    monkeypatch.setenv("SPEAKUP_API_TOKEN", GOOD_TOKEN)
     monkeypatch.setenv("SPEAKUP_PORT", "18765")
     monkeypatch.setenv("SPEAKUP_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SPEAKUP_STT_ENGINE", "scribe")
     settings = config.server_settings()
-    assert (settings.api_token, settings.port, settings.data_dir) == ("abc", 18765, tmp_path)
+    assert (settings.api_token, settings.port, settings.data_dir) == (GOOD_TOKEN, 18765, tmp_path)
     assert settings.stt_engine == "scribe"
 
 
@@ -65,7 +67,7 @@ def test_the_command_refuses_to_start_without_a_token(clean_settings, capsys):
 
 
 def test_the_command_says_clearly_when_a_module_is_missing(clean_settings, monkeypatch, capsys):
-    monkeypatch.setenv("SPEAKUP_API_TOKEN", "abc")
+    monkeypatch.setenv("SPEAKUP_API_TOKEN", GOOD_TOKEN)
 
     def missing(name):
         raise ImportError(f"No module named {name!r}")
@@ -75,8 +77,25 @@ def test_the_command_says_clearly_when_a_module_is_missing(clean_settings, monke
     assert "speakup.analysis" in capsys.readouterr().err
 
 
+def test_a_short_token_is_refused_with_advice(clean_settings, monkeypatch, capsys):
+    monkeypatch.setenv("SPEAKUP_API_TOKEN", "t" * 31)
+    assert cli.main() == 2
+    err = capsys.readouterr().err
+    assert "31 characters" in err
+    assert "secrets.token_urlsafe(32)" in err
+    assert "t" * 31 not in err  # the token itself is never printed
+
+
+def test_create_app_refuses_a_short_token(env):
+    from speakup.api import create_app
+
+    with pytest.raises(RuntimeError, match="at least 32"):
+        create_app(worker=env.worker, token="short")
+    assert create_app(worker=env.worker, token=GOOD_TOKEN)
+
+
 def test_the_command_refuses_a_bad_port(clean_settings, monkeypatch, capsys):
-    monkeypatch.setenv("SPEAKUP_API_TOKEN", "abc")
+    monkeypatch.setenv("SPEAKUP_API_TOKEN", GOOD_TOKEN)
     monkeypatch.setenv("SPEAKUP_PORT", "abc")
     assert cli.main() == 2
     assert "SPEAKUP_PORT" in capsys.readouterr().err

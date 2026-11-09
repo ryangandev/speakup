@@ -57,5 +57,29 @@ def load_analyzer() -> Analyzer:
     return _load("speakup.analysis", "analysis and metrics")
 
 
+class _RealCoach:
+    """`speakup.coaching` as a Coach, plus `coach_take_with_usage` so token usage is stored.
+
+    The package does not export that function, only its `coach` module does.
+    """
+
+    def __init__(self, package: Any, coach_module: Any) -> None:
+        self.coaching_info = package.coaching_info
+        self.coach_take = package.coach_take
+        self.generate_questions = package.generate_questions
+        self.CoachingUnavailable = package.CoachingUnavailable
+        self.CoachingFailed = package.CoachingFailed
+        with_usage = getattr(coach_module, "coach_take_with_usage", None)
+        if with_usage is not None:
+            self.coach_take_with_usage = with_usage
+
+
 def load_coach() -> Coach:
-    return _load("speakup.coaching", "coaching and question generation")
+    package = _load("speakup.coaching", "coaching and question generation")
+    if not hasattr(package, "coach_take_with_usage"):
+        try:
+            module = importlib.import_module("speakup.coaching.coach")
+        except ImportError:
+            return package
+        return _RealCoach(package, module)
+    return package

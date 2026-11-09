@@ -35,6 +35,7 @@ from speakup.api.models import (
 )
 from speakup.pipeline import Analyzer, Coach, Worker
 from speakup.store import Conflict, InvalidState, Store, normalize_ts
+from speakup.store.durable import fsync_fd
 
 MAX_AUDIO_BYTES = 100 * 1024 * 1024
 # Multipart framing and the metadata part on top of the audio.
@@ -298,6 +299,8 @@ def _stage_audio(upload: UploadFile, tmp_dir: Path) -> tuple[Path, str]:
                     raise ApiError(413, "payload_too_large", "The audio is over 100 MB.")
                 digest.update(chunk)
                 out.write(chunk)
+            out.flush()
+            fsync_fd(out.fileno())
         if size == 0:
             raise ApiError(415, "unsupported_media_type", "The audio must be a WAV file.")
     except BaseException:

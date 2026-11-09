@@ -15,6 +15,9 @@ from speakup.config import server_settings
 from speakup.pipeline import Analyzer, Coach, Worker
 from speakup.store import Store
 
+MIN_TOKEN_LENGTH = 32
+TOKEN_HELP = 'Generate one with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"'
+
 
 def create_app(
     *,
@@ -33,7 +36,12 @@ def create_app(
     settings = server_settings()
     token = token or settings.api_token
     if not token:
-        raise RuntimeError("SPEAKUP_API_TOKEN is not set. Put it in server/.env.")
+        raise RuntimeError(f"SPEAKUP_API_TOKEN is not set. Put one in server/.env. {TOKEN_HELP}")
+    if len(token) < MIN_TOKEN_LENGTH:
+        raise RuntimeError(
+            f"SPEAKUP_API_TOKEN is only {len(token)} characters; it needs at least "
+            f"{MIN_TOKEN_LENGTH}. {TOKEN_HELP}"
+        )
 
     if worker is not None:
         store = store or worker.store

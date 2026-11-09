@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
+import shutil
 import sqlite3
 import uuid
 from collections.abc import Callable, Iterator
@@ -18,7 +20,10 @@ from pathlib import Path
 from typing import Any
 
 from speakup.store.clock import now_ts
+from speakup.store.durable import fsync_dir
 from speakup.store.migrations import MIGRATIONS
+
+log = logging.getLogger(__name__)
 
 TERMINAL_STATUSES = ("done", "failed")
 UNFINISHED_STATUSES = ("uploaded", "transcribing", "analyzing", "coaching")
@@ -71,7 +76,12 @@ class Store:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "takes").mkdir(exist_ok=True)
         self.tmp_dir.mkdir(exist_ok=True)
-        self._migrate()
+        created = self._migrate()
+        self.swept: list[str] = []
+        # Never sweep next to a database that was just created: if the database file was lost,
+        # the recordings beside it are all that is left of those takes.
+        if not created:
+            self.swept = self._sweep()
 
     # -- layout ---------------------------------------------------------------------------
 
@@ -96,6 +106,9 @@ class Store:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA busy_timeout = 5000")
+        # A 201 for an upload also means its row survives a power cut.
+        conn.execute("PRAGMA synchronous = FULL")
+        conn.execute("PRAGMA fullfsync = ON")
         return conn
 
     @contextlib.contextmanager
@@ -107,20 +120,49 @@ class Store:
             conn.close()
 
     @contextlib.contextmanager
-    def _write(self) -> Iterator[sqlite3.Connection]:
+    def _write(self, undo: list[Callable[[], None]] | None = None) -> Iterator[sqlite3.Connection]:
+        """A transaction. If the body or the COMMIT fails, roll back and run the `undo` steps
+        (the caller appends them as it makes changes outside the database)."""
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             try:
                 yield conn
+                conn.execute("COMMIT")
             except BaseException:
-                conn.execute("ROLLBACK")
+                with contextlib.suppress(sqlite3.Error):
+                    conn.execute("ROLLBACK")
+                for step in reversed(undo or []):
+                    step()
                 raise
-            conn.execute("COMMIT")
         finally:
             conn.close()
 
-    def _migrate(self) -> None:
+    def _sweep(self) -> list[str]:
+        """Remove what a crash can leave behind: staged uploads, and take directories with no
+        row (the process died after moving the audio but before the insert committed)."""
+        removed: list[str] = []
+        for leftover in self.tmp_dir.iterdir():
+            if leftover.is_dir():
+                shutil.rmtree(leftover, ignore_errors=True)
+            else:
+                leftover.unlink(missing_ok=True)
+            removed.append(f"tmp/{leftover.name}")
+        with self._read() as conn:
+            known = {r["id"] for r in conn.execute("SELECT id FROM takes")}
+        for directory in (self.data_dir / "takes").iterdir():
+            if directory.name not in known:
+                if directory.is_dir():
+                    shutil.rmtree(directory)
+                else:
+                    directory.unlink()
+                removed.append(f"takes/{directory.name}")
+        if removed:
+            log.warning("Removed leftovers of an interrupted run: %s", ", ".join(removed))
+        return removed
+
+    def _migrate(self) -> bool:
+        """Apply pending migrations; return whether the database was new."""
         conn = sqlite3.connect(self.db_path, timeout=5, isolation_level=None)
         try:
             conn.execute("PRAGMA journal_mode = WAL")
@@ -152,6 +194,7 @@ class Store:
                     conn.execute("ROLLBACK")
                     raise
                 conn.execute("COMMIT")
+            return current == 0
         finally:
             conn.close()
 
@@ -334,7 +377,8 @@ class Store:
         the id exists with a different hash or (prompt_id, attempt) is taken, and
         LookupError("prompt_id") for an unknown prompt.
         """
-        with self._write() as conn:
+        undo: list[Callable[[], None]] = []
+        with self._write(undo) as conn:
             existing = conn.execute("SELECT * FROM takes WHERE id = ?", (id,)).fetchone()
             if existing is not None:
                 if existing["audio_sha256"] == audio_sha256:
@@ -353,29 +397,29 @@ class Store:
             destination = self.original_path(id)
             destination.parent.mkdir(parents=True, exist_ok=True)
             os.replace(staged_audio, destination)
-            try:
-                conn.execute(
-                    "INSERT INTO takes (id, prompt_id, attempt, recorded_at, duration_s, mic_route,"
-                    " audio_sha256, status, status_changed_at, coaching_status, previous_take_id,"
-                    " created_at, updated_at)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, 'uploaded', ?, 'pending', ?, ?, ?)",
-                    (
-                        id,
-                        prompt_id,
-                        attempt,
-                        recorded_at,
-                        duration_s,
-                        mic_route,
-                        audio_sha256,
-                        now,
-                        guess["id"] if guess else None,
-                        now,
-                        now,
-                    ),
-                )
-            except BaseException:
-                destination.unlink(missing_ok=True)
-                raise
+            # Whatever fails from here on, including the COMMIT, must not leave audio without a row.
+            undo.append(lambda: _remove_take_files(destination))
+            fsync_dir(destination.parent)
+            fsync_dir(destination.parent.parent)
+            conn.execute(
+                "INSERT INTO takes (id, prompt_id, attempt, recorded_at, duration_s, mic_route,"
+                " audio_sha256, status, status_changed_at, coaching_status, previous_take_id,"
+                " created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, 'uploaded', ?, 'pending', ?, ?, ?)",
+                (
+                    id,
+                    prompt_id,
+                    attempt,
+                    recorded_at,
+                    duration_s,
+                    mic_route,
+                    audio_sha256,
+                    now,
+                    guess["id"] if guess else None,
+                    now,
+                    now,
+                ),
+            )
             return self._take_in(conn, id), True
 
     @staticmethod
@@ -403,10 +447,11 @@ class Store:
                 "coaching": ("coaching_id",),
             }[from_stage]
             now = self.clock()
+            clear = ", ".join(f"{column} = NULL" for column in cleared)
             conn.execute(
                 f"UPDATE takes SET status = ?, status_changed_at = ?, coaching_status = 'pending',"
-                f" error_code = NULL, error_message = NULL, stage_failures = 0, updated_at = ?,"
-                f" {', '.join(f'{c} = NULL' for c in cleared)} WHERE id = ?",
+                f" error_code = NULL, error_message = NULL, stage_failures = 0,"
+                f" stage_started_at = NULL, updated_at = ?, {clear} WHERE id = ?",
                 (from_stage, now, now, take_id),
             )
             return self._take_in(conn, take_id)
@@ -425,11 +470,14 @@ class Store:
         return dict(row) if row else None
 
     def interrupted_takes(self) -> list[Row]:
-        """Takes whose stage was running (or about to run) when the process last stopped."""
+        """Takes whose stage the worker had in hand when the process last stopped.
+
+        A take that was only waiting in a stage (for example after a reprocess) is not listed.
+        """
         with self._read() as conn:
             rows = conn.execute(
-                "SELECT id, status FROM takes WHERE status IN ('transcribing', 'analyzing',"
-                " 'coaching')"
+                "SELECT id, status FROM takes WHERE stage_started_at IS NOT NULL"
+                " AND status IN ('transcribing', 'analyzing', 'coaching')"
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -441,16 +489,23 @@ class Store:
                 "UPDATE takes SET"
                 " status_changed_at = CASE WHEN status != ?1 THEN ?2 ELSE status_changed_at END,"
                 " stage_failures = CASE WHEN status != ?1 THEN 0 ELSE stage_failures END,"
-                " status = ?1, error_code = NULL, error_message = NULL, updated_at = ?2"
+                " status = ?1, stage_started_at = ?2, error_code = NULL, error_message = NULL,"
+                " updated_at = ?2"
                 " WHERE id = ?3",
                 (status, now, take_id),
             )
 
     def bump_stage_failures(self, take_id: str) -> int:
-        """Count one more interruption of the take's current stage; return the new count."""
+        """Count one more interruption of the take's current stage; return the new count.
+
+        The running marker is cleared, so the stage is only counted again if the worker starts
+        it again and the process dies again.
+        """
         with self._write() as conn:
             conn.execute(
-                "UPDATE takes SET stage_failures = stage_failures + 1 WHERE id = ?", (take_id,)
+                "UPDATE takes SET stage_failures = stage_failures + 1, stage_started_at = NULL"
+                " WHERE id = ?",
+                (take_id,),
             )
             return conn.execute(
                 "SELECT stage_failures FROM takes WHERE id = ?", (take_id,)
@@ -461,7 +516,8 @@ class Store:
         with self._write() as conn:
             conn.execute(
                 "UPDATE takes SET status = 'failed', status_changed_at = ?, error_code = ?,"
-                " error_message = ?, stage_failures = 0, updated_at = ? WHERE id = ?",
+                " error_message = ?, stage_failures = 0, stage_started_at = NULL, updated_at = ?"
+                " WHERE id = ?",
                 (now, code, message, now, take_id),
             )
 
@@ -470,7 +526,8 @@ class Store:
         with self._write() as conn:
             conn.execute(
                 "UPDATE takes SET status = 'done', status_changed_at = ?, error_code = NULL,"
-                " error_message = NULL, stage_failures = 0, updated_at = ? WHERE id = ?",
+                " error_message = NULL, stage_failures = 0, stage_started_at = NULL,"
+                " updated_at = ? WHERE id = ?",
                 (now, now, take_id),
             )
 
@@ -554,7 +611,7 @@ class Store:
         analysis_id: str,
         report: dict[str, Any],
         final: dict[str, Any],
-        usage: dict[str, Any] | None = None,
+        usage: Any = None,
     ) -> str:
         """Store the report, rewrite the analysis's final document, and mark coaching done,
         together."""
@@ -620,6 +677,12 @@ class Store:
                 "SELECT json FROM coaching_reports WHERE id = ?", (coaching_id,)
             ).fetchone()
         return json.loads(row["json"]) if row else None
+
+
+def _remove_take_files(original: Path) -> None:
+    original.unlink(missing_ok=True)
+    with contextlib.suppress(OSError):
+        original.parent.rmdir()
 
 
 def _split_statements(sql: str) -> list[str]:

@@ -9,11 +9,13 @@ from typing import Any
 
 import anthropic
 
-from speakup.config import REPO_DIR, setting
+from speakup.config import data_dir as server_data_dir
+from speakup.config import setting
 
 log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "claude-opus-5-5"
+REQUEST_TIMEOUT_SECONDS = 120.0
 
 # Coaching is the product's core value, so it runs above Claude Opus 5.5's default
 # effort (medium). Questions are short and run at the default.
@@ -38,8 +40,8 @@ def model() -> str:
 
 
 def data_dir() -> Path:
-    configured = setting("SPEAKUP_DATA_DIR")
-    return Path(configured) if configured else REPO_DIR / "data" / "server"
+    """The server's data directory; the default lives in `speakup.config`."""
+    return server_data_dir()
 
 
 _clients: dict[str, Any] = {}
@@ -52,8 +54,11 @@ def client() -> Any:
         raise LookupError("ANTHROPIC_API_KEY is not set")
     if key not in _clients:
         _clients.clear()
-        # The SDK retries 429, 5xx and connection errors itself.
-        _clients[key] = anthropic.Anthropic(api_key=key, max_retries=2)
+        # The SDK retries 429, 5xx and connection errors itself. The timeout keeps one stuck
+        # call from blocking the worker's queue.
+        _clients[key] = anthropic.Anthropic(
+            api_key=key, max_retries=2, timeout=REQUEST_TIMEOUT_SECONDS
+        )
     return _clients[key]
 
 

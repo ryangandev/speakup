@@ -52,6 +52,15 @@ class ServerSettings:
     port: int
 
 
+def data_dir() -> Path:
+    """Where the server keeps its database, audio and profile.md (`SPEAKUP_DATA_DIR`).
+
+    A relative path is relative to the repository.
+    """
+    path = Path(setting("SPEAKUP_DATA_DIR", "data/server") or "data/server").expanduser()
+    return path if path.is_absolute() else REPO_DIR / path
+
+
 def server_settings() -> ServerSettings:
     """Read the server settings. A relative `SPEAKUP_DATA_DIR` is relative to the repository."""
     raw_port = setting("SPEAKUP_PORT", str(DEFAULT_PORT)) or str(DEFAULT_PORT)
@@ -61,12 +70,9 @@ def server_settings() -> ServerSettings:
         raise ValueError(f"SPEAKUP_PORT must be a number, not {raw_port!r}") from None
     if not 1 <= port <= 65535:
         raise ValueError(f"SPEAKUP_PORT must be between 1 and 65535, not {port}")
-    data_dir = Path(setting("SPEAKUP_DATA_DIR", "data/server") or "data/server").expanduser()
-    if not data_dir.is_absolute():
-        data_dir = REPO_DIR / data_dir
     return ServerSettings(
         api_token=setting("SPEAKUP_API_TOKEN"),
-        data_dir=data_dir,
+        data_dir=data_dir(),
         stt_engine=setting("SPEAKUP_STT_ENGINE", DEFAULT_STT_ENGINE) or DEFAULT_STT_ENGINE,
         coach_model=setting("SPEAKUP_COACH_MODEL", DEFAULT_COACH_MODEL) or DEFAULT_COACH_MODEL,
         port=port,

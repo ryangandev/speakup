@@ -6,10 +6,11 @@ docs/architecture.md#pipeline-orchestration.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Protocol
@@ -29,6 +30,8 @@ MetricChange = dict[str, Any]
 # A stage that was interrupted this many times (the process died while running it) is not
 # retried again: it is probably what kills the process.
 MAX_STAGE_INTERRUPTIONS = 3
+# A stage running longer than this gets a warning in the log (a stuck call blocks the queue).
+SLOW_STAGE_SECONDS = 600.0
 _START_STAGE = {"uploaded": 0, "transcribing": 0, "analyzing": 1, "coaching": 2}
 
 
@@ -114,6 +117,8 @@ class Worker:
         convert: Callable[[Path, Path], Any] = to_wav16k,
         stt_retry_delays: Sequence[float] = (5.0, 30.0),
         idle_seconds: float = 30.0,
+        slow_stage_seconds: float = SLOW_STAGE_SECONDS,
+        startup_retry_seconds: float = 5.0,
     ) -> None:
         self.store = store
         self.engine = engine
@@ -122,6 +127,8 @@ class Worker:
         self._convert = convert
         self._stt_retry_delays = tuple(stt_retry_delays)
         self._idle_seconds = idle_seconds
+        self._slow_stage_seconds = slow_stage_seconds
+        self._startup_retry_seconds = startup_retry_seconds
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -148,8 +155,19 @@ class Worker:
             self._thread = None
 
     def _run(self) -> None:
-        self._prepare_engine()
-        self.resume()
+        # The thread must outlive a locked database or a failing engine: health stays "ok"
+        # whatever the worker does, so a dead worker would go unnoticed.
+        while not self._stop.is_set():
+            try:
+                self._prepare_engine()
+                self.resume()
+                break
+            except Exception:
+                log.exception(
+                    "The worker could not start; retrying in %ss", self._startup_retry_seconds
+                )
+                if self._stop.wait(self._startup_retry_seconds):
+                    return
         while not self._stop.is_set():
             self._wake.clear()
             try:
@@ -172,8 +190,9 @@ class Worker:
         self._engine_ready = True
 
     def resume(self) -> None:
-        """A take found mid-stage at startup was interrupted by a restart; count it so a take
-        that keeps killing the process stops being retried."""
+        """Count the stages a restart interrupted, so a take that keeps killing the process
+        stops being retried. Only a stage the worker had in hand counts; a take that was merely
+        waiting in a queue (after a reprocess, say) does not."""
         for take in self.store.interrupted_takes():
             count = self.store.bump_stage_failures(take["id"])
             log.warning(
@@ -194,6 +213,26 @@ class Worker:
         self.store.fail_take(take["id"], code, message)
 
     # -- processing -----------------------------------------------------------------------
+
+    @contextlib.contextmanager
+    def _watch(self, take_id: str, stage: str) -> Iterator[None]:
+        """Warn once if the stage is still running after `slow_stage_seconds`."""
+
+        def warn() -> None:
+            log.warning(
+                "Take %s has been in %s for over %d seconds; the queue is blocked behind it",
+                take_id,
+                stage,
+                self._slow_stage_seconds,
+            )
+
+        timer = threading.Timer(self._slow_stage_seconds, warn)
+        timer.daemon = True
+        timer.start()
+        try:
+            yield
+        finally:
+            timer.cancel()
 
     def run_pending(self) -> int:
         """Process every unfinished take in the calling thread; return how many were run."""
@@ -220,12 +259,15 @@ class Worker:
         stage = "transcribing" if start == 0 else "analyzing" if start == 1 else "coaching"
         try:
             if start <= 0:
-                self._stage_transcribe(take_id)
+                with self._watch(take_id, "transcribing"):
+                    self._stage_transcribe(take_id)
             if start <= 1:
                 stage = "analyzing"
-                self._stage_analyze(take_id)
+                with self._watch(take_id, "analyzing"):
+                    self._stage_analyze(take_id)
             stage = "coaching"
-            self._stage_coach(take_id)
+            with self._watch(take_id, "coaching"):
+                self._stage_coach(take_id)
             self.store.complete_take(take_id)
         except _Stopped:
             raise
@@ -326,7 +368,7 @@ class Worker:
         self.store.begin_stage(take_id, "coaching")
         try:
             request = self._coaching_request(take_id)
-            report = self.coach.coach_take(request)
+            report, usage = self._call_coach(request)
             final_doc = self.analyzer.finalize(stage_doc, report)
         except Exception as exc:
             if _named(exc, "CoachingUnavailable", self.coach):
@@ -336,7 +378,15 @@ class Worker:
                 log.warning("Take %s: coaching failed: %s", take_id, exc, exc_info=True)
                 self.store.set_coaching_status(take_id, "failed")
             return
-        self.store.save_coaching(take_id, take["analysis_id"], report, final_doc)
+        self.store.save_coaching(take_id, take["analysis_id"], report, final_doc, usage)
+
+    def _call_coach(self, request: dict[str, Any]) -> tuple[CoachingReportDoc, Any]:
+        """The report and, when the coach reports it, the token usage of its calls."""
+        with_usage = getattr(self.coach, "coach_take_with_usage", None)
+        if with_usage is not None:
+            report, usage = with_usage(request)
+            return report, usage
+        return self.coach.coach_take(request), None
 
     def _coaching_request(self, take_id: str) -> dict[str, Any]:
         take = self._take(take_id)

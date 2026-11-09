@@ -96,4 +96,10 @@ CREATE TABLE coaching_reports (
 );
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1)]
+# Set while the worker has a take's stage in hand, cleared when the take finishes or fails.
+# A restart only counts a stage as interrupted if this is set.
+MIGRATION_2 = """
+ALTER TABLE takes ADD COLUMN stage_started_at TEXT;
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2)]

@@ -366,14 +366,42 @@ def test_restart_resumes_unfinished_takes(env, crash_in):
 def test_a_take_that_keeps_killing_the_process_is_given_up_on(env):
     env.seed()
     env.upload(TAKE1_ID, attempt=1)
-    env.store.begin_stage(TAKE1_ID, "analyzing")
     for _ in range(MAX_STAGE_INTERRUPTIONS - 1):
+        env.store.begin_stage(
+            TAKE1_ID, "analyzing"
+        )  # the worker picks it up, then the process dies
         env.worker.resume()
         assert env.take(TAKE1_ID)["status"] == "analyzing"
+    env.store.begin_stage(TAKE1_ID, "analyzing")
     env.worker.resume()
     take = env.take(TAKE1_ID)
     assert take["status"] == "failed"
     assert take["error"]["code"] == "analysis_failed"
+
+
+def test_restarts_do_not_blame_a_take_that_never_ran(env):
+    # Repro: a reprocessed take waits in its stage; clean restarts must not count against it.
+    env.seed()
+    env.upload(TAKE1_ID, attempt=1)
+    env.run()
+    assert reprocess(env, TAKE1_ID, "transcribing").status_code == 202
+    for _ in range(MAX_STAGE_INTERRUPTIONS + 2):
+        env.worker.resume()
+    take = env.take(TAKE1_ID)
+    assert take["status"] == "transcribing"
+    assert env.store.get_take(TAKE1_ID)["stage_failures"] == 0
+    env.run()
+    assert env.take(TAKE1_ID)["status"] == "done"
+
+
+def test_a_stage_is_only_counted_once_per_run(env):
+    env.seed()
+    env.upload(TAKE1_ID, attempt=1)
+    env.store.begin_stage(TAKE1_ID, "analyzing")
+    for _ in range(MAX_STAGE_INTERRUPTIONS + 2):
+        env.worker.resume()  # restarts without the worker getting to the take in between
+    assert env.take(TAKE1_ID)["status"] == "analyzing"
+    assert env.store.get_take(TAKE1_ID)["stage_failures"] == 1
 
 
 def test_a_coaching_stage_that_keeps_killing_the_process_ends_as_a_failed_coaching(env):
@@ -382,6 +410,7 @@ def test_a_coaching_stage_that_keeps_killing_the_process_ends_as_a_failed_coachi
     env.run()
     reprocess(env, TAKE1_ID, "coaching")
     for _ in range(MAX_STAGE_INTERRUPTIONS):
+        env.store.begin_stage(TAKE1_ID, "coaching")
         env.worker.resume()
     take = env.take(TAKE1_ID)
     assert (take["status"], take["coaching_status"]) == ("done", "failed")
@@ -402,7 +431,7 @@ def test_the_database_survives_a_reopen_and_migrations_run_once(env):
     again = Store(env.data_dir, clock=FakeClock())
     assert again.get_take(TAKE1_ID)["status"] == "done"
     with closing(sqlite3.connect(env.store.db_path)) as conn:
-        assert conn.execute("SELECT version FROM schema_migrations").fetchall() == [(1,)]
+        assert conn.execute("SELECT version FROM schema_migrations").fetchall() == [(1,), (2,)]
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
 
 
