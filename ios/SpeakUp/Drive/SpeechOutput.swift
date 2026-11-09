@@ -259,11 +259,11 @@ final class SpeechOutput: SpeechOutputting {
     /// Where an item of `duration` starts on the drive clock; moves `outputEnd` to its end.
     func reserve(_ duration: TimeInterval) -> TimeInterval {
         #if DEBUG
-        let instant = options.instant
+        // Instant speech takes no time, so it has no lag either.
+        let ready = options.instant ? audio.now : readyTime()
         #else
-        let instant = false
+        let ready = readyTime()
         #endif
-        let ready = instant ? audio.now : readyTime()
         let start = max(ready, outputEnd)
         outputEnd = start + duration
         return start
