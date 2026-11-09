@@ -99,6 +99,9 @@ final class DriveHarness {
     }
 }
 
+/// Serialized: each drive yields the main actor in bursts until nothing moves, and dozens at
+/// once kept other suites' main-actor work waiting for seconds.
+@Suite(.serialized)
 @MainActor
 struct DriveLoopTests {
     private let firstFeedback = [
