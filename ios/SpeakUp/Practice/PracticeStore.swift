@@ -106,7 +106,12 @@ final class PracticeStore {
 
     // MARK: Reading
 
+    /// The session takes go into now, of either mode. At most one session is open.
     var openSession: LocalSession? { sessions.first { $0.isOpen } }
+
+    /// The open session when it is home practice. Home never shows or adds to a drive's
+    /// session: a drive left open is closed by `openNewSession` or `closeInterruptedDrives`.
+    var openHomeSession: LocalSession? { openSession.flatMap { $0.mode == .home ? $0 : nil } }
 
     func session(id: String) -> LocalSession? { sessions.first { $0.id == id } }
 
@@ -144,10 +149,17 @@ final class PracticeStore {
 
     /// Opens a session: `.home` for the practice screens, `.driving` for a drive. Both kinds
     /// keep and upload their takes the same way.
+    ///
+    /// Each is its own sitting, so a session still open (a drive's, when home practice starts,
+    /// or a home session, when a drive starts) closes where it stopped: at the end of its last
+    /// take, or at its start, with no after-rating.
     @discardableResult
     func openNewSession(
         mode: SessionMode = .home, nervousnessBefore: Int?, now: Date = Date()
     ) -> LocalSession {
+        for open in sessions where open.isOpen {
+            endSession(open.id, endedAt: open.lastTakeEnd ?? open.startedAt, nervousnessAfter: nil)
+        }
         let session = LocalSession(
             id: IDs.make(), mode: mode, startedAt: now, nervousnessBefore: nervousnessBefore)
         sessions.append(session)
@@ -266,6 +278,17 @@ final class PracticeStore {
         let lastActivity = session.lastTakeEnd ?? session.startedAt
         guard now.timeIntervalSince(lastActivity) > Self.staleAfter else { return }
         endSession(session.id, endedAt: lastActivity, nervousnessAfter: nil)
+    }
+
+    /// Closes every open drive session, as it was when the app stopped: at the end of its last
+    /// take, or at its start, with no after-rating. Its takes stay and keep uploading.
+    ///
+    /// Call at launch only, before any drive starts: a drive's session that is still open then
+    /// belongs to a drive that ended with the app (killed, or crashed), and nothing will close it.
+    func closeInterruptedDrives() {
+        for open in sessions where open.isOpen && open.mode == .driving {
+            endSession(open.id, endedAt: open.lastTakeEnd ?? open.startedAt, nervousnessAfter: nil)
+        }
     }
 
     /// Drops closed sessions the server has in full, and closed sessions that never had a

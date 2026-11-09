@@ -39,23 +39,35 @@ Debug builds only; none of this exists in Release.
   The nervousness questions listen in `betweenTakes` mode, so their answers ("three@0.5", "skip@0.5") are `betweenTakes` lines too, as is every re-listen after the drive speaks (a re-ask, the command list, "repeat that").
   A window starts at the time given to `listen`, or at the drive clock if `listen` comes later, which is about when the scripted microphone starts the take clip.
   The simulator has no recognizer for commands (`SpeechTranscriber` is unsupported and `DictationTranscriber` has no model), so a drive there needs this flag; an invalid script makes the drive report commands unavailable.
+- `-debug.startDrive [seconds]` starts a drive at launch, through the same `AppModel.startDrive()` as the Home card and Siri, after the given delay (none by default), which leaves time to open a sheet the drive must replace.
 - `-serverAddress <url>` sets the server address for this launch.
+
+A whole drive in the simulator, in about 35 seconds, ending on the summary with two answers saved:
+
+```sh
+xcrun simctl launch <udid> dev.ryangan.speakup -debug.useMockServer YES -debug.mockScenario normal -resetState \
+  -debug.syntheticMicrophone -debug.instantSpeech -debug.speechLog -debug.startDrive \
+  -debug.recognizerScript '{"betweenTakes": ["three@0.5", "again@0.5", "stop@0.5", "two@0.5"], "recording": ["so that is my answer@0.5 done@3", "this time it is clearer@0.5 done@3"]}'
+```
+
+Leave out a line to hold the drive in a state: no `recording` lines keeps it listening for an answer, a `betweenTakes` list that ends after the rating keeps it waiting for a command, and `-debug.mockScenario slowProcessing` keeps it waiting for feedback.
+Siri itself cannot be driven in the simulator; `StartDriveIntent` only calls `startDrive()`, which the unit tests cover.
 
 Settings shows the same mock toggle and scenario picker in Debug builds.
 
 ## Layout
 
-- `App/`: the app entry, `AppModel` (settings, API client, store, server status) and `RootView` (tabs, sheets, the take flow cover).
+- `App/`: the app entry, `AppModel` (settings, API client, store, server status, and the drive on screen with `startDrive()`, the one start path for the Home card and Siri) and `RootView` (tabs, sheets, the take flow cover, and the drive, which replaces the tabs).
 - `Models/`: Codable types for every contract shape. `Networking/`: the `SpeakUpAPI` protocol and its HTTP client.
 - `Audio/`: the `AVAudioEngine` recorder, the WAV writer and playback.
-- `Drive/`: driving mode: the voice loop (`DriveLoop`: the drive's state machine over protocols for audio, recognizer, speech and clock, tested with fakes in `SpeakUpTests/Support/DriveFakes.swift`), impromptu questions for the car (`DriveQuestions`: prefetched, cached in `drive-questions.json`, built-in bank behind them), the drive audio core (`DriveAudio`: one engine for the whole drive, the take gate and trim, the driving audio session), command recognition (`SpeechCommandRecognizer` on `SpeechAnalyzer`, its pure decisions in `CommandRecognition.swift`, the Debug `ScriptedRecognizer`), command spotting, the spoken script, and speech output (`SpeechOutput`: text rendered with `AVSpeechSynthesizer.write` and played with the tones on the drive engine's player).
+- `Drive/`: driving mode: the start from Siri (`DriveIntents.swift`: `StartDriveIntent`, which opens the app and calls `AppModel.startDrive()`, and the `SpeakUpShortcuts` phrases), the voice loop (`DriveLoop`: the drive's state machine over protocols for audio, recognizer, speech and clock, tested with fakes in `SpeakUpTests/Support/DriveFakes.swift`), impromptu questions for the car (`DriveQuestions`: prefetched, cached in `drive-questions.json`, built-in bank behind them), the drive audio core (`DriveAudio`: one engine for the whole drive, the take gate and trim, the driving audio session), command recognition (`SpeechCommandRecognizer` on `SpeechAnalyzer`, its pure decisions in `CommandRecognition.swift`, the Debug `ScriptedRecognizer`), command spotting, the spoken script, and speech output (`SpeechOutput`: text rendered with `AVSpeechSynthesizer.write` and played with the tones on the drive engine's player).
   `tools/drive-commands` runs the recognition files on the Mac against real speech; keep them free of iOS-only APIs.
 - `Practice/`: the phone's local store, upload sync, the polling state machine and transcript layout.
-- `Screens/`: one file per screen group. `Settings/`: settings and the Keychain.
+- `Screens/`: one file per screen group; `DriveView` is the drive's screen (state in large text, Stop, the end summary). `Settings/`: settings and the Keychain.
 - `Theme/`: every color, font, spacing value and transcript mark, plus reusable components.
 - `Mock/`: the Debug-only mock server.
 - `SpeakUpTests/Fixtures/`: the JSON examples from the contract, copied verbatim.
-- `SpeakUpUITests/`: the screen walkthrough.
+- `SpeakUpUITests/`: the screen walkthrough, and `DriveUITests`: one scripted drive from the Home card checked through the spoken log, and a drive started over an open sheet.
 
 The project uses synchronized folders: a new file under `SpeakUp/`, `SpeakUpTests/` or `SpeakUpUITests/` is in its target with no project edit.
 
@@ -70,3 +82,7 @@ The project uses synchronized folders: a new file under `SpeakUp/`, `SpeakUpTest
 - Mock code is wrapped in `#if DEBUG`. Anything that references it must be too, or Release will not build.
 - When a contract example changes, update its fixture in `SpeakUpTests/Fixtures/` verbatim; the decoding tests are only as good as the fixtures.
 - Check new screens in light and dark mode and at a large Dynamic Type size.
+- Home practice reads `PracticeStore.openHomeSession`, never `openSession`: a drive's session is open while the drive runs, and Home must not show it or add takes to it.
+  A drive and a home take never run together: `startDrive()` refuses while the take flow is open, and `PracticeCoordinator.record` refuses while a drive is on screen.
+- Nothing on `DriveView` may be needed once a drive starts (product.md#driving-mode): the drive runs and ends by voice, and Stop is only for a passenger or when parked.
+- `RootView` shows a drive in place of the tabs, never as a cover or sheet: Siri can start a drive while any sheet is up, and a presentation over a sheet may never show. State that must survive a drive (the tab, `practice.path`, `historyPath`) lives outside the tabs; `@State` inside them resets.

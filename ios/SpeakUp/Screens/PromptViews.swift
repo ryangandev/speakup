@@ -83,7 +83,10 @@ struct PreparedPromptView: View {
                 app.practice.isMicrophoneDeniedAlertPresented = true
                 return
             }
-            let sessionID = app.store.openSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
+            // A drive may have started while the permission prompt was up; opening a home
+            // session now would close the drive's.
+            guard !app.isDriving else { return }
+            let sessionID = app.store.openHomeSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
             let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
             guard
                 let prompt = app.store.addPrompt(
@@ -212,7 +215,10 @@ struct ImpromptuPromptView: View {
                 app.practice.isMicrophoneDeniedAlertPresented = true
                 return
             }
-            let sessionID = app.store.openSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
+            // A drive may have started while the permission prompt was up; opening a home
+            // session now would close the drive's.
+            guard !app.isDriving else { return }
+            let sessionID = app.store.openHomeSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
             guard
                 let prompt = app.store.addPrompt(
                     sessionID: sessionID, kind: .impromptu, text: question.text, notes: nil,
@@ -340,8 +346,10 @@ struct FieldLabel: View {
     }
 }
 
-/// The pinned area at the bottom of a screen that holds its main actions.
+/// The pinned area at the bottom of a screen that holds its main actions. A screen whose
+/// content never runs under the bar can leave out its material and stay one colour.
 struct BottomBar<Content: View>: View {
+    var hasMaterial = true
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -349,6 +357,6 @@ struct BottomBar<Content: View>: View {
             .padding(.horizontal, Theme.Spacing.screen)
             .padding(.top, Theme.Spacing.m)
             .padding(.bottom, Theme.Spacing.s)
-            .background(Theme.barMaterial)
+            .background(hasMaterial ? AnyShapeStyle(Theme.barMaterial) : AnyShapeStyle(.clear))
     }
 }

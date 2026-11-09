@@ -68,7 +68,7 @@ struct ComparisonView: View {
     /// Retry applies only to a prompt of the open session, from Practice.
     private var retryPromptID: String? {
         guard context == .practice, let take = app.store.take(id: takeID),
-            app.store.openSession?.id == take.sessionId
+            app.store.openHomeSession?.id == take.sessionId
         else { return nil }
         return take.promptId
     }

@@ -257,7 +257,7 @@ enum MockContent {
                         dimension: .layering, title: "Number your reasons",
                         problem: "Your reasons came as one unbroken list, so it was hard to tell which one mattered most.",
                         evidence: [anchor("the reporting queries need joins")],
-                        instruction: "Say how many reasons there are, then give them in order of weight: \"Two reasons. First, reporting needs joins. Second, ...\""),
+                        instruction: "Say how many reasons there are, then give them in order of weight: \"Two reasons. First, reporting needs joins. Second, ledger writes need transactions.\""),
                     FocusItem(
                         dimension: .fluency, title: "Stop silently, not mid-phrase",
                         problem: "You froze for over a second in the middle of your main reason, right after a filler.",

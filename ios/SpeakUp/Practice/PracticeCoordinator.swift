@@ -26,16 +26,22 @@ final class PracticeCoordinator {
 
     @ObservationIgnored weak var app: AppModel?
 
+    /// The take flow is open or starting: a recording, or a take on the Processing screen.
+    var hasTakeInProgress: Bool { takeFlow != nil || isStarting }
+
     /// Records a new take of `prompt`. Recording starts here, before the cover appears, so
-    /// it starts the moment Record is tapped.
+    /// it starts the moment Record is tapped. Never while a drive is on screen: the drive
+    /// holds the audio.
     func record(_ prompt: LocalPrompt) async {
-        guard let app, takeFlow == nil, !isStarting else { return }
+        guard let app, takeFlow == nil, !isStarting, !app.isDriving else { return }
         isStarting = true
         defer { isStarting = false }
         guard await MicrophonePermission.request() else {
             isMicrophoneDeniedAlertPresented = true
             return
         }
+        // The drive may have started while the permission prompt was up.
+        guard !app.isDriving else { return }
         app.player.stop()
         let flow = TakeFlowModel(prompt: prompt, app: app, coordinator: self)
         do {

@@ -5,7 +5,7 @@ import Observation
 /// Debug builds only, `-debug.speechLog`: every utterance and tone the drive plays, with its
 /// drive-clock time, so a UI test can assert on what was said without hearing it.
 ///
-/// Task 6 shows `text` in a Debug-only `drive.spokenLog` element. The same lines are
+/// `DriveView` shows `text` in a Debug-only `drive.spokenLog` element. The same lines are
 /// appended to `drive-spoken-log.txt` in the app's temporary directory; the file starts
 /// empty for each log.
 ///

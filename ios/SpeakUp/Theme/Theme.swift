@@ -48,6 +48,23 @@ enum Theme {
         static let numeric = Font.body.monospacedDigit()
         static let transcript = Font.body
         static let badge = Font.caption.weight(.semibold)
+        /// Debug-only diagnostics, such as the drive's spoken log.
+        static let debug = Font.caption2.monospaced()
+    }
+
+    /// Driving mode: what the drive is doing, read at a glance from a phone on a mount.
+    /// Sizes are bases that Dynamic Type scales (`@ScaledMetric` in the view), up to caps that
+    /// keep the status, its detail and the question on one screen at accessibility sizes.
+    enum Drive {
+        static let statusSize: CGFloat = 40
+        static let statusMaxSize: CGFloat = 52
+        /// The largest size the detail, the question and the count grow to.
+        static let maxTypeSize = DynamicTypeSize.accessibility1
+        static let symbolSize: CGFloat = 56
+        static func status(size: CGFloat) -> Font { .system(size: size, weight: .bold, design: .rounded) }
+        static func symbol(size: CGFloat) -> Font { .system(size: size, weight: .semibold) }
+        static let detail = Font.title3.weight(.medium)
+        static let prompt = Font.title3
     }
 
     enum Spacing {

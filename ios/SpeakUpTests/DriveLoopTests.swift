@@ -153,6 +153,10 @@ struct DriveLoopTests {
         #expect(drive.audio.finished.map(\.cutAt) == [drive.takeStart(0) + 1, drive.takeStart(1) + 1])
         #expect(drive.recognizer.stopped)
         #expect(!drive.audio.isRunning)
+
+        // The server has everything, so the phone dropped the session; the summary's count stays.
+        #expect(drive.session == nil)
+        #expect(drive.loop.takesSaved == 2)
     }
 
     @Test func nextRepeatBetterVersionAndStop() async throws {
