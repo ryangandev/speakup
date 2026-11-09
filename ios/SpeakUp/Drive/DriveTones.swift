@@ -6,8 +6,9 @@ import Foundation
 /// Both are short, soft two-note bells in the format speech output plays
 /// (`SpeechOutput.format`), so they go through the same player as speech with no
 /// conversion. Their direction tells them apart without looking: "start recording" rises
-/// (go ahead), "ended" falls (that's it). The peak stays at half scale, so they are never
-/// louder than the speech around them and cannot clip.
+/// (go ahead), "ended" falls (that's it). The peak stays at 0.3 of full scale, below typical
+/// speech (a test compares them), so they are never louder than the speech around them
+/// and cannot clip.
 enum DriveTone: CaseIterable, Sendable, Equatable {
     /// Played after "Answer after the tone."; the take opens just after it ends.
     case startRecording
@@ -15,7 +16,7 @@ enum DriveTone: CaseIterable, Sendable, Equatable {
     case ended
 
     /// The largest sample value any tone reaches.
-    nonisolated static let peak: Float = 0.5
+    nonisolated static let peak: Float = 0.3
 
     struct Note: Sendable, Equatable {
         let frequency: Double

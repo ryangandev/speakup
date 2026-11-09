@@ -43,7 +43,7 @@ struct SpeechOutputTests {
         for tone in DriveTone.allCases {
             let values = samples(tone.buffer())
             let peak = values.map(abs).max() ?? 0
-            #expect(peak > 0.2)
+            #expect(peak > 0.15)
             #expect(peak <= DriveTone.peak + 0.001)
             #expect(abs(values.first ?? 1) < 0.01)
             #expect(abs(values.last ?? 1) < 0.001)
@@ -231,6 +231,135 @@ struct SpeechOutputTests {
         let tone = await output.play(.ended)
         #expect(tone.finished)
         _ = await audio.stop()
+    }
+
+    // MARK: Lag, interruptions, cancelling, loudness
+
+    @Test func theEndAccountsForTheInputBufferAndEverySessionLatency() {
+        var options = SpeechOutput.Options()
+        options.latency = { 0.25 }
+        options.inputBuffer = { 0.256 }
+        let output = SpeechOutput(audio: DriveAudio(input: .microphone), options: options)
+        #expect(abs(output.lag() - 0.506) < 1e-9)
+        // The clock reads 0: the first item starts one lag later, the next right after it.
+        #expect(abs(output.reserve(1) - 0.506) < 1e-9)
+        #expect(abs(output.reserve(2) - 1.506) < 1e-9)
+        #expect(abs(output.outputEnd - 3.506) < 1e-9)
+    }
+
+    private func scriptedAudio() -> DriveAudio {
+        DriveAudio(input: .scripted(ScriptedMicrophone(takeClip: nil)))
+    }
+
+    private func postInterruption(_ type: AVAudioSession.InterruptionType, resume: Bool = false) {
+        var info: [AnyHashable: Any] = [AVAudioSessionInterruptionTypeKey: type.rawValue]
+        if resume { info[AVAudioSessionInterruptionOptionKey] = AVAudioSession.InterruptionOptions.shouldResume.rawValue }
+        NotificationCenter.default.post(
+            name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(), userInfo: info)
+    }
+
+    /// A call mid-speech: the speech returns unfinished, nothing is left queued to replay when
+    /// the call ends (a tone then plays in its own length, not after the old speech), and the
+    /// end time is not left in the future.
+    @Test func anInterruptionMidSpeechEndsItAndNothingReplaysAfterwards() async throws {
+        let audio = scriptedAudio()
+        var events: [DriveAudio.Event] = []
+        audio.onEvent = { events.append($0) }
+        try await audio.start()
+        var options = SpeechOutput.Options()
+        options.latency = { 0 }
+        let output = SpeechOutput(audio: audio, options: options)
+
+        let long = Array(repeating: "This is a long sentence that takes a while to say.", count: 6)
+        let speaking = Task { await output.speak(segments: long) }
+        try await Task.sleep(for: .milliseconds(1_500))
+        postInterruption(.began)
+        let result = await speaking.value
+        #expect(result.finished == false)
+        #expect(output.outputEnd <= audio.now + 0.5)
+        // Speech during the call is not played either.
+        #expect(await output.speak("Not now.").finished == false)
+
+        postInterruption(.ended, resume: true)
+        while events.count < 2 { try await Task.sleep(for: .milliseconds(5)) }
+        let started = ContinuousClock.now
+        let tone = await output.play(.ended)
+        #expect(tone.finished)
+        #expect(started.duration(to: .now).seconds < 2)
+        _ = await audio.stop()
+    }
+
+    @Test func stoppingTheDriveMidSpeechReportsItUnfinished() async throws {
+        let audio = scriptedAudio()
+        try await audio.start()
+        var options = SpeechOutput.Options()
+        options.latency = { 0 }
+        let output = SpeechOutput(audio: audio, options: options)
+        let speaking = Task { await output.speak(segments: Array(repeating: "A sentence to be cut off by the end of the drive.", count: 6)) }
+        try await Task.sleep(for: .milliseconds(1_500))
+        _ = await audio.stop()
+        #expect(await speaking.value.finished == false)
+    }
+
+    @Test func cancelDuringRenderingReturnsAtOnce() async throws {
+        let audio = scriptedAudio()
+        try await audio.start()
+        var options = SpeechOutput.Options()
+        options.latency = { 0 }
+        options.render = { _ in
+            try? await Task.sleep(for: .seconds(8))
+            return RenderedSpeech(buffers: [])
+        }
+        let output = SpeechOutput(audio: audio, options: options)
+        let speaking = Task { await output.speak("Slow to render.") }
+        try await Task.sleep(for: .milliseconds(300))
+        let cancelAt = ContinuousClock.now
+        output.cancel()
+        #expect(await speaking.value.finished == false)
+        #expect(cancelAt.duration(to: .now).seconds < 1)
+        _ = await audio.stop()
+    }
+
+    @Test func aSegmentThatRendersNothingMakesTheResultUnfinishedButTheRestIsSpoken() async throws {
+        let audio = scriptedAudio()
+        try await audio.start()
+        var options = SpeechOutput.Options()
+        options.latency = { 0 }
+        options.log = SpokenLog(fileURL: nil)
+        options.render = { text in
+            text == "silent" ? RenderedSpeech(buffers: []) : RenderedSpeech(buffers: [DriveTone.ended.buffer()])
+        }
+        let output = SpeechOutput(audio: audio, options: options)
+        let result = await output.speak(segments: ["first", "silent", "last"])
+        #expect(result.finished == false)
+        #expect(result.duration > 0.5)
+        #expect(output.spokenLog?.entries.map(\.text) == ["first", "last"])
+        _ = await audio.stop()
+    }
+
+    @Test func conversionKeepsTheTailOfTheSpeech() {
+        let source = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: 44_100)!
+        buffer.frameLength = 44_100
+        buffer.floatChannelData![0].update(repeating: 0.2, count: 44_100)
+        let seconds = SpeechOutput.duration(of: SpeechOutput.matching([buffer]))
+        #expect(abs(seconds - 1) < 0.005)
+    }
+
+    /// A tone is never louder than the speech next to it, by peak or by level while sounding.
+    @Test func tonesAreQuieterThanRenderedSpeech() async throws {
+        let rendered = await SpeechRenderer().render("Got it. Feedback is ready. What worked: you answered the question first.")
+        let speech = SpeechOutput.matching(rendered.buffers).flatMap { samples($0) }
+        try #require(!speech.isEmpty)
+        func level(_ values: [Float]) -> Float {
+            let sounding = values.filter { abs($0) > 0.01 }
+            return (sounding.reduce(0) { $0 + $1 * $1 } / Float(max(1, sounding.count))).squareRoot()
+        }
+        for tone in DriveTone.allCases {
+            let values = samples(tone.buffer())
+            #expect(values.map(abs).max()! <= speech.map(abs).max()!)
+            #expect(level(values) <= level(speech))
+        }
     }
 
     @Test func speakingWhileTheDriveIsNotRunningDoesNotWait() async {

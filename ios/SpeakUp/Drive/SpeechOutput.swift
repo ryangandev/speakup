@@ -40,10 +40,17 @@ protocol SpeechOutputting: AnyObject {
 /// the tones, on the one clock the recognizer uses.
 ///
 /// The output end time is computed, not measured: each item starts at the later of "the
-/// drive clock now, plus the session's output latency and a margin for the input clock lagging
-/// real time" and "the end of the item before it", and ends its duration later. Items queued
-/// on the player play back to back, so this follows playback. Playback completion
-/// (`.dataPlayedBack`) is what releases `speak`, so a call returns when the sound is out.
+/// drive clock now, plus the lag" and "the end of the item before it", and ends its duration
+/// later. The lag is how far real time can be ahead of the drive clock when an item is
+/// queued: the length of the latest input buffer (the clock only moves when a whole buffer
+/// arrives, and a 4096-frame buffer at 16 kHz is 256 ms) plus the session's input latency,
+/// IO buffer duration and output latency. Items queued on the player play back to back, so
+/// this follows playback. Playback completion (`.dataPlayedBack`) is what releases `speak`, so
+/// a call returns when the sound is out.
+///
+/// When the audio core flushes the player (an interruption, a restart, the end of the drive)
+/// every call waiting returns unfinished and `outputEnd` is reset, so nothing queued before
+/// plays later, on top of what comes next.
 @MainActor
 final class SpeechOutput: SpeechOutputting {
     /// The format of everything played: speech buffers are converted to it if they differ,
@@ -53,15 +60,20 @@ final class SpeechOutput: SpeechOutputting {
     nonisolated static let rate: Float = 0.48
     /// The pause between segments.
     nonisolated static let segmentGap: TimeInterval = 0.3
-    /// The input clock reports the end of the latest input buffer, which is up to one buffer
-    /// (about 85 ms) behind real time; the margin is added to the start of each item.
-    nonisolated static let clockLag: TimeInterval = 0.1
     /// How long past its expected end a call waits for the player before it gives up.
     nonisolated static let completionGrace: TimeInterval = 3
 
     struct Options {
-        /// Seconds between handing a buffer to the player and hearing it.
-        var latency: @MainActor () -> TimeInterval = { AVAudioSession.sharedInstance().outputLatency }
+        /// The session's part of the lag, in seconds: output latency (handing a buffer to the
+        /// player to hearing it), input latency and IO buffer duration.
+        var latency: @MainActor () -> TimeInterval = {
+            let session = AVAudioSession.sharedInstance()
+            return session.outputLatency + session.inputLatency + session.ioBufferDuration
+        }
+        /// The length of the latest input buffer; nil reads it from `DriveAudio`.
+        var inputBuffer: (@MainActor () -> TimeInterval)?
+        /// Renders text to audio; nil uses the system synthesizer. For tests.
+        var render: (@Sendable (String) async -> RenderedSpeech)?
         #if DEBUG
         /// `-debug.instantSpeech`: nothing is rendered or played, and each item takes no time.
         var instant = false
@@ -100,6 +112,7 @@ final class SpeechOutput: SpeechOutputting {
         self.options = options
         // Before the engine starts is the quietest moment to change the player's format.
         audio.connectPlayer(format: Self.format)
+        audio.onPlayerFlush = { [weak self] in self?.playerFlushed() }
     }
 
     // MARK: Speaking
@@ -113,6 +126,7 @@ final class SpeechOutput: SpeechOutputting {
         let token = generation
         var last: PlaybackWaiter?
         var scheduled: TimeInterval = 0
+        var skipped = false
         for (index, text) in texts.enumerated() {
             guard token == generation else { return cut(scheduled) }
             #if DEBUG
@@ -122,18 +136,19 @@ final class SpeechOutput: SpeechOutputting {
                 continue
             }
             #endif
-            guard audio.isRunning else {
-                Self.log.error("Not spoken, the drive's audio is not running")
+            guard canPlay else {
+                Self.log.error("Not spoken, the drive's audio is not playing")
                 return SpeechPlayback(finished: false, end: outputEnd, duration: scheduled)
             }
-            let rendered = await renderer.render(text)
-            guard token == generation else { return cut(scheduled) }
-            guard audio.isRunning else {
+            guard let rendered = await render(text, token: token), token == generation else { return cut(scheduled) }
+            guard canPlay else {
                 return SpeechPlayback(finished: false, end: outputEnd, duration: scheduled)
             }
             var buffers = Self.matching(rendered.buffers)
             guard !buffers.isEmpty else {
+                // The listener never hears this one; the caller must not assume it was said.
                 Self.log.error("Nothing was rendered for a segment")
+                skipped = true
                 continue
             }
             if index > 0, scheduled > 0 { buffers.insert(Self.silence(Self.segmentGap), at: 0) }
@@ -146,7 +161,8 @@ final class SpeechOutput: SpeechOutputting {
             scheduled += duration
         }
         let finished = await last?.wait() ?? true
-        return SpeechPlayback(finished: finished && token == generation, end: outputEnd, duration: scheduled)
+        return SpeechPlayback(
+            finished: finished && !skipped && token == generation, end: outputEnd, duration: scheduled)
     }
 
     func play(_ tone: DriveTone) async -> SpeechPlayback {
@@ -158,7 +174,7 @@ final class SpeechOutput: SpeechOutputting {
             return SpeechPlayback(finished: true, end: outputEnd, duration: 0)
         }
         #endif
-        guard audio.isRunning else {
+        guard canPlay else {
             return SpeechPlayback(finished: false, end: outputEnd, duration: 0)
         }
         let duration = tone.duration
@@ -173,38 +189,89 @@ final class SpeechOutput: SpeechOutputting {
 
     func cancel() {
         generation += 1
-        for waiter in waiters.values { waiter.finish(false) }
-        waiters.removeAll()
-        let stopsAt = audio.now + options.latency()
+        finishWaiters()
+        let stopsAt = readyTime()
         guard outputEnd > stopsAt else { return }
         #if DEBUG
         if !options.instant { options.log?.append(.cancelled, "", at: audio.now) }
         #endif
         outputEnd = stopsAt
-        guard audio.isRunning else { return }
+        guard audio.isRunning, !audio.isInterrupted else { return }
         // Stopping drops what is queued, and the node must be playing again for the next item.
         audio.player.stop()
         audio.player.play()
     }
 
+    /// The audio core is about to stop the player (an interruption, an engine restart, the end
+    /// of the drive): what is queued will never play, and the stop would report it as played.
+    private func playerFlushed() {
+        generation += 1
+        finishWaiters()
+        outputEnd = min(outputEnd, readyTime())
+    }
+
+    private func finishWaiters() {
+        let pending = Array(waiters.values)
+        waiters.removeAll()
+        for waiter in pending { waiter.finish(false) }
+    }
+
+    /// Whether buffers handed to the player would be heard.
+    private var canPlay: Bool { audio.isRunning && !audio.isInterrupted }
+
+    // MARK: Rendering
+
+    /// Renders `text`, or returns nil as soon as `cancel()` runs, without waiting for the
+    /// synthesizer.
+    private func render(_ text: String, token: Int) async -> RenderedSpeech? {
+        let renderer = renderer
+        let custom = options.render
+        let job = Task { () -> RenderedSpeech in
+            if let custom { return await custom(text) }
+            return await renderer.render(text)
+        }
+        let gate = PlaybackWaiter()
+        let key = ObjectIdentifier(gate)
+        waiters[key] = gate
+        Task {
+            _ = await job.value
+            gate.finish(true)
+        }
+        let done = await gate.wait()
+        waiters[key] = nil
+        guard done, token == generation else { return nil }
+        return await job.value
+    }
+
     // MARK: Scheduling
 
+    /// How far real time can be ahead of the drive clock right now.
+    func lag() -> TimeInterval {
+        (options.inputBuffer?() ?? audio.inputBufferDuration) + options.latency()
+    }
+
+    /// The drive-clock time at which something queued now starts to be heard, if nothing is
+    /// queued before it.
+    private func readyTime() -> TimeInterval {
+        audio.now + lag()
+    }
+
     /// Where an item of `duration` starts on the drive clock; moves `outputEnd` to its end.
-    private func reserve(_ duration: TimeInterval) -> TimeInterval {
-        var ready = audio.now
+    func reserve(_ duration: TimeInterval) -> TimeInterval {
         #if DEBUG
         let instant = options.instant
         #else
         let instant = false
         #endif
-        if !instant { ready += options.latency() + Self.clockLag }
+        let ready = instant ? audio.now : readyTime()
         let start = max(ready, outputEnd)
         outputEnd = start + duration
         return start
     }
 
     /// Queues the buffers back to back. The returned waiter finishes when the last one has
-    /// played, or when `cancel()` runs, or a little after it should have.
+    /// played, or when the player is flushed or `cancel()` runs, or a little after it should
+    /// have played.
     private func schedule(_ buffers: [AVAudioPCMBuffer], duration: TimeInterval) -> PlaybackWaiter {
         let waiter = PlaybackWaiter()
         let key = ObjectIdentifier(waiter)
@@ -218,7 +285,7 @@ final class SpeechOutput: SpeechOutputting {
                 audio.player.scheduleBuffer(buffer)
             }
         }
-        // A stopped or interrupted engine never plays what is queued; do not wait forever.
+        // A stopped engine never plays what is queued; do not wait forever.
         let wait = max(0, outputEnd - audio.now) + Self.completionGrace
         waiter.setTimeout(wait)
         waiter.onFinish = { [weak self] in
@@ -271,6 +338,15 @@ final class SpeechOutput: SpeechOutputting {
                 supplied = true
                 inputStatus.pointee = .haveData
                 return buffer
+            }
+            if status != .error, output.frameLength > 0 { converted.append(output) }
+        }
+        // Drain what the converter still holds, so the end of the speech is not cut off.
+        if let converter, let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4_096) {
+            var failure: NSError?
+            let status = converter.convert(to: output, error: &failure) { _, inputStatus in
+                inputStatus.pointee = .endOfStream
+                return nil
             }
             if status != .error, output.frameLength > 0 { converted.append(output) }
         }

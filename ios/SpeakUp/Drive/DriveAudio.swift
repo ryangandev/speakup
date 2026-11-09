@@ -112,6 +112,11 @@ final class DriveAudio: DriveAudioControlling {
     let player = AVAudioPlayerNode()
     /// The format `player` plays; a scheduled buffer must be in it.
     private(set) var playerFormat = DriveAudio.playerFormat
+    /// Called just before the player is stopped by the audio core (an interruption, an engine
+    /// restart or the end of the drive), which drops what was queued on it. Whoever queued
+    /// speech finishes it as not played here: stopping fires the completion handlers as if
+    /// the audio had played.
+    var onPlayerFlush: (() -> Void)?
 
     private let engine = AVAudioEngine()
     private let input: Input
@@ -120,7 +125,8 @@ final class DriveAudio: DriveAudioControlling {
     private var inputPortID: String?
     private var micRoute = MicRoute.other
     private var micName = ""
-    private var isInterrupted = false
+    /// True from the start of a call or Siri interruption until it ends. Nothing plays then.
+    private(set) var isInterrupted = false
     private var observers: [NSObjectProtocol] = []
     /// The latest queued event; each event waits for the one before it.
     private var pendingEvent: Task<Void, Never>?
@@ -151,6 +157,10 @@ final class DriveAudio: DriveAudioControlling {
     }
 
     var now: TimeInterval { tap.now }
+
+    /// How long the latest input buffer was, in seconds: how far behind real time `now` can
+    /// be, since it only moves when a whole buffer arrives. 0 before any input.
+    var inputBufferDuration: TimeInterval { tap.lastBufferDuration }
 
     var takeDuration: TimeInterval? { tap.gate.duration }
 
@@ -253,8 +263,15 @@ final class DriveAudio: DriveAudioControlling {
         case .scripted(let microphone): microphone.stop()
         #endif
         }
-        player.stop()
+        flushPlayer()
         engine.stop()
+    }
+
+    /// Drops what is queued on the player; `onPlayerFlush` runs first so that waiters are
+    /// told before the stop fires the completion handlers.
+    private func flushPlayer() {
+        onPlayerFlush?()
+        player.stop()
     }
 
     private func updateRoute() {
@@ -382,6 +399,8 @@ final class DriveAudio: DriveAudioControlling {
     private func interruptionBegan() {
         guard isRunning, !isInterrupted else { return }
         isInterrupted = true
+        // Anything queued must not play when the interruption ends, on top of what comes next.
+        flushPlayer()
         let finish = closeGate(reason: .interrupted)
         emit { .interrupted(await finish?(nil)) }
     }
@@ -434,6 +453,7 @@ final class DriveAudio: DriveAudioControlling {
     /// gap) when the microphone and its format are the same, and ends otherwise. This
     /// notification can come before the route change's, so the port is checked here too.
     private func restartEngine() throws {
+        flushPlayer()
         if case .microphone = input {
             engine.inputNode.removeTap(onBus: 0)
             let format = engine.inputNode.outputFormat(forBus: 0)
@@ -525,10 +545,14 @@ final class DriveTap: @unchecked Sendable {
     private let lock = NSLock()
     private var clock = DriveClock()
     private var lastBuffer: Date?
+    private var lastDuration: TimeInterval = 0
     private var started = false
     private var continuation: AsyncStream<DriveAudioBuffer>.Continuation?
 
     var now: TimeInterval { lock.withLock { clock.now } }
+
+    /// The length of the latest buffer, in seconds.
+    var lastBufferDuration: TimeInterval { lock.withLock { lastDuration } }
 
     /// Starts counting at `rate`. After the first segment, the gap since the last buffer
     /// is added so the clock follows real time across a restart.
@@ -543,6 +567,7 @@ final class DriveTap: @unchecked Sendable {
     func ingest(_ buffer: AVAudioPCMBuffer) {
         let (time, continuation) = lock.withLock {
             lastBuffer = Date()
+            lastDuration = buffer.format.sampleRate > 0 ? Double(buffer.frameLength) / buffer.format.sampleRate : 0
             return (clock.stamp(frames: Int(buffer.frameLength)), self.continuation)
         }
         gate.ingest(buffer, at: time)
