@@ -338,6 +338,7 @@ struct DriveScriptTests {
             DriveScript.referenceVersion(report: try makeReport()).spoken,
             DriveScript.offline.spoken, DriveScript.waitTimedOut, DriveScript.commandHelp,
             DriveScript.cutOff, DriveScript.opening, DriveScript.commandsUnavailable,
+            DriveScript.serverError.spoken, DriveScript.microphoneChanged, DriveScript.audioUnstable,
         ]
         for line in lines {
             #expect(!line.contains("\u{2014}"), "\(line)")

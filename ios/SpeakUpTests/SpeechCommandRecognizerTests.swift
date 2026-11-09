@@ -216,7 +216,8 @@ struct SpeechCommandRecognizerTests {
         var received: [CommandRecognizerEvent] = []
         for await event in events { received.append(event) }
         #expect(received.isEmpty)
-        #expect(engine.session.finished)
+        // `stop()` ends the events first, then awaits the session's finish.
+        try await until { engine.session.finished }
         #expect(engine.session.appended == [0])
     }
 

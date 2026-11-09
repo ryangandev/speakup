@@ -37,6 +37,8 @@ enum DriveScript {
 
     static let preparingPrompt = "One moment."
     static let takeEnded = "Got it."
+    /// The microphone changed mid-answer (car audio connecting, say), which ends the take.
+    static let microphoneChanged = "The microphone changed, so I stopped there. Got it."
     static let timeLimit = "That's the time limit."
 
     // MARK: - Waiting
@@ -84,11 +86,7 @@ enum DriveScript {
         -> Feedback
     {
         if take.status == .failed {
-            if take.error?.code == .noSpeech {
-                return Feedback(
-                    kind: .noSpeech, segments: ["I didn't catch an answer."],
-                    options: "Say: again, next, or stop.")
-            }
+            if take.error?.code == .noSpeech { return noAnswer }
             return Feedback(
                 kind: .failed,
                 segments: ["That one didn't process. Your answer is saved for when you're home."],
@@ -109,6 +107,22 @@ enum DriveScript {
         return metricsOnly(take.summary)
     }
 
+    /// No answer: the server found too little speech, or the take held no audio at all
+    /// (`DriveAudio.TakeEnd.empty`).
+    static var noAnswer: Feedback {
+        Feedback(
+            kind: .noSpeech, segments: ["I didn't catch an answer."],
+            options: "Say: again, next, or stop.")
+    }
+
+    /// The take could not be written to the phone (`DriveAudio.TakeEnd.failed`), so nothing
+    /// was kept.
+    static var notSaved: Feedback {
+        Feedback(
+            kind: .failed, segments: ["I couldn't save that answer."],
+            options: "Say: again, next, or stop.")
+    }
+
     /// The server could not be reached, or the result is not ready: feedback comes later.
     static var offline: Feedback {
         Feedback(
@@ -116,6 +130,15 @@ enum DriveScript {
             segments: [
                 "I couldn't reach the server. Your answer is saved; feedback will come later."
             ],
+            options: "Say: next, again, or stop.")
+    }
+
+    /// The server answered the upload with an error (it rejected the take, or failed). The
+    /// take stays on the phone and is sent again later, but no feedback is promised.
+    static var serverError: Feedback {
+        Feedback(
+            kind: .failed,
+            segments: ["The server couldn't take that answer. It's saved on your phone."],
             options: "Say: next, again, or stop.")
     }
 
@@ -261,6 +284,8 @@ enum DriveScript {
     static let cutOff = "Your answer was cut off and saved. Say: again, next, or stop."
     static let idleEnd = "I haven't heard anything, so I'm ending the drive."
     static let microphoneUnavailable = "I can't use the microphone, so I'm ending the drive."
+    /// Speech kept being cut short (the audio restarting over and over).
+    static let audioUnstable = "The audio keeps cutting out, so I'm ending the drive."
     static let commandsUnavailable =
         "Voice commands aren't available right now, so I'm ending the drive. Check SpeakUp when you're parked."
     static let noQuestions = "I have no questions right now, so I'm ending the drive."

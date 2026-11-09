@@ -17,6 +17,9 @@ protocol DriveAudioControlling: AnyObject {
     func recognizerBuffers() -> AsyncStream<DriveAudioBuffer>
     func openTake(url: URL, at start: TimeInterval?) throws
     func finishTake(cutAt: TimeInterval?, reason: AudioRecorder.StopReason) async -> DriveAudio.TakeEnd?
+    /// Takes the audio back after an interruption whose end iOS never reported. True when the
+    /// audio runs again; false while something else still holds it.
+    func resumeAfterInterruption() async -> Bool
 }
 
 /// The audio core of a drive (plan section 4): one `AVAudioEngine` that runs from the start
@@ -423,6 +426,23 @@ final class DriveAudio: DriveAudioControlling {
             } catch {
                 return .interruptionEnded(resumed: false)
             }
+        }
+    }
+
+    /// iOS does not promise an "interruption ended" notification, so a drive paused for long
+    /// enough asks for the audio back itself, the way the notification's end would.
+    func resumeAfterInterruption() async -> Bool {
+        guard isRunning else { return false }
+        guard isInterrupted else { return true }
+        do {
+            try await AudioSessionConfig.activateForDriving()
+            // The interruption may have ended, or the drive stopped, meanwhile.
+            guard isRunning, isInterrupted else { return isRunning && !isInterrupted }
+            isInterrupted = false
+            try restartEngine()
+            return true
+        } catch {
+            return false
         }
     }
 

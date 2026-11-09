@@ -12,6 +12,14 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
     var onCreatePrompt: (@Sendable (String, PromptCreateRequest) throws -> Prompt)?
     var onUpload: (@Sendable (String, TakeUploadMetadata) throws -> Take)?
     var onReprocess: (@Sendable (String, ReprocessStage) throws -> Take)?
+    /// Optional: without them, health and questions answer with the contract's examples,
+    /// `take(id:)` with `queueTakeResponses`, and the report with the full example.
+    var onHealth: (@Sendable () throws -> Health)?
+    var onQuestions: (@Sendable (QuestionsRequest) throws -> QuestionsResponse)?
+    var onTake: (@Sendable (String) throws -> Take)?
+    var onReport: (@Sendable (String) throws -> TakeReport)?
+    /// Optional: awaited before `onUpload`, so a test can hold an upload in flight.
+    var beforeUpload: (@Sendable (String) async -> Void)?
 
     var calls: [String] { lock.withLock { _calls } }
 
@@ -24,6 +32,7 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
 
     func health() async throws -> Health {
         record("health")
+        if let onHealth { return try onHealth() }
         return try Fixture.decode(Health.self, "health")
     }
 
@@ -51,6 +60,7 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
 
     func questions(_ body: QuestionsRequest) async throws -> QuestionsResponse {
         record("questions")
+        if let onQuestions { return try onQuestions(body) }
         return try Fixture.decode(QuestionsResponse.self, "questions_response")
     }
 
@@ -71,6 +81,7 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
     ) async throws -> Take {
         record("uploadTake \(id)")
         guard let onUpload else { throw APIError.notConfigured }
+        await beforeUpload?(id)
         progress(0.5)
         progress(1)
         return try onUpload(id, metadata)
@@ -78,6 +89,7 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
 
     func take(id: String) async throws -> Take {
         record("take \(id)")
+        if let onTake { return try onTake(id) }
         let next: Result<Take, APIError>? = lock.withLock {
             guard !_takeResponses.isEmpty else { return nil }
             return _takeResponses.count > 1 ? _takeResponses.removeFirst() : _takeResponses[0]
@@ -88,6 +100,7 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
 
     func report(takeID: String) async throws -> TakeReport {
         record("report \(takeID)")
+        if let onReport { return try onReport(takeID) }
         return try Fixture.decode(TakeReport.self, object: Fixture.fullReportObject())
     }
 
