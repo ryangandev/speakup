@@ -40,6 +40,7 @@ It must be real. If little worked, choose the best genuine thing and describe it
 
 **focus:** one or two items, most important first.
 Choose by impact on the listener, not by category: a buried main point or a drifting answer usually matters more than a few fillers, but a take full of blocks is a fluency problem first.
+For a prepared prompt, a key point from his notes that he dropped or buried is also a candidate.
 For each item:
 - `dimension`: the dimension it belongs to.
 - `title`: a short imperative of at most six words, such as "Number your reasons".
