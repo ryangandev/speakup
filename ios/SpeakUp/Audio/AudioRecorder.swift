@@ -349,12 +349,14 @@ final class RecordingSink: @unchecked Sendable {
         }
     }
 
-    /// Finishes the file and returns the number of frames in it.
-    func finish() throws -> Int {
+    /// Finishes the file and returns the number of frames in it. `keepingFrames` truncates
+    /// the file to that many frames first (see `WAVWriter.finish(keepingFrames:)`).
+    func finish(keepingFrames keep: Int? = nil) throws -> Int {
         try lock.withLock {
             guard let writer else { return writtenFrames }
             self.writer = nil
-            try writer.finish()
+            try writer.finish(keepingFrames: keep)
+            writtenFrames = writer.frameCount
             return writer.frameCount
         }
     }
