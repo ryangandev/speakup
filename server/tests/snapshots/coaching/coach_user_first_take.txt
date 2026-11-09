@@ -22,7 +22,8 @@ Attempt: 1
 e0 filled_pause: [1]um
 e1 restart (cutoff): [2]we [3]nee-; repair starts at word 4
 e2 lexical_filler: [8]like,; rules' guess: filler
-e3 block (inside_phrase): 1.1 s silence before word 9
+e3 block (inside_phrase): 1.1 s hesitation before word 9
+e4 block (before_filler): 1 s hesitation before word 14
 e5 filled_pause: [14]Uh
 e6 repetition (word): [15]the [16]the; repair starts at word 16
 </rule_events>

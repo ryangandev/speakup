@@ -101,7 +101,8 @@ def _event_line(event: dict[str, Any], words: list[dict[str, Any]]) -> str | Non
         return None
     if kind == "block":
         seconds = event["end"] - event["start"]
-        return f"{event['id']} block{reason}: {_num(seconds)} s silence before word {ws}"
+        # A block spans the whole hesitation: its silences plus any filled pause inside it.
+        return f"{event['id']} block{reason}: {_num(seconds)} s hesitation before word {ws}"
     if kind == "lexical_filler":
         guess = "filler" if event.get("is_filler") else "not a filler"
         return f"{event['id']} lexical_filler: {words_part}; rules' guess: {guess}"
