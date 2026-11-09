@@ -47,7 +47,7 @@ It needs `SPEAKUP_API_TOKEN` (32 characters or more) in `server/.env`; [server/.
 iOS unit tests, from `ios/`:
 
 ```bash
-xcodebuild test -project SpeakUp.xcodeproj -scheme SpeakUp -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath build/DerivedData
+xcodebuild test -project SpeakUp.xcodeproj -scheme SpeakUp -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -derivedDataPath build/DerivedData
 ```
 
 More commands, including the UI tests and the real-server tests, are in [AGENTS.md](AGENTS.md) and [ios/AGENTS.md](ios/AGENTS.md).
