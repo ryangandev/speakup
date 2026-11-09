@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from speakup.bakeoff.align import Pair, align
-from speakup.bakeoff.text import Token
+from speakup.text import Token
 
 MIN_PAUSE_SECONDS = 0.25
 

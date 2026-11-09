@@ -13,9 +13,9 @@ from speakup.bakeoff.metrics import (
     score_pauses,
     word_gaps,
 )
-from speakup.bakeoff.text import Token, tokens_from_text, tokens_from_words
 from speakup.bakeoff.vad import reference_pauses
 from speakup.stt import Engine, Transcript
+from speakup.text import Token, tokens_from_text, tokens_from_words
 
 DRAFT_MARKER = "# DRAFT"
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from speakup.bakeoff.text import Token
+from speakup.text import Token
 
 Op = Literal["match", "sub", "del", "ins"]
 
