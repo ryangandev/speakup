@@ -83,7 +83,7 @@ struct PreparedPromptView: View {
                 app.practice.isMicrophoneDeniedAlertPresented = true
                 return
             }
-            let sessionID = app.store.openSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
+            let sessionID = app.store.openHomeSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
             let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
             guard
                 let prompt = app.store.addPrompt(
@@ -212,7 +212,7 @@ struct ImpromptuPromptView: View {
                 app.practice.isMicrophoneDeniedAlertPresented = true
                 return
             }
-            let sessionID = app.store.openSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
+            let sessionID = app.store.openHomeSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
             guard
                 let prompt = app.store.addPrompt(
                     sessionID: sessionID, kind: .impromptu, text: question.text, notes: nil,

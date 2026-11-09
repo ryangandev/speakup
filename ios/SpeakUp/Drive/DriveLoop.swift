@@ -314,9 +314,6 @@ final class DriveLoop {
         state = .askingNervousness(.before)
         let rating = try await askRating(DriveScript.opening)
         // A drive is its own sitting: a session left open at home closes where it stopped.
-        if let open = store.openSession {
-            store.endSession(open.id, endedAt: open.lastTakeEnd ?? open.startedAt, nervousnessAfter: nil)
-        }
         sessionID = store.openNewSession(mode: .driving, nervousnessBefore: rating).id
     }
 

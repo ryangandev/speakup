@@ -48,7 +48,7 @@ struct ReportView: View {
 
     /// Practice actions apply only to a take of the open session.
     private func showsPracticeActions(_ report: TakeReport) -> Bool {
-        context == .practice && app.store.openSession?.prompts.contains { $0.id == report.prompt.id } == true
+        context == .practice && app.store.openHomeSession?.prompts.contains { $0.id == report.prompt.id } == true
     }
 
     private func content(_ report: TakeReport) -> some View {

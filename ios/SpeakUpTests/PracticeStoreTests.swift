@@ -92,6 +92,66 @@ struct PracticeStoreTests {
         #expect((body as? [String: Any])?["mode"] as? String == "driving")
     }
 
+    /// The app was killed mid-drive: at the next launch the drive's session closes where it
+    /// stopped, and its takes stay queued for upload.
+    @Test func aDriveLeftOpenByAKillClosesAtLaunchAndKeepsItsTakes() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let killed = PracticeStore(directory: directory)
+        let drive = killed.openNewSession(mode: .driving, nervousnessBefore: 3, now: start)
+        let question = prompt(killed, in: drive, kind: .impromptu)
+        let takeID = IDs.make()
+        killed.keepTake(
+            id: takeID, promptID: question.id,
+            recording: recording(killed, takeID: takeID, at: start.addingTimeInterval(30), duration: 45), sha256: "x")
+        killed.markSessionCreated(drive.id)
+
+        let relaunched = PracticeStore(directory: directory)
+        #expect(relaunched.openSession?.id == drive.id)
+        #expect(relaunched.openHomeSession == nil)
+        relaunched.closeInterruptedDrives()
+
+        let closed = try #require(relaunched.session(id: drive.id))
+        #expect(closed.endedAt == start.addingTimeInterval(75))
+        #expect(closed.nervousnessAfter == nil)
+        #expect(!closed.isEndSent)
+        #expect(closed.takes.map(\.id) == [takeID])
+        #expect(relaunched.pendingUploads.map(\.id) == [takeID])
+        #expect(relaunched.openSession == nil)
+        #expect(PracticeStore(directory: directory).session(id: drive.id)?.isOpen == false)
+    }
+
+    @Test func aDriveWithNoTakesClosesAtItsStart() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let store = PracticeStore(directory: directory)
+        let drive = store.openNewSession(mode: .driving, nervousnessBefore: nil, now: start)
+        store.closeInterruptedDrives()
+        #expect(store.session(id: drive.id)?.endedAt == start)
+    }
+
+    @Test func closingInterruptedDrivesLeavesHomePracticeOpen() {
+        let store = PracticeStore(directory: directory)
+        let home = store.openNewSession(nervousnessBefore: 2)
+        store.closeInterruptedDrives()
+        #expect(store.openSession?.id == home.id)
+        #expect(store.openHomeSession?.id == home.id)
+        #expect(store.session(id: home.id)?.endedAt == nil)
+    }
+
+    /// Home practice never adds to a drive's session: it is not Home's session, and opening a
+    /// home session closes it.
+    @Test func homePracticeNeverReusesADrivingSession() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let store = PracticeStore(directory: directory)
+        let drive = store.openNewSession(mode: .driving, nervousnessBefore: 4, now: start)
+        #expect(store.openHomeSession == nil)
+
+        let home = store.openNewSession(nervousnessBefore: nil, now: start.addingTimeInterval(600))
+        #expect(store.session(id: drive.id)?.endedAt == start)
+        #expect(store.openSession?.id == home.id)
+        #expect(store.openHomeSession?.id == home.id)
+        #expect(store.sessions.filter(\.isOpen).count == 1)
+    }
+
     @Test func remoteUpdateMarksTheTakeUploaded() {
         let store = PracticeStore(directory: directory)
         let session = store.openNewSession(nervousnessBefore: nil)
