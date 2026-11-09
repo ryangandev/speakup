@@ -22,6 +22,8 @@ From `server/` (Python, managed by `uv`):
 - `uv sync --extra crisper` installs everything, including local CrisperWhisper.
 - `uv run pytest` runs the tests; `uv run ruff format` and `uv run ruff check` format and lint.
 - `uv run speakup-bakeoff --help` runs the bake-off; the procedure is in [docs/bakeoff.md](docs/bakeoff.md).
+- `uv run python -m speakup.coaching <analysis.json> --prompt "..." [--dry-run]` coaches one take, for iterating on the coaching prompt; `--dry-run` prints the request and needs no key.
+- `SPEAKUP_UPDATE_SNAPSHOTS=1 uv run pytest tests/test_coaching_request.py` accepts an intended change to the coaching request snapshots.
 
 From the repository root: `swift build -c release --package-path tools/apple-transcribe` builds the Apple engine.
 

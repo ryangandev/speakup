@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpeakUp Prototype</title>
+<!-- Icons: Material Symbols Rounded is a stand-in for SF Symbols. The SwiftUI app uses the SF Symbol named in docs/design/README.md. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&icon_names=adjust,arrow_back_ios_new,arrow_downward,arrow_forward,arrow_upward,autorenew,check,check_circle,chevron_right,close,directions_car,edit_note,forum,history,home,mic,more_horiz,pause,play_arrow,replay,settings,timer,wifi&display=block">
+<style>
+/* ---------- Board (the page around the phones) ---------- */
+:root {
+  --board-bg: #E9E9EC;
+  --board-ink: #1C1C1E;
+  --board-mute: #5E5E63;
+  --board-line: rgba(0,0,0,.10);
+  --board-chip: #FFFFFF;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-board="light"]) {
+    --board-bg: #141416;
+    --board-ink: #F2F2F7;
+    --board-mute: #A1A1A8;
+    --board-line: rgba(255,255,255,.10);
+    --board-chip: #232326;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--board-bg);
+  color: var(--board-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 15px;
+}
+.board-head { max-width: 1280px; margin: 0 auto; padding: 48px 24px 8px; }
+.board-head h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
+.board-head p { margin: 0; max-width: 62ch; color: var(--board-mute); line-height: 1.45; }
+.board-bar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin-top: 20px; }
+.jump { display: flex; flex-wrap: wrap; gap: 6px; }
+.jump a {
+  font-size: 13px; font-weight: 500; color: var(--board-ink); text-decoration: none;
+  padding: 6px 11px; border-radius: 999px; background: var(--board-chip);
+  box-shadow: inset 0 0 0 0.5px var(--board-line);
+}
+.seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--board-line); }
+.seg button {
+  font: inherit; font-size: 13px; font-weight: 500; color: var(--board-ink);
+  border: 0; background: transparent; padding: 5px 12px; border-radius: 7px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--board-chip); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.screen-sec {
+  max-width: 1280px; margin: 0 auto; padding: 40px 24px;
+  display: grid; grid-template-columns: 220px 1fr; gap: 32px;
+  border-top: 1px solid var(--board-line);
+}
+.screen-sec h2 { font-size: 20px; font-weight: 650; margin: 0 0 6px; letter-spacing: -0.01em; }
+.screen-sec .note { color: var(--board-mute); line-height: 1.45; margin: 0; }
+.phones { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
+.phone-wrap { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.phone-wrap .cap { font-size: 12px; font-weight: 600; color: var(--board-mute); }
+body[data-show="light"] .phone-wrap.dark, body[data-show="dark"] .phone-wrap.light { display: none; }
+@media (max-width: 900px) {
+  .screen-sec { grid-template-columns: 1fr; gap: 16px; }
+}
+
+/* ---------- Phone tokens: the app's semantic colors ---------- */
+.phone[data-theme="light"] {
+  --bg: #FFFFFF;
+  --bg2: #F2F2F7;
+  --bg3: #E5E5EA;
+  --label: #000000;
+  --label2: #6C6C70;
+  --label3: #AEAEB2;
+  --sep: rgba(60,60,67,.16);
+  --accent: #C8341A;
+  --accent-tint: rgba(200,52,26,.11);
+  --on-accent: #FFFFFF;
+  --good: #1E7A4C;
+  --good-tint: rgba(30,122,76,.10);
+  --ink-fill: #000000;
+  --on-ink: #FFFFFF;
+  --level-okay: rgba(0,0,0,.28);
+  --glass: rgba(250,250,252,.80);
+  --glass-edge: rgba(0,0,0,.07);
+  --glass-hi: rgba(255,255,255,.9);
+  --glass-shadow: rgba(0,0,0,.08);
+  --scrim: rgba(0,0,0,.38);
+  --ring: #C7C7CC;
+  --lv-empty: #E5E5EA;
+  color-scheme: light;
+}
+.phone[data-theme="dark"] {
+  --bg: #000000;
+  --bg2: #1C1C1E;
+  --bg3: #2C2C2E;
+  --label: #FFFFFF;
+  --label2: #98989F;
+  --label3: #545458;
+  --sep: rgba(84,84,88,.55);
+  --accent: #FF6A4D;
+  --accent-tint: rgba(255,106,77,.22);
+  --on-accent: #000000;
+  --good: #3DCB82;
+  --good-tint: rgba(61,203,130,.14);
+  --ink-fill: #FFFFFF;
+  --on-ink: #000000;
+  --level-okay: rgba(255,255,255,.34);
+  --glass: rgba(38,38,41,.78);
+  --glass-edge: rgba(255,255,255,.10);
+  --glass-hi: rgba(255,255,255,.14);
+  --glass-shadow: rgba(0,0,0,.5);
+  --scrim: rgba(0,0,0,.6);
+  --ring: #545458;
+  --lv-empty: #3A3A3C;
+  color-scheme: dark;
+}
+
+/* ---------- Phone shell ---------- */
+.phone {
+  position: relative; width: 390px; height: 844px; overflow: hidden;
+  border-radius: 54px; background: var(--bg); color: var(--label);
+  box-shadow: 0 0 0 9px #111113, 0 0 0 10px #3A3A3D, 0 40px 80px -30px rgba(0,0,0,.45);
+  font-size: 17px; line-height: 1.35; letter-spacing: -0.01em;
+  font-feature-settings: "tnum" 0;
+  scroll-margin: 40px;
+}
+.phone.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 9px #111113, 0 0 0 14px #FF6A4D; } 100% { box-shadow: 0 0 0 9px #111113, 0 0 0 10px #3A3A3D; } }
+.phone.capture { border-radius: 0; box-shadow: none; }
+.scroll { position: absolute; inset: 0; overflow-y: auto; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.phone.full { height: auto; }
+.phone.full .scroll { position: relative; overflow: visible; }
+.island { position: absolute; top: 11px; left: 50%; width: 126px; height: 37px; margin-left: -63px; border-radius: 20px; background: #000; z-index: 30; }
+.home-ind { position: absolute; bottom: 8px; left: 50%; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: var(--label); z-index: 30; }
+.sb { position: absolute; top: 0; left: 0; right: 0; height: 54px; z-index: 25; display: flex; justify-content: space-between; align-items: center; padding: 4px 30px 0 52px; pointer-events: none; }
+.sb-time { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; width: 54px; text-align: center; }
+.sb-r { display: flex; align-items: center; gap: 6px; }
+.sig { display: flex; align-items: flex-end; gap: 1.5px; height: 12px; }
+.sig i { display: block; width: 3px; border-radius: 1px; background: var(--label); }
+.sig i:nth-child(1) { height: 4px; } .sig i:nth-child(2) { height: 6.5px; } .sig i:nth-child(3) { height: 9px; } .sig i:nth-child(4) { height: 11.5px; }
+.sb .ms { font-size: 19px; font-variation-settings: 'FILL' 1, 'wght' 600, 'opsz' 20; }
+.bat { position: relative; width: 26px; height: 12.5px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--label) 40%, transparent); padding: 1.5px; }
+.bat i { display: block; height: 100%; width: 80%; border-radius: 2px; background: var(--label); }
+.bat::after { content: ""; position: absolute; right: -3.5px; top: 3.5px; width: 1.5px; height: 4px; border-radius: 0 1px 1px 0; background: color-mix(in srgb, var(--label) 40%, transparent); }
+.mic-dot { width: 6px; height: 6px; border-radius: 3px; background: #FF9F0A; margin-left: 2px; }
+
+/* Top scroll edge: iOS 26 fades content under the toolbar instead of drawing a bar */
+.top-edge { position: absolute; top: 0; left: 0; right: 0; height: 104px; z-index: 20; pointer-events: none;
+  background: linear-gradient(var(--bg) 0%, var(--bg) 52%, color-mix(in srgb, var(--bg) 0%, transparent) 100%); }
+.bottom-edge { position: absolute; bottom: 0; left: 0; right: 0; height: 130px; z-index: 19; pointer-events: none;
+  background: linear-gradient(color-mix(in srgb, var(--bg) 0%, transparent), var(--bg) 42%); }
+.toolbar { position: absolute; top: 54px; left: 0; right: 0; height: 48px; z-index: 22; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.toolbar .t-title { position: absolute; left: 80px; right: 80px; text-align: center; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Liquid Glass, web approximation. The app uses the system glass material, not this CSS. */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0 var(--glass-hi), 0 6px 20px -6px var(--glass-shadow);
+}
+.gbtn { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; color: var(--label); border: 0; cursor: pointer; }
+.gcap { height: 44px; border-radius: 22px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 17px; font-weight: 500; color: var(--label); border: 0; cursor: pointer; }
+
+.ms { font-family: 'Material Symbols Rounded'; font-weight: normal; font-style: normal; font-size: 22px; line-height: 1; display: inline-block; white-space: nowrap; direction: ltr; -webkit-font-smoothing: antialiased; font-variation-settings: 'FILL' 0, 'wght' 500, 'opsz' 24; vertical-align: middle; user-select: none; }
+.ms.f { font-variation-settings: 'FILL' 1, 'wght' 500, 'opsz' 24; }
+.ms.s { font-size: 17px; font-variation-settings: 'FILL' 0, 'wght' 600, 'opsz' 20; }
+
+button { font: inherit; color: inherit; }
+[data-go] { cursor: pointer; }
+
+/* ---------- Type ---------- */
+.lt { font-size: 34px; font-weight: 700; letter-spacing: -0.025em; line-height: 41px; margin: 0; }
+.title2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 28px; margin: 0; }
+.sec-title { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 25px; margin: 0 0 12px; }
+.caption { font-size: 13px; font-weight: 500; color: var(--label2); letter-spacing: -0.005em; }
+.sub { font-size: 15px; color: var(--label2); line-height: 20px; letter-spacing: -0.01em; }
+.tn { font-variant-numeric: tabular-nums; }
+
+/* ---------- Layout ---------- */
+.content { padding: 102px 20px 140px; }
+.content.lt-pad { padding-top: 102px; }
+.section { margin-top: 36px; }
+.hair { height: 0.5px; background: var(--sep); }
+
+/* ---------- Tab bar (system TabView in the app) ---------- */
+.tabbar { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 22; height: 62px; border-radius: 31px; padding: 4px; display: flex; gap: 2px; }
+.tab { width: 104px; border-radius: 27px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10px; font-weight: 600; letter-spacing: 0; color: var(--label); border: 0; background: transparent; cursor: pointer; }
+.tab .ms { font-size: 24px; }
+.tab.on { background: color-mix(in srgb, var(--label) 9%, transparent); }
+.tab.on .ms { font-variation-settings: 'FILL' 1, 'wght' 500, 'opsz' 24; }
+
+/* ---------- Home ---------- */
+.focus-strip { margin-top: 18px; padding: 16px 16px 16px; border-radius: 22px; background: var(--bg2); }
+.fs-top { display: flex; justify-content: space-between; align-items: center; }
+.fs-top .ms { color: var(--label2); font-size: 20px; }
+.fs-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; }
+/* Level history: one column per take, 1 to 3 segments filled. Taller is better; needs work is the signal color. */
+.levels { display: flex; gap: 5px; align-items: flex-end; margin: 14px 0 12px; }
+.lv { display: flex; flex-direction: column-reverse; gap: 2px; }
+.lv i { display: block; width: 18px; height: 7px; border-radius: 2px; background: var(--lv-empty); }
+.lv.s i { background: var(--label); }
+.lv.o i:nth-child(-n+2) { background: var(--label); }
+.lv.n i:nth-child(1) { background: var(--accent); }
+.levels .lv-end { margin-left: auto; white-space: nowrap; font-size: 13px; color: var(--label2); align-self: flex-end; line-height: 1; }
+.start-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.start { text-align: left; height: 156px; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; background: var(--bg2); color: var(--label); border: 0; cursor: pointer; }
+.start .ms { font-size: 26px; }
+.start b { display: block; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
+.start span.d { display: block; font-size: 15px; line-height: 20px; color: var(--label2); }
+.start.primary { background: var(--ink-fill); color: var(--on-ink); }
+.start.primary span.d { color: color-mix(in srgb, var(--on-ink) 72%, transparent); }
+.rows { margin-top: 4px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 0.5px solid var(--sep); cursor: pointer; }
+.row:last-child { border-bottom: 0; }
+.row .r-main { flex: 1; min-width: 0; }
+.row .r-title { font-size: 17px; line-height: 22px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.row .r-meta { font-size: 15px; color: var(--label2); margin-top: 2px; }
+.row .r-right { font-size: 15px; color: var(--label2); align-self: flex-start; padding-top: 1px; }
+.row .chev { color: var(--label3); font-size: 20px; }
+.sec-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 32px; }
+.sec-row .sec-title { margin: 0; }
+
+/* ---------- Forms (prepared) ---------- */
+.sheet-back { position: absolute; inset: 0; background: var(--scrim); }
+.sheet-peek { position: absolute; top: 48px; left: 18px; right: 18px; height: 40px; border-radius: 24px 24px 0 0; background: color-mix(in srgb, var(--bg) 55%, #888 45%); opacity: .55; }
+.sheet { position: absolute; top: 60px; left: 0; right: 0; bottom: 0; border-radius: 38px 38px 0 0; background: var(--bg); overflow: hidden; }
+.sheet .toolbar { top: 10px; }
+.sheet .scroll { padding: 74px 20px 200px; }
+.field-label { font-size: 15px; font-weight: 600; margin: 22px 0 8px; display: block; }
+.field-help { font-size: 13px; color: var(--label2); margin: -2px 0 10px; line-height: 18px; }
+.input { border-radius: 14px; background: var(--bg2); padding: 13px 14px; font-size: 17px; }
+.textarea { border-radius: 16px; background: var(--bg2); padding: 12px 14px 60px; font-size: 17px; line-height: 24px; position: relative; }
+.textarea p { margin: 0 0 8px; padding-left: 16px; position: relative; }
+.textarea p::before { content: ""; position: absolute; left: 2px; top: 10px; width: 5px; height: 5px; border-radius: 3px; background: var(--label2); }
+.textarea .caret { display: inline-block; width: 2px; height: 20px; background: var(--label); vertical-align: -4px; margin-left: 1px; }
+.textarea .dict { position: absolute; right: 10px; bottom: 10px; height: 36px; padding: 0 14px 0 10px; font-size: 15px; }
+.textarea .dict .ms { font-size: 20px; }
+.segctl { display: flex; padding: 2px; border-radius: 10px; background: var(--bg2); }
+.segctl span { flex: 1; text-align: center; padding: 7px 0; font-size: 15px; font-weight: 500; border-radius: 8px; }
+.segctl span.on { background: var(--bg); box-shadow: 0 2px 6px rgba(0,0,0,.10), inset 0 0 0 0.5px var(--sep); }
+.phone[data-theme="dark"] .segctl span.on { background: #5A5A5E; box-shadow: none; }
+
+/* ---------- Record control ---------- */
+.rec-dock { position: absolute; left: 0; right: 0; bottom: 34px; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 22; }
+.rec { width: 84px; height: 84px; border-radius: 42px; border: 0; padding: 0; display: grid; place-items: center; cursor: pointer;
+  background: transparent; box-shadow: inset 0 0 0 4px var(--ring); }
+.rec i { display: block; width: 66px; height: 66px; border-radius: 33px; background: var(--accent); transition: all .25s cubic-bezier(.2,.8,.2,1); }
+.rec.stop i { width: 32px; height: 32px; border-radius: 8px; }
+.rec-label { font-size: 15px; font-weight: 600; }
+.rec-hint { font-size: 15px; color: var(--label2); }
+
+/* ---------- Impromptu ---------- */
+.chips { display: flex; gap: 8px; overflow: hidden; margin: 0 -20px; padding: 0 20px; }
+.chip { flex: none; height: 36px; padding: 0 14px; border-radius: 18px; display: inline-flex; align-items: center; font-size: 15px; font-weight: 500; background: var(--bg2); color: var(--label); white-space: nowrap; }
+.chip.on { background: var(--ink-fill); color: var(--on-ink); }
+.question { font-size: 32px; line-height: 38px; font-weight: 650; letter-spacing: -0.03em; margin: 30px 0 14px; }
+.ctx { font-size: 17px; line-height: 24px; color: var(--label2); margin: 0; }
+.meta-line { display: flex; align-items: center; gap: 6px; font-size: 15px; color: var(--label2); margin-top: 18px; }
+.meta-line .ms { font-size: 18px; }
+.soft-cap { background: var(--bg2); margin-top: 18px; height: 40px; padding: 0 16px 0 12px; font-size: 15px; font-weight: 600; }
+.soft-cap .ms { font-size: 19px; }
+.nerv { margin-top: 32px; border-radius: 20px; background: var(--bg2); padding: 14px 14px 12px; }
+.nerv-q { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+.nerv-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.nerv-scale span { height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 17px; font-weight: 600; background: var(--bg); }
+.phone[data-theme="dark"] .nerv-scale span { background: var(--bg3); }
+.phone .nerv-scale span.on { background: var(--ink-fill); color: var(--on-ink); }
+.nerv-ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--label2); margin-top: 6px; padding: 0 4px; }
+
+/* ---------- Recording ---------- */
+.rec-prompt { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.timer { font-size: 92px; font-weight: 200; letter-spacing: -0.03em; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; margin-top: 84px; }
+.ruler { position: relative; width: 300px; height: 34px; margin: 26px auto 0; }
+.ruler .base { position: absolute; left: 0; right: 0; top: 8px; height: 2px; border-radius: 1px; background: var(--bg3); }
+.ruler .zone { position: absolute; left: 50%; right: 0; top: 6px; height: 6px; border-radius: 3px; background: var(--level-okay); }
+.ruler .done { position: absolute; left: 0; top: 8px; height: 2px; border-radius: 1px; background: var(--label); }
+.ruler .head { position: absolute; top: 3px; width: 12px; height: 12px; margin-left: -6px; border-radius: 6px; background: var(--accent); box-shadow: 0 0 0 3px var(--bg); }
+.ruler .tick { position: absolute; top: 20px; font-size: 13px; color: var(--label2); transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.ruler .tick.l { transform: none; } .ruler .tick.r { transform: translateX(-100%); }
+.wave { display: flex; align-items: center; justify-content: space-between; height: 96px; margin-top: 64px; }
+.wave i { flex: none; width: 3px; border-radius: 2px; background: var(--label); transform-origin: center; }
+@media (prefers-reduced-motion: no-preference) {
+  .wave i.live { animation: lvl 0.9s ease-in-out infinite alternate; }
+  .step.active .spin { animation: spin 1s linear infinite; }
+}
+@keyframes lvl { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Processing ---------- */
+.steps { margin-top: 26px; }
+.step { display: flex; align-items: center; gap: 14px; padding: 11px 0; font-size: 17px; }
+.step .st { width: 26px; height: 26px; border-radius: 13px; display: grid; place-items: center; flex: none; }
+.step.done .st { background: var(--label); color: var(--bg); }
+.step.done .st .ms { font-size: 17px; font-variation-settings: 'FILL' 0, 'wght' 700, 'opsz' 20; }
+.step.active .st { box-shadow: inset 0 0 0 2px var(--bg3); }
+.step.active .spin { width: 26px; height: 26px; border-radius: 13px; border: 2px solid transparent; border-top-color: var(--label); border-right-color: var(--label); }
+.step.todo { color: var(--label2); }
+.step.todo .st { box-shadow: inset 0 0 0 1.5px var(--label3); }
+.step .when { margin-left: auto; font-size: 15px; color: var(--label2); font-variant-numeric: tabular-nums; }
+.words-preview { margin-top: 30px; padding-top: 22px; border-top: 0.5px solid var(--sep); position: relative; }
+.words-preview p { margin: 0 0 12px; font-size: 17px; line-height: 27px; color: var(--label); }
+.words-preview .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 90px; background: linear-gradient(color-mix(in srgb, var(--bg) 0%, transparent), var(--bg)); }
+
+/* ---------- Report ---------- */
+.prompt-head .caption { display: block; margin-bottom: 4px; }
+.prompt-head .meta { font-size: 15px; color: var(--label2); margin-top: 6px; }
+.verdict { font-size: 21px; line-height: 29px; letter-spacing: -0.02em; font-weight: 500; margin: 8px 0 0; }
+.lead-label { margin-top: 28px; display: block; }
+.strength { margin-top: 26px; }
+.str-head { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; color: var(--good); }
+.str-head .ms { font-size: 20px; }
+.str-text { font-size: 17px; line-height: 24px; margin: 6px 0 10px; }
+.quote { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; line-height: 23px; color: var(--label); }
+.quote q { quotes: "\201C" "\201D"; flex: 1; color: var(--label2); }
+.ts { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 0 9px 0 5px; border-radius: 13px; background: var(--bg2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; border: 0; cursor: pointer; color: var(--label); }
+.ts .ms { font-size: 17px; font-variation-settings: 'FILL' 1, 'wght' 500, 'opsz' 20; }
+.focus-card .ts, .cmp-card .ts { background: var(--bg); }
+.phone[data-theme="dark"] .focus-card .ts, .phone[data-theme="dark"] .cmp-card .ts { background: var(--bg3); }
+.focus-card { border-radius: 22px; background: var(--bg2); padding: 16px; margin-bottom: 10px; }
+.fc-head { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; color: var(--accent); }
+.fc-head .ms { font-size: 20px; }
+.fc-do { font-size: 19px; line-height: 25px; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0 12px; }
+.fc-do q { quotes: "\201C" "\201D"; }
+.fc-evi { font-size: 15px; line-height: 21px; color: var(--label2); margin: 0 0 10px; }
+.btn { height: 52px; border-radius: 26px; border: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 17px; font-weight: 600; cursor: pointer; }
+.btn.ink { background: var(--ink-fill); color: var(--on-ink); }
+.btn.soft { background: var(--bg2); color: var(--label); }
+.btn .ms { font-size: 21px; }
+.dims .dim { padding: 12px 0; border-bottom: 0.5px solid var(--sep); }
+.dims .dim:last-child { border-bottom: 0; }
+.dim-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dim-name { font-size: 17px; font-weight: 500; }
+.lvl { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.meter { display: inline-flex; gap: 3px; }
+.meter i { width: 14px; height: 6px; border-radius: 3px; background: var(--bg3); }
+.lvl.s .meter i { background: var(--label); }
+.lvl.o .meter i:nth-child(-n+2) { background: var(--label); }
+.lvl.n { color: var(--accent); }
+.lvl.n .meter i:nth-child(1) { background: var(--accent); }
+.dim-evi { font-size: 15px; line-height: 20px; color: var(--label2); margin-top: 3px; }
+
+.outline-note { font-size: 15px; line-height: 21px; margin: -4px 0 14px; color: var(--label2); }
+.outline-note b { color: var(--accent); font-weight: 600; }
+.ol { position: relative; }
+.ol-item { display: grid; grid-template-columns: 40px 1fr; gap: 10px; padding: 9px 0; position: relative; }
+.ol-item .t { font-size: 13px; font-weight: 600; color: var(--label2); padding-top: 2px; font-variant-numeric: tabular-nums; }
+.ol-item .p { font-size: 16px; line-height: 22px; }
+.ol-item .role { display: block; font-size: 13px; color: var(--label2); margin-top: 2px; font-weight: 500; }
+.ol-item.off .p { color: var(--label2); }
+.ol-item.off .role, .ol-item.key .role { color: var(--accent); }
+.ol-item.ghost .p { border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 12px; padding: 8px 10px; color: var(--accent); font-size: 15px; font-weight: 500; }
+.ol-item.ghost .t { color: var(--accent); }
+
+.legend { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
+.lg { height: 30px; padding: 0 11px; border-radius: 15px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; background: var(--bg2); border: 0; cursor: pointer; color: var(--label); }
+.lg.off { color: var(--label2); background: transparent; box-shadow: inset 0 0 0 1px var(--sep); }
+.lg .n { font-variant-numeric: tabular-nums; color: var(--label2); font-weight: 500; }
+.lg .sw { display: inline-block; }
+.sw-f { width: 14px; height: 12px; border-radius: 3px; background: var(--accent-tint); }
+.sw-b { width: 14px; height: 10px; border-radius: 5px; background: var(--accent); }
+.sw-p { width: 14px; height: 6px; border-bottom: 2px dotted var(--accent); }
+.sw-x { width: 14px; height: 2px; background: var(--label2); }
+.sw-o { width: 3px; height: 14px; border-radius: 2px; background: var(--accent); }
+.tr-seg { display: grid; grid-template-columns: 40px 1fr; gap: 10px; padding: 6px 0; position: relative; }
+.tr-seg .t { font-size: 13px; font-weight: 600; color: var(--label2); padding-top: 4px; font-variant-numeric: tabular-nums; }
+.tr-seg .tx { font-size: 17px; line-height: 29px; }
+.tr-seg.off .tx { color: var(--label2); }
+.tr-seg.off::before { content: ""; position: absolute; left: 34px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+.off-tag { display: block; font-size: 13px; font-weight: 600; color: var(--accent); line-height: 18px; margin-top: 2px; }
+.mk { all: unset; cursor: pointer; border-radius: 4px; }
+.mk.f { background: var(--accent-tint); padding: 0 2px; border-radius: 4px; }
+.mk.p { text-decoration: underline dotted var(--accent) 2px; text-underline-offset: 5px; }
+.mk.x { text-decoration: line-through var(--label2) 1.5px; color: var(--label2); }
+.mk.b { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; margin: 0 2px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; vertical-align: 1px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.mk.sel { outline: 2px solid var(--label); outline-offset: 2px; }
+.tx.hide-f .mk.f { background: none; box-shadow: none; padding: 0; margin: 0; }
+.tx.hide-p .mk.p { text-decoration: none; }
+.tx.hide-x .mk.x { text-decoration: none; color: inherit; }
+.tx.hide-b .mk.b { display: none; }
+.trans.hide-o .tr-seg.off .tx { color: var(--label); }
+.trans.hide-o .tr-seg.off::before, .trans.hide-o .off-tag { display: none; }
+
+.ref-intro { font-size: 15px; line-height: 21px; color: var(--label2); margin: -4px 0 14px; }
+.ref { border-radius: 22px; background: var(--bg2); padding: 6px 16px; }
+.ref-row { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--sep); }
+.ref-row:last-child { border-bottom: 0; }
+.ref-row .role { font-size: 13px; font-weight: 600; color: var(--label2); padding-top: 3px; }
+.ref-row .rt { font-size: 17px; line-height: 24px; }
+.ref-row.answer .rt { font-weight: 600; }
+
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tile { border-radius: 20px; background: var(--bg2); padding: 14px 14px 13px; min-height: 118px; display: flex; flex-direction: column; }
+.tile .k { font-size: 13px; font-weight: 600; color: var(--label2); }
+.tile .v { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 36px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.tile .v small { font-size: 15px; font-weight: 500; color: var(--label2); letter-spacing: -0.01em; margin-left: 3px; }
+.tile .ref-r { font-size: 13px; line-height: 17px; color: var(--label2); margin-top: auto; padding-top: 6px; }
+.tile.flag .v { color: var(--accent); }
+
+.player { position: absolute; left: 12px; right: 12px; bottom: 26px; height: 64px; border-radius: 32px; z-index: 22; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 10px; }
+.pbtn { width: 44px; height: 44px; border-radius: 22px; background: var(--ink-fill); color: var(--on-ink); display: grid; place-items: center; border: 0; cursor: pointer; flex: none; }
+.pbtn .ms { font-size: 26px; font-variation-settings: 'FILL' 1, 'wght' 500, 'opsz' 24; }
+.p-mid { flex: 1; min-width: 0; }
+.p-cap { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; margin-bottom: 7px; white-space: nowrap; }
+.p-cap .pt { color: var(--label2); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tl { position: relative; height: 14px; }
+.tl .base { position: absolute; left: 0; right: 0; top: 6px; height: 2px; border-radius: 1px; background: var(--level-okay); }
+.tl .offr { position: absolute; top: 3px; height: 8px; border-radius: 4px; background: var(--accent-tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+.tl .tf { position: absolute; top: 4px; width: 2px; height: 6px; margin-left: -1px; border-radius: 1px; background: var(--label2); }
+.tl .tb { position: absolute; top: 0; width: 4px; height: 14px; margin-left: -2px; border-radius: 2px; background: var(--accent); }
+.tl .ph { position: absolute; top: -2px; width: 2px; height: 18px; margin-left: -1px; border-radius: 1px; background: var(--label); }
+
+/* ---------- Comparison ---------- */
+.status { display: inline-flex; align-items: center; gap: 3px; height: 26px; padding: 0 10px 0 7px; border-radius: 13px; font-size: 13px; font-weight: 700; }
+.status .ms { font-size: 16px; font-variation-settings: 'FILL' 0, 'wght' 700, 'opsz' 20; }
+.status.up { color: var(--good); background: var(--good-tint); }
+.status.new { color: var(--accent); background: var(--accent-tint); }
+.cmp-card { border-radius: 22px; background: var(--bg2); padding: 14px 16px 16px; margin-bottom: 10px; }
+.cmp-head { display: flex; justify-content: space-between; align-items: center; }
+.cmp-name { font-size: 17px; font-weight: 600; }
+.cmp-pair { margin-top: 10px; display: grid; grid-template-columns: 52px 1fr auto; gap: 8px 10px; align-items: start; }
+.cmp-pair .k { font-size: 13px; font-weight: 600; color: var(--label2); padding-top: 3px; }
+.cmp-pair q { quotes: "\201C" "\201D"; font-size: 16px; line-height: 22px; }
+.cmp-pair q.old { color: var(--label2); }
+.cmp-text { font-size: 16px; line-height: 22px; margin: 8px 0 0; }
+.dchg { display: grid; grid-template-columns: 1fr auto; padding: 11px 0; border-bottom: 0.5px solid var(--sep); align-items: center; }
+.dchg:last-of-type { border-bottom: 0; }
+.dchg .from { font-size: 15px; color: var(--label2); display: flex; align-items: center; gap: 6px; }
+.dchg .from .ms { font-size: 16px; }
+.unch { font-size: 15px; color: var(--label2); margin-top: 6px; }
+.mtable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.mtable th { font-size: 13px; font-weight: 600; color: var(--label2); text-align: right; padding: 0 0 8px; }
+.mtable th:first-child { text-align: left; }
+.mtable td { vertical-align: middle; font-size: 17px; padding: 11px 0; border-top: 0.5px solid var(--sep); text-align: right; white-space: nowrap; }
+.mtable td:first-child { text-align: left; white-space: normal; font-size: 16px; }
+.mtable td.old { color: var(--label2); padding-right: 16px; }
+.mtable td .d { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; vertical-align: middle; line-height: 22px; }
+.mtable td .d .ms { font-size: 16px; font-variation-settings: 'FILL' 0, 'wght' 700, 'opsz' 20; }
+.mtable td .d.up { color: var(--good); }
+.mtable .info td:first-child::after { content: " (not graded)"; color: var(--label2); font-size: 13px; }
+.listen { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lis { border-radius: 20px; background: var(--bg2); padding: 12px; display: flex; align-items: center; gap: 10px; }
+.lis .pbtn { width: 38px; height: 38px; }
+.lis .pbtn .ms { font-size: 22px; }
+.lis b { display: block; font-size: 15px; font-weight: 600; }
+.lis div span { font-size: 13px; color: var(--label2); font-variant-numeric: tabular-nums; }
+.dock2 { position: absolute; left: 16px; right: 16px; bottom: 30px; z-index: 22; display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.dock2 .btn.glassy { background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%); box-shadow: inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0 var(--glass-hi), 0 6px 20px -6px var(--glass-shadow); color: var(--label); }
+
+/* ---------- History ---------- */
+.hist-sub { font-size: 15px; color: var(--label2); margin-top: 2px; }
+.card { border-radius: 22px; background: var(--bg2); padding: 16px; }
+.heat { display: grid; grid-template-columns: 92px repeat(8, 1fr); gap: 5px 5px; align-items: center; }
+.heat .hn { font-size: 13px; font-weight: 500; white-space: nowrap; }
+.heat .hc { height: 20px; border-radius: 5px; }
+.heat .hc.s { background: var(--label); }
+.heat .hc.o { background: var(--level-okay); }
+.heat .hc.n { background: var(--accent); }
+.heat .hd { font-size: 11px; color: var(--label2); text-align: center; font-variant-numeric: tabular-nums; padding-top: 2px; }
+.heat-legend { display: flex; gap: 14px; margin-top: 14px; font-size: 13px; color: var(--label2); }
+.heat-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.heat-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.chart { position: relative; height: 150px; margin-top: 8px; }
+.chart .band { position: absolute; left: 22px; right: 0; border-radius: 4px; background: color-mix(in srgb, var(--label) 5%, transparent); }
+.chart .band-l { position: absolute; right: 4px; font-size: 11px; color: var(--label2); }
+.chart .gl { position: absolute; left: 22px; right: 0; height: 0.5px; background: var(--sep); }
+.chart .yl { position: absolute; left: 0; font-size: 11px; color: var(--label2); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+.chart .bars { position: absolute; left: 30px; right: 8px; bottom: 0; top: 0; display: flex; align-items: flex-end; justify-content: space-between; }
+.chart .bar { width: 18px; border-radius: 4px 4px 0 0; background: var(--label); position: relative; }
+.chart .bar.hi { background: color-mix(in srgb, var(--label) 42%, transparent); }
+.chart .bar .bv { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-x { display: flex; justify-content: space-between; padding: 6px 8px 0 30px; font-size: 11px; color: var(--label2); font-variant-numeric: tabular-nums; }
+.chart-x span { width: 18px; text-align: center; white-space: nowrap; display: flex; justify-content: center; }
+.sess-ic { width: 40px; height: 40px; border-radius: 20px; background: var(--bg2); display: grid; place-items: center; flex: none; }
+.sess-ic .ms { font-size: 21px; }
+.nv { font-size: 13px; color: var(--label2); font-variant-numeric: tabular-nums; }
+.day { font-size: 13px; font-weight: 600; color: var(--label2); margin: 22px 0 0; }
+</style>
+</head>
+<body data-show="both">
+
+<header class="board-head">
+  <h1>SpeakUp, direction v1: Ink and Signal</h1>
+  <p>Static prototype of the home-mode screens at iPhone size (390 by 844 pt). Black and white carry the interface; one red-orange signal marks recording and the things to fix. Tap buttons inside a phone to follow the flow. Sample data throughout. The spec is in <code>docs/design/README.md</code>.</p>
+  <div class="board-bar">
+    <nav class="jump" id="jump"></nav>
+    <div class="seg" role="group" aria-label="Show">
+      <button data-show="both" aria-pressed="true">Both</button>
+      <button data-show="light" aria-pressed="false">Light</button>
+      <button data-show="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+<main id="board"></main>
+
+<script>
+/* ---------- Helpers ---------- */
+const ic = (n, c = '') => `<span class="ms ${c}">${n}</span>`;
+const status = (mic) => `
+  <div class="island"></div>
+  <div class="sb"><span class="sb-time">9:41</span><span class="sb-r">${mic ? '<span class="mic-dot"></span>' : ''}<span class="sig"><i></i><i></i><i></i><i></i></span>${ic('wifi')}<span class="bat"><i></i></span></span></div>`;
+const homeInd = `<div class="home-ind"></div>`;
+const toolbar = ({ left = '', title = '', right = '' } = {}) => `
+  <div class="top-edge"></div>
+  <div class="toolbar">${left || '<span></span>'}${title ? `<div class="t-title">${title}</div>` : ''}${right || '<span></span>'}</div>`;
+const back = (go) => `<button class="gbtn glass" ${go ? `data-go="${go}"` : ''} aria-label="Back">${ic('arrow_back_ios_new', 's')}</button>`;
+const close = (go) => `<button class="gbtn glass" ${go ? `data-go="${go}"` : ''} aria-label="Close">${ic('close', 's')}</button>`;
+const tabbar = (on) => `
+  <div class="bottom-edge"></div>
+  <nav class="tabbar glass">
+    <button class="tab ${on === 'home' ? 'on' : ''}" data-go="home">${ic('mic')}Practice</button>
+    <button class="tab ${on === 'history' ? 'on' : ''}" data-go="history">${ic('history')}History</button>
+  </nav>`;
+const levelClass = { s: 's', o: 'o', n: 'n' };
+const levelWord = { s: 'Strong', o: 'Okay', n: 'Needs work' };
+const lvl = (l) => `<span class="lvl ${l}">${levelWord[l]}<span class="meter"><i></i><i></i><i></i></span></span>`;
+const levelsRow = (seq) => `<div class="levels">${seq.split("").map(l => `<span class="lv ${l}" title="${levelWord[l]}"><i></i><i></i><i></i></span>`).join("")}<span class="lv-end">Last ${seq.length} takes</span></div>`;
+const ts = (t) => `<button class="ts" data-seek="${t}">${ic('play_arrow')}${t}</button>`;
+
+/* ---------- Sample content ---------- */
+const Q = 'Why did you choose Postgres over DynamoDB?';
+// Marks: {f:} filler, {b:} block (seconds), {p:} repetition, {x:} restart (abandoned start)
+const take1 = [
+  { t: '0:00', tx: '{f:So,} {f:um,} {f:basically} {p:the -} the main thing was that {p:we,} {f:uh,} we didn’t really know our access patterns yet.' },
+  { t: '0:09', tx: '{f:Like,} when we started the billing service, we had, {f:um} {b:1.4@0:14} the invoices and the line items and the adjustments, and finance kept asking for new reports every week.' },
+  { t: '0:24', tx: 'And with Dynamo {x:you kind of have to,} you have to design the table around the queries up front. {f:So, yeah.} Also the team already knew Postgres really well.' },
+  { t: '0:38', off: true, tx: '{f:Um,} and actually, funny thing, we almost went with Aurora Serverless, but the cold starts were, {f:uh,} pretty bad back then, and we had this whole thing with the VPC config that took like two weeks. Anyway.' },
+  { t: '0:58', tx: '{f:Um,} the other thing is transactions. {x:We need -} when we post a payment we need to, {f:like,} update the balance and write the ledger entry together, and in Postgres that’s just one transaction.' },
+  { t: '1:12', tx: 'So {p:I think,} I think Postgres was the right call, and {x:we can always,} {f:um} {b:1.1@1:19} we can revisit if the write volume gets really high, I guess.' },
+];
+const kindName = { f: 'Filler', b: 'Block', p: 'Repetition', x: 'Restart' };
+function markup(seg) {
+  return seg.tx.replace(/\{([fbpx]):([^}]*)\}/g, (m, k, v) => {
+    if (k === 'b') {
+      const [sec, at] = v.split('@');
+      return `<button class="mk b" data-kind="Block, ${sec} s" data-t="${at}">${sec} s</button>`;
+    }
+    const label = v.replace(/[,.\s-]+$/, '');
+    return `<button class="mk ${k}" data-kind="${kindName[k]}, “${label}”" data-t="${seg.t}">${v}</button>`;
+  });
+}
+
+/* ---------- Screens ---------- */
+const screens = [];
+
+screens.push({ id: 'home', name: 'Home', note: 'Practice tab. The current focus sits on top because every take is aimed at it. Impromptu is the main drill, so it gets the filled tile.', html: () => `
+  ${status()}
+  ${toolbar({ right: `<button class="gbtn glass" aria-label="Settings">${ic('settings', 's')}</button>` })}
+  <div class="scroll"><div class="content">
+    <h1 class="lt">Practice</h1>
+    <div class="focus-strip" data-go="history">
+      <div class="fs-top"><span class="caption">Current focus</span>${ic('chevron_right')}</div>
+      <div class="fs-title">Answer first</div>
+      ${levelsRow('nnonnoosos')}
+      <div class="sub">Strong in 2 of your last 4 takes. Say the decision in your first sentence, then the reasons.</div>
+    </div>
+    <div class="start-grid">
+      <button class="start primary" data-go="impromptu">${ic('forum')}<span><b>Impromptu</b><span class="d">Answer a work question cold</span></span></button>
+      <button class="start" data-go="prepared">${ic('edit_note')}<span><b>Prepared</b><span class="d">Rehearse what you’re about to say</span></span></button>
+    </div>
+    <div class="sec-row"><h2 class="sec-title">Recent</h2></div>
+    <div class="rows">
+      <div class="row" data-go="compare"><div class="r-main"><div class="r-title">${Q}</div><div class="r-meta">2 takes, Answer first improved</div></div><span class="r-right">9:12</span></div>
+      <div class="row" data-go="report"><div class="r-main"><div class="r-title">Daily stand-up</div><div class="r-meta">1 take, prepared</div></div><span class="r-right">8:40</span></div>
+      <div class="row" data-go="history"><div class="r-main"><div class="r-title">Give a status update on a project that is behind</div><div class="r-meta">3 takes, from a drive</div></div><span class="r-right">Sat</span></div>
+    </div>
+  </div></div>
+  ${tabbar('home')}
+  ${homeInd}` });
+
+screens.push({ id: 'prepared', name: 'Prepared prompt', note: 'A sheet over Home. Ryan types or dictates the points he means to make; feedback then judges delivery and structure against them.', html: () => `
+  ${status()}
+  <div class="sheet-back"></div>
+  <div class="sheet-peek"></div>
+  <div class="sheet">
+    ${toolbar({ left: close('home'), title: 'Prepared' })}
+    <div class="scroll">
+      <label class="field-label" style="margin-top:4px">Title</label>
+      <div class="input">Daily stand-up</div>
+      <label class="field-label">Your points</label>
+      <div class="field-help">One per line, in any order. Feedback checks that you covered them and led with the one that matters.</div>
+      <div class="textarea">
+        <p>Yesterday: shipped idempotency keys for the payments webhook</p>
+        <p>Today: start the retry queue, pair with Mei on the schema</p>
+        <p>Blocked: staging Kafka is down, waiting on infra<span class="caret"></span></p>
+        <button class="gcap glass dict">${ic('mic')}Dictate</button>
+      </div>
+      <label class="field-label">Target length</label>
+      <div class="segctl"><span>30 s</span><span class="on">1 min</span><span>2 min</span><span>3 min</span></div>
+    </div>
+    <div class="bottom-edge"></div>
+  </div>
+  <div class="rec-dock"><button class="rec" data-go="recording" aria-label="Record"><i></i></button><span class="rec-label">Record</span></div>
+  ${homeInd}` });
+
+screens.push({ id: 'impromptu', name: 'Impromptu prompt', note: 'The question is the screen. The nervousness check appears only before the first take of a session.', html: () => `
+  ${status()}
+  ${toolbar({ left: back('home'), title: 'Impromptu' })}
+  <div class="scroll"><div class="content" style="padding-top:110px">
+    <div class="chips"><span class="chip on">Explain a decision</span><span class="chip">Status update</span><span class="chip">Teach a concept</span><span class="chip">Push back</span></div>
+    <h1 class="question">${Q}</h1>
+    <p class="ctx">A new senior engineer asks in a design review. Answer as you would out loud, with no notes.</p>
+    <div class="meta-line">${ic("timer")}Aim for 1 to 2 minutes</div>
+    <button class="gcap soft-cap">${ic("autorenew")}Another question</button>
+    <div class="nerv">
+      <div class="nerv-q">Before you start: how nervous are you?</div>
+      <div class="nerv-scale"><span>1</span><span>2</span><span class="on">3</span><span>4</span><span>5</span></div>
+      <div class="nerv-ends"><span>Calm</span><span>Very</span></div>
+    </div>
+  </div></div>
+  <div class="rec-dock"><button class="rec" data-go="recording" aria-label="Record"><i></i></button><span class="rec-label">Record</span></div>
+  ${homeInd}` });
+
+// Sample speech envelope: syllable bursts with real gaps (a pause near the middle), newest on the right.
+const waveHeights = Array.from({ length: 58 }, (_, i) => (i >= 24 && i <= 27) ? 4 : Math.round(8 + 60 * Math.abs(Math.sin(i * 0.9) * Math.sin(i * 0.23 + 1))));
+screens.push({ id: 'recording', name: 'Recording', note: 'Full-screen cover. No live scoring while speaking: only the timer, a ruler for the target window, and a level meter that proves the mic hears you.', html: () => `
+  ${status(true)}
+  ${toolbar({ left: close('impromptu'), title: 'Take 1' })}
+  <div class="scroll"><div class="content" style="padding-top:112px">
+    <p class="rec-prompt">${Q}</p>
+    <div class="timer">0:47</div>
+    <div class="ruler">
+      <div class="base"></div><div class="zone"></div>
+      <div class="done" style="width:39%"></div><div class="head" style="left:39%"></div>
+      <span class="tick l" style="left:0">0:00</span><span class="tick" style="left:50%">1:00</span><span class="tick r" style="left:100%">2:00</span>
+    </div>
+    <div class="wave">${waveHeights.map((h, i) => `<i class="${i > 46 ? 'live' : ''}" style="height:${h}px;opacity:${(0.25 + 0.75 * (i / waveHeights.length)).toFixed(2)};animation-delay:${(i % 5) * -0.17}s"></i>`).join('')}</div>
+  </div></div>
+  <div class="rec-dock"><span class="rec-hint">Tap stop or say “done”</span><button class="rec stop" data-go="processing" aria-label="Stop"><i></i></button></div>
+  ${homeInd}` });
+
+screens.push({ id: 'processing', name: 'Processing', note: 'Honest progress, step by step, and the verbatim transcript as soon as it exists, so the wait is useful. Leaving is safe.', html: () => `
+  ${status()}
+  ${toolbar({ left: close('home'), title: 'Take 1' })}
+  <div class="scroll"><div class="content" style="padding-top:110px">
+    <h1 class="title2">${Q}</h1>
+    <div class="sub" style="margin-top:6px">1:24 recorded. Usually ready in under a minute.</div>
+    <div class="steps">
+      <div class="step done"><span class="st">${ic('check')}</span>Sent to your Mac mini<span class="when">0:02</span></div>
+      <div class="step done"><span class="st">${ic('check')}</span>Transcribed word for word<span class="when">0:19</span></div>
+      <div class="step active" data-go="report"><span class="st"><span class="spin"></span></span>Marking fillers, blocks, restarts</div>
+      <div class="step todo"><span class="st"></span>Reading structure and focus</div>
+      <div class="step todo"><span class="st"></span>Writing feedback</div>
+    </div>
+    <div class="words-preview">
+      <div class="caption" style="margin-bottom:8px">Your words</div>
+      <p>So, um, basically the - the main thing was that we, uh, we didn’t really know our access patterns yet.</p>
+      <p>Like, when we started the billing service, we had, um, the invoices and the line items and the adjustments, and finance kept asking for new reports every week.</p>
+      <div class="fade"></div>
+    </div>
+  </div></div>
+  ${homeInd}` });
+
+const fillerTicks = ['0:00','0:01','0:02','0:05','0:09','0:13','0:31','0:38','0:46','0:58','1:05','1:18'];
+const sec = (t) => { const [m, s] = t.split(':').map(Number); return m * 60 + s; };
+const pct = (t, total = 84) => (sec(t) / total * 100).toFixed(1) + '%';
+screens.push({ id: 'report', name: 'Report', note: 'One scroll, in the order Ryan acts on it: verdict, what worked, what to fix and the Retry button, then the evidence. The player is docked; tapping any mark or timestamp plays from there.', long: true, html: () => `
+  ${status()}
+  ${toolbar({ left: back('home'), title: 'Take 1', right: `<button class="gbtn glass" aria-label="More">${ic('more_horiz', 's')}</button>` })}
+  <div class="scroll"><div class="content" style="padding-top:108px; padding-bottom:120px">
+    <div class="prompt-head">
+      <span class="caption">Impromptu</span>
+      <h1 class="title2">${Q}</h1>
+      <div class="meta">Take 1 of 1, 1:24</div>
+    </div>
+    <span class="caption lead-label">Verdict</span>
+    <p class="verdict">You had two solid reasons, unknown query patterns and one-transaction payments, but the decision only came at the end and a 20-second Aurora story split the reasons apart.</p>
+    <div class="strength">
+      <div class="str-head">${ic('check_circle', 'f')}What worked</div>
+      <p class="str-text">The transactions point is concrete and convincing. Keep it word for word.</p>
+      <div class="quote"><q>When we post a payment we need to update the balance and write the ledger entry together, and in Postgres that’s just one transaction.</q>${ts('0:58')}</div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Fix next</h2>
+      <div class="focus-card">
+        <div class="fc-head">${ic('adjust')}Answer first</div>
+        <div class="fc-do">Open with the decision and the count: <q>We chose Postgres for two reasons.</q></div>
+        <p class="fc-evi">You said it at 1:12. Your first sentence was a warm-up:</p>
+        <div class="quote"><q>So, um, basically the - the main thing was…</q>${ts('0:00')}</div>
+      </div>
+      <div class="focus-card">
+        <div class="fc-head">${ic('adjust')}Focus</div>
+        <div class="fc-do">Cut the Aurora Serverless story. It doesn’t answer the question.</div>
+        <p class="fc-evi">20 seconds, from 0:38 to 0:58, between your two reasons.</p>
+        <div class="quote"><q>Um, and actually, funny thing, we almost went with Aurora Serverless…</q>${ts('0:38')}</div>
+      </div>
+      <button class="btn ink" data-go="compare" style="margin-top:16px">${ic('replay')}Retry this prompt</button>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Dimensions</h2>
+      <div class="dims">
+        <div class="dim"><div class="dim-top"><span class="dim-name">Answer first</span>${lvl('n')}</div><div class="dim-evi">The decision arrives at 1:12, in the last sentence.</div></div>
+        <div class="dim"><div class="dim-top"><span class="dim-name">Layering</span>${lvl('o')}</div><div class="dim-evi">Two real reasons, but neither is signposted.</div></div>
+        <div class="dim"><div class="dim-top"><span class="dim-name">Focus</span>${lvl('n')}</div><div class="dim-evi">20 s on Aurora Serverless, a quarter of the take.</div></div>
+        <div class="dim"><div class="dim-top"><span class="dim-name">Concision</span>${lvl('s')}</div><div class="dim-evi">1:24 for two reasons is about right.</div></div>
+        <div class="dim"><div class="dim-top"><span class="dim-name">Fluency</span>${lvl('o')}</div><div class="dim-evi">2 blocks and 6 restarts or repeats; fillers a bit high.</div></div>
+        <div class="dim"><div class="dim-top"><span class="dim-name">Close</span>${lvl('n')}</div><div class="dim-evi">Trails off on a hedge: “I guess.”</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Structure</h2>
+      <p class="outline-note">What you said, in order. <b>The main point came last.</b></p>
+      <div class="ol">
+        <div class="ol-item ghost"><span class="t"></span><div class="p">The decision belongs here</div></div>
+        <div class="ol-item"><span class="t">0:00</span><div class="p">Access patterns were unknown; DynamoDB needs the table designed around queries up front.<span class="role">Reason</span></div></div>
+        <div class="ol-item"><span class="t">0:31</span><div class="p">The team already knew Postgres.<span class="role">Supporting reason</span></div></div>
+        <div class="ol-item off"><span class="t">0:38</span><div class="p">Aurora Serverless cold starts and a two-week VPC setup.<span class="role">Off-topic</span></div></div>
+        <div class="ol-item"><span class="t">0:58</span><div class="p">A payment updates the balance and the ledger in one transaction.<span class="role">Reason</span></div></div>
+        <div class="ol-item key"><span class="t">1:12</span><div class="p">Postgres was the right call; revisit if writes grow.<span class="role">Decision, too late</span></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Transcript</h2>
+      <div class="legend">
+        <button class="lg" data-hide="f"><span class="sw sw-f"></span>Fillers <span class="n">12</span></button>
+        <button class="lg" data-hide="b"><span class="sw sw-b"></span>Blocks <span class="n">2</span></button>
+        <button class="lg" data-hide="p"><span class="sw sw-p"></span>Repeats <span class="n">3</span></button>
+        <button class="lg" data-hide="x"><span class="sw sw-x"></span>Restarts <span class="n">3</span></button>
+        <button class="lg" data-hide="o"><span class="sw sw-o"></span>Off-topic <span class="n">1</span></button>
+      </div>
+      <div class="trans">
+        ${take1.map(s => `<div class="tr-seg ${s.off ? 'off' : ''}"><span class="t">${s.t}</span><div class="tx">${s.off ? '<span class="off-tag">Off-topic, 20 s</span>' : ''}${markup(s)}</div></div>`).join('')}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Reference version</h2>
+      <p class="ref-intro">Your content, rebuilt answer first. A model of the structure, not a script to memorize.</p>
+      <div class="ref">
+        <div class="ref-row answer"><span class="role">Answer</span><div class="rt">We chose Postgres for two reasons.</div></div>
+        <div class="ref-row"><span class="role">Reason 1</span><div class="rt">First, we didn’t know our access patterns yet. Finance wanted new invoice reports every week, and DynamoDB makes you design the table around your queries up front.</div></div>
+        <div class="ref-row"><span class="role">Reason 2</span><div class="rt">Second, posting a payment has to update the balance and write the ledger entry together. In Postgres that’s one transaction.</div></div>
+        <div class="ref-row"><span class="role">Close</span><div class="rt">The team knew Postgres well, too. If write volume outgrows one primary, we’ll revisit.</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Metrics</h2>
+      <div class="tiles">
+        <div class="tile flag"><span class="k">Fillers per 100 words</span><span class="v">6.9</span><span class="ref-r">Typical speech is 2 to 6</span></div>
+        <div class="tile"><span class="k">Blocks</span><span class="v">2</span><span class="ref-r">Pauses inside a phrase, at 0:14 and 1:19</span></div>
+        <div class="tile"><span class="k">Restarts and repeats</span><span class="v">6</span><span class="ref-r">3 abandoned starts, 3 repeats</span></div>
+        <div class="tile"><span class="k">Length</span><span class="v tn">1:24</span><span class="ref-r">Target 1 to 2 min</span></div>
+        <div class="tile"><span class="k">Pace</span><span class="v">142<small>wpm</small></span><span class="ref-r">Not graded</span></div>
+        <div class="tile"><span class="k">Pitch variation</span><span class="v">Normal</span><span class="ref-r">Not graded</span></div>
+      </div>
+    </div>
+  </div></div>
+  <div class="bottom-edge" style="height:110px"></div>
+  <div class="player glass">
+    <button class="pbtn" aria-label="Play">${ic('play_arrow')}</button>
+    <div class="p-mid">
+      <div class="p-cap"><span class="pk">Block, 1.4 s</span><span class="pt"><span class="pcur">0:14</span> / 1:24</span></div>
+      <div class="tl">
+        <div class="base"></div>
+        <div class="offr" style="left:${pct('0:38')};width:${(20 / 84 * 100).toFixed(1)}%"></div>
+        ${fillerTicks.map(t => `<i class="tf" style="left:${pct(t)}"></i>`).join('')}
+        <i class="tb" style="left:${pct('0:14')}"></i><i class="tb" style="left:${pct('1:19')}"></i>
+        <i class="ph" style="left:${pct('0:14')}"></i>
+      </div>
+    </div>
+  </div>
+  ${homeInd}` });
+
+screens.push({ id: 'compare', name: 'Retry comparison', note: 'After take 2. Each focus item gets a verdict with the two quotes side by side, and anything new that slipped is named. Metrics only show what changed.', long: true, html: () => `
+  ${status()}
+  ${toolbar({ left: back('report'), title: 'Take 2 vs Take 1' })}
+  <div class="scroll"><div class="content" style="padding-top:108px; padding-bottom:130px">
+    <div class="prompt-head">
+      <span class="caption">Impromptu</span>
+      <h1 class="title2">${Q}</h1>
+      <div class="meta">Take 2 of 2, 0:41</div>
+    </div>
+    <span class="caption lead-label">Verdict</span>
+    <p class="verdict">Much clearer. You opened with the decision, signposted both reasons and dropped the Aurora story. One new block before the second reason.</p>
+
+    <div class="section">
+      <h2 class="sec-title">Your focus items</h2>
+      <div class="cmp-card">
+        <div class="cmp-head"><span class="cmp-name">Answer first</span><span class="status up">${ic('arrow_upward')}Improved</span></div>
+        <div class="cmp-pair">
+          <span class="k">Take 1</span><q class="old">So, um, basically the - the main thing was…</q>${ts('0:00')}
+          <span class="k">Take 2</span><q>We chose Postgres for two reasons.</q>${ts('0:00')}
+        </div>
+      </div>
+      <div class="cmp-card">
+        <div class="cmp-head"><span class="cmp-name">Focus</span><span class="status up">${ic('arrow_upward')}Improved</span></div>
+        <p class="cmp-text">Take 1 spent 20 s on Aurora Serverless. Take 2 stays on the question from the first sentence to the last.</p>
+      </div>
+      <div class="cmp-card">
+        <div class="cmp-head"><span class="cmp-name">Fluency</span><span class="status new">New this take</span></div>
+        <p class="cmp-text">A 1.2 s block with “um” before “second, transactions.” A pause there is fine. Drop the “um” and let the silence work.</p>
+        <div class="cmp-pair" style="grid-template-columns:1fr auto"><q class="old">…designed around your queries up front. Um… second, transactions.</q>${ts('0:17')}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Dimensions</h2>
+      <div class="dchg"><div><div class="dim-name">Answer first</div><div class="from">Needs work ${ic('arrow_forward')}</div></div>${lvl('s')}</div>
+      <div class="dchg"><div><div class="dim-name">Focus</div><div class="from">Needs work ${ic('arrow_forward')}</div></div>${lvl('s')}</div>
+      <div class="dchg"><div><div class="dim-name">Layering</div><div class="from">Okay ${ic('arrow_forward')}</div></div>${lvl('s')}</div>
+      <div class="dchg"><div><div class="dim-name">Close</div><div class="from">Needs work ${ic('arrow_forward')}</div></div>${lvl('o')}</div>
+      <div class="unch">Unchanged: Concision (Strong), Fluency (Okay)</div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Metrics</h2>
+      <table class="mtable">
+        <tr><th>Metric</th><th>Take 1</th><th>Take 2</th></tr>
+        <tr><td>Fillers per 100 words</td><td class="old">6.9</td><td><span class="d up">${ic('arrow_downward')}2.4</span></td></tr>
+        <tr><td>Blocks</td><td class="old">2</td><td><span class="d up">${ic('arrow_downward')}1</span></td></tr>
+        <tr><td>Restarts and repeats</td><td class="old">6</td><td><span class="d up">${ic('arrow_downward')}0</span></td></tr>
+        <tr><td>Length</td><td class="old">1:24</td><td>0:41</td></tr>
+        <tr class="info"><td>Pace, wpm</td><td class="old">142</td><td>134</td></tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Listen</h2>
+      <div class="listen">
+        <div class="lis"><button class="pbtn" aria-label="Play take 1">${ic('play_arrow')}</button><div><b>Take 1</b><span>1:24</span></div></div>
+        <div class="lis"><button class="pbtn" aria-label="Play take 2">${ic('play_arrow')}</button><div><b>Take 2</b><span>0:41</span></div></div>
+      </div>
+      <div class="rows" style="margin-top:14px">
+        <div class="row" data-go="report"><div class="r-main"><div class="r-title">Full report for take 2</div></div>${ic('chevron_right', 'chev')}</div>
+      </div>
+    </div>
+  </div></div>
+  <div class="bottom-edge" style="height:120px"></div>
+  <div class="dock2">
+    <button class="btn glassy" data-go="recording">${ic('replay')}Retry</button>
+    <button class="btn ink" data-go="impromptu">Next prompt</button>
+  </div>
+  ${homeInd}` });
+
+const heatRows = [
+  ['Answer first', 'nnnononsos'.slice(2)],
+  ['Layering', 'ooooosos'],
+  ['Focus', 'nonoonos'],
+  ['Concision', 'ososssos'],
+  ['Fluency', 'oooooooo'],
+  ['Close', 'nnnonnoo'],
+];
+const heatDates = ['28', '30', '31', '3', '4', '6', '7', '9'];
+const fillerSeries = [7.4, 8.1, 6.9, 6.6, 5.8, 6.2, 4.6, 4.4];
+screens.push({ id: 'history', name: 'History', note: 'Progress by dimension, not by score. The grid shows each dimension per session at a glance; the filler chart shows the normal range so the goal is never zero.', long: true, html: () => `
+  ${status()}
+  ${toolbar({})}
+  <div class="scroll"><div class="content">
+    <h1 class="lt">History</h1>
+    <div class="hist-sub">Last 8 sessions, Oct 28 to Nov 9</div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="fs-top"><span class="caption">Current focus</span></div>
+      <div class="fs-title">Answer first</div>
+      ${levelsRow('nnonnoosos')}
+      <div class="sub">Needs work in 4 of your first 6 takes, strong in 2 of the last 4. Keep it as the focus for one more week.</div>
+    </div>
+
+    <div class="section" style="margin-top:32px">
+      <h2 class="sec-title">Dimensions by session</h2>
+      <div class="heat">
+        ${heatRows.map(([n, ls]) => `<span class="hn">${n}</span>${ls.split('').map((l, i) => `<span class="hc ${l}" title="${n}, ${levelWord[l]}"></span>`).join('')}`).join('')}
+        <span></span>${heatDates.map(d => `<span class="hd">${d}</span>`).join('')}
+      </div>
+      <div class="heat-legend"><span><i style="background:var(--label)"></i>Strong</span><span><i style="background:var(--level-okay)"></i>Okay</span><span><i style="background:var(--accent)"></i>Needs work</span></div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Fillers per 100 words</h2>
+      <div class="chart">
+        <div class="band" style="bottom:${2 / 10 * 100}%;height:${4 / 10 * 100}%"></div>
+        <span class="band-l" style="bottom:calc(${6 / 10 * 100}% + 2px)">Typical 2 to 6</span>
+        <div class="gl" style="bottom:0"></div>
+        <span class="yl" style="top:0%">10</span><span class="yl" style="top:50%">5</span><span class="yl" style="top:100%">0</span>
+        <div class="bars">${fillerSeries.map((v, i) => `<div class="bar ${i < fillerSeries.length - 1 ? 'hi' : ''}" style="height:${v * 10}%" title="${v} per 100 words">${i === fillerSeries.length - 1 ? `<span class="bv">${v}</span>` : ''}</div>`).join('')}</div>
+      </div>
+      <div class="chart-x">${heatDates.map(d => `<span>${d}</span>`).join('')}</div>
+    </div>
+
+    <div class="section">
+      <h2 class="sec-title">Sessions</h2>
+      <div class="day">Today</div>
+      <div class="rows">
+        <div class="row" data-go="compare"><span class="sess-ic">${ic('home')}</span><div class="r-main"><div class="r-title">2 prompts, 3 takes</div><div class="r-meta">Postgres over DynamoDB, Daily stand-up</div></div><span class="nv">Nervous 3 to 2</span></div>
+      </div>
+      <div class="day">Saturday</div>
+      <div class="rows">
+        <div class="row"><span class="sess-ic">${ic('directions_car')}</span><div class="r-main"><div class="r-title">3 prompts, 5 takes</div><div class="r-meta">Project behind, Push back, Explain caching</div></div><span class="nv">Nervous 4 to 3</span></div>
+        <div class="row"><span class="sess-ic">${ic('home')}</span><div class="r-main"><div class="r-title">1 prompt, 2 takes</div><div class="r-meta">Teach idempotency to a new teammate</div></div><span class="nv">Nervous 2 to 2</span></div>
+      </div>
+    </div>
+  </div></div>
+  ${tabbar('history')}
+  ${homeInd}` });
+
+/* ---------- Build the board ---------- */
+const board = document.getElementById('board');
+const jump = document.getElementById('jump');
+for (const s of screens) {
+  jump.insertAdjacentHTML('beforeend', `<a href="#sec-${s.id}">${s.name}</a>`);
+  board.insertAdjacentHTML('beforeend', `
+    <section class="screen-sec" id="sec-${s.id}">
+      <div><h2>${s.name}</h2><p class="note">${s.note}</p></div>
+      <div class="phones">
+        ${['light', 'dark'].map(th => `
+          <div class="phone-wrap ${th}">
+            <div class="phone" data-theme="${th}" data-screen="${s.id}" id="${s.id}-${th}" ${s.long ? 'data-long="1"' : ''}>${s.html()}</div>
+            <span class="cap">${th === 'light' ? 'Light' : 'Dark'}</span>
+          </div>`).join('')}
+      </div>
+    </section>`);
+}
+
+/* ---------- Interactions ---------- */
+document.addEventListener('click', (e) => {
+  const showBtn = e.target.closest('.seg button');
+  if (showBtn) {
+    document.body.dataset.show = showBtn.dataset.show;
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b === showBtn)));
+    return;
+  }
+  const phone = e.target.closest('.phone');
+  if (!phone) return;
+  const hide = e.target.closest('[data-hide]');
+  if (hide) {
+    const k = hide.dataset.hide;
+    hide.classList.toggle('off');
+    if (k === 'o') phone.querySelector('.trans').classList.toggle('hide-o');
+    else phone.querySelectorAll('.tx').forEach(t => t.classList.toggle('hide-' + k));
+    return;
+  }
+  const mk = e.target.closest('.mk, [data-seek]');
+  if (mk) {
+    phone.querySelectorAll('.mk.sel').forEach(m => m.classList.remove('sel'));
+    const t = mk.dataset.t || mk.dataset.seek;
+    if (mk.classList.contains('mk')) mk.classList.add('sel');
+    const cap = phone.querySelector('.p-cap');
+    if (cap) {
+      cap.querySelector('.pk').textContent = mk.dataset.kind || 'Playing';
+      cap.querySelector('.pcur').textContent = t;
+      phone.querySelector('.tl .ph').style.left = pct(t);
+    }
+    return;
+  }
+  const go = e.target.closest('[data-go]');
+  if (go) {
+    const target = document.getElementById(`${go.dataset.go}-${phone.dataset.theme}`);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.querySelector('.scroll')?.scrollTo({ top: 0 });
+      target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash');
+    }
+  }
+});
+// Start the report on the selected block, as if Ryan tapped it.
+document.querySelectorAll('.phone[data-screen="report"] .mk.b').forEach((b, i) => { if (i % 2 === 0) b.classList.add('sel'); });
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<prompt>
+Kind: impromptu
+Category: decision
+Question: Why did we choose Postgres over DynamoDB for the billing service?
+Suggested length: 90 seconds
+Attempt: 2
+</prompt>
+<transcript>
+[0]We [1]chose [2]Postgres [3]for [4]the [5]billing. [6]Two [7]reasons. [8]First, [9]reporting [10]needs [11]joins. [12]Second, [13]like, [14]invoices [15]need [16]transactions. [17]and [18]the [19]team
+[20]also [21]knows [22]Postgres [23]much [24]better [25]than [26]Dynamo [27]which [28]matters [29]when [30]something [31]breaks [32]at [33]night [34]so [35]we [36]can [37]fix [38]it [39]fast
+[40]and [41]the [42]team [43]also [44]knows [45]Postgres [46]much [47]better [48]than [49]Dynamo [50]which [51]matters [52]when [53]something [54]breaks [55]at [56]night [57]so [58]we [59]can
+[60]fix [61]it [62]fast [63]and [64]the [65]team [66]also [67]knows [68]Postgres [69]much [70]better [71]than [72]Dynamo [73]which [74]matters [75]when [76]something [77]breaks [78]at [79]night
+[80]so [81]we [82]can [83]fix [84]it [85]fast [86]and [87]the [88]team [89]also [90]knows [91]Postgres [92]much [93]better [94]than [95]Dynamo [96]which [97]matters [98]when [99]something
+[100]breaks [101]at [102]night [103]so [104]we [105]can [106]fix [107]it [108]fast [109]and [110]the [111]team [112]also [113]knows [114]Postgres [115]much [116]better [117]than [118]Dynamo [119]which
+[120]matters [121]when [122]something [123]breaks [124]at [125]night [126]so [127]we [128]can [129]fix [130]it [131]fast [132]and [133]the [134]team [135]also [136]knows [137]Postgres [138]much [139]better
+[140]than [141]Dynamo [142]which [143]matters [144]when [145]something [146]breaks [147]at [148]night [149]so [150]we [151]can [152]fix [153]it [154]fast [155]and [156]the [157]team [158]also [159]knows
+</transcript>
+<rule_events>
+e0 lexical_filler: [13]like,; rules' guess: filler
+</rule_events>
+<metrics>
+Recording 96.4 s; first word after 0.8 s; speaking 94.1 s; 160 words.
+Fillers: 5 filled pauses (um, uh), 3 of 7 lexical candidates judged fillers by rules; 3.74 per 100 words (ordinary speech: about 2 to 6).
+Blocks: 1 (0.8 per minute), longest 0.6 s, total 0.6 s.
+Restarts: 2. Repetitions: 3.
+Boundary pauses (normal): 21, median 0.55 s.
+Pace (information only, not graded): 180 words per minute; by quarter 166, 174, 182, 197.
+</metrics>
+<nervousness_signs>
+None.
+</nervousness_signs>
+<previous_take attempt="1">
+<transcript>
+So um we nee- we picked Postgres because, like, the reporting queries need joins. Uh the the team and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night so we can fix it fast and the team also knows Postgres much better than Dynamo which matters when something breaks at night
+</transcript>
+<metrics>
+Recording 96.4 s; first word after 0.8 s; speaking 94.1 s; 214 words.
+Fillers: 5 filled pauses (um, uh), 3 of 7 lexical candidates judged fillers by rules; 3.74 per 100 words (ordinary speech: about 2 to 6).
+Blocks: 4 (2.55 per minute), longest 1.1 s, total 3.6 s.
+Restarts: 2. Repetitions: 3.
+Boundary pauses (normal): 21, median 0.55 s.
+Pace (information only, not graded): 180 words per minute; by quarter 166, 174, 182, 197.
+</metrics>
+<previous_focus>
+Focus 0 (layering): Number your reasons. Problem: Three reasons came as one unbroken list, so it was hard to tell which one mattered most. Instruction: Say how many reasons there are, then give them in order of weight: "Two reasons. First, reporting needs joins. Second, ..."
+Focus 1 (fluency): Stop silently, not mid-phrase. Problem: You froze for over a second in the middle of your main reason, right after a filler. Instruction: When you need a moment, finish the clause, pause in silence, and start the reason fresh.
+</previous_focus>
+<previous_levels>answer_first strong, layering needs_work, focus okay, concision okay, fluency okay, close needs_work</previous_levels>
+</previous_take>
+Coach this take.
+Rule on these lexical filler events: e0.
+This is a retry: fill comparison with one outcome for each of the 2 previous focus items.

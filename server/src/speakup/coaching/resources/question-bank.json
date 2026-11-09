@@ -1,0 +1,49 @@
+{
+  "version": "question-bank/1",
+  "questions": [
+    {"category": "decision", "target_seconds": 90, "text": "Why did your team pick a relational database over a NoSQL store for your last new service?"},
+    {"category": "decision", "target_seconds": 90, "text": "You chose to rewrite a module instead of refactoring it in place. Walk your manager through why."},
+    {"category": "decision", "target_seconds": 90, "text": "Why did you build this feature yourselves instead of using a third-party library or service?"},
+    {"category": "decision", "target_seconds": 90, "text": "A new teammate asks why the team uses a monorepo. Explain the reasoning."},
+    {"category": "decision", "target_seconds": 90, "text": "Why did you decide to ship behind a feature flag instead of waiting until the feature was complete?"},
+    {"category": "decision", "target_seconds": 90, "text": "Your tech lead asks why you picked a queue instead of synchronous calls between two services. Answer."},
+    {"category": "decision", "target_seconds": 90, "text": "Why did you cut a planned feature from this release? Explain it to the product manager."},
+    {"category": "decision", "target_seconds": 90, "text": "Explain why you chose to add a cache rather than optimize the slow query directly."},
+
+    {"category": "status", "target_seconds": 90, "text": "Your manager asks why your project slipped two weeks. Explain what happened and what you are doing about it."},
+    {"category": "status", "target_seconds": 90, "text": "Give today's stand-up update: what you finished yesterday, what you are doing today, and what is blocking you."},
+    {"category": "status", "target_seconds": 90, "text": "A migration you own is halfway done. Give a status update to the teams who depend on it."},
+    {"category": "status", "target_seconds": 90, "text": "You are blocked waiting on another team. Explain the situation to your manager and what you need."},
+    {"category": "status", "target_seconds": 90, "text": "Summarize the state of last night's production incident for people who were not on the call."},
+    {"category": "status", "target_seconds": 90, "text": "Your project is on track, but one risk could delay it. Give the update and name the risk."},
+    {"category": "status", "target_seconds": 90, "text": "Give a one-minute update on your quarter's goals: what is done, what is at risk, and what you are dropping."},
+    {"category": "status", "target_seconds": 90, "text": "The feature you launched last week has a bug reported by customers. Update your manager."},
+
+    {"category": "explain", "target_seconds": 120, "text": "Explain how your team's deployment pipeline works to a new teammate on their first day."},
+    {"category": "explain", "target_seconds": 120, "text": "A product manager asks what technical debt is and why it slows the team down. Explain it."},
+    {"category": "explain", "target_seconds": 120, "text": "Explain what an API is to someone in sales who keeps hearing the word."},
+    {"category": "explain", "target_seconds": 120, "text": "Explain the system you work on most to a designer who just joined the team."},
+    {"category": "explain", "target_seconds": 120, "text": "Explain why some bugs only appear in production and not on your laptop."},
+    {"category": "explain", "target_seconds": 120, "text": "A new teammate asks how code review works on your team. Explain the process and why it exists."},
+    {"category": "explain", "target_seconds": 120, "text": "Explain what caching is and when it causes problems, to a non-engineer."},
+    {"category": "explain", "target_seconds": 120, "text": "Explain the main trade-off in the design you are working on now to someone outside your team."},
+
+    {"category": "pushback", "target_seconds": 60, "text": "A product manager wants a feature by Friday that you think needs two weeks. Push back."},
+    {"category": "pushback", "target_seconds": 60, "text": "Your manager asks you to skip writing tests to hit a deadline. Push back."},
+    {"category": "pushback", "target_seconds": 60, "text": "A senior engineer proposes a design you think is too complex for the problem. Push back in the review."},
+    {"category": "pushback", "target_seconds": 60, "text": "Another team asks you to take on their on-call duty for a month. Decline and offer an alternative."},
+    {"category": "pushback", "target_seconds": 60, "text": "You are asked to join a fourth project while three are still in progress. Push back."},
+    {"category": "pushback", "target_seconds": 60, "text": "A stakeholder wants to add scope to a release that is already at risk. Say no and explain why."},
+    {"category": "pushback", "target_seconds": 60, "text": "Your team wants to adopt a new framework you think is not worth the migration cost. Make your case."},
+    {"category": "pushback", "target_seconds": 60, "text": "A teammate wants to merge a large change without review because it is urgent. Push back."},
+
+    {"category": "other", "target_seconds": 90, "text": "Give a teammate feedback on a pull request that works but is hard to read."},
+    {"category": "other", "target_seconds": 90, "text": "Introduce yourself and your role at the start of a meeting with a new team."},
+    {"category": "other", "target_seconds": 90, "text": "Summarize the decisions from a long design meeting for people who missed it."},
+    {"category": "other", "target_seconds": 90, "text": "Ask your manager for time to work on a project you care about. Make the case."},
+    {"category": "other", "target_seconds": 90, "text": "Describe a technical mistake you made, what you learned, and what you changed afterward."},
+    {"category": "other", "target_seconds": 90, "text": "Ask a busy senior engineer for help with a problem you have been stuck on for a day."},
+    {"category": "other", "target_seconds": 90, "text": "Tell your manager what went well and what did not in your last project."},
+    {"category": "other", "target_seconds": 90, "text": "A colleague's change broke your service. Raise it with them without blaming them."}
+  ]
+}
