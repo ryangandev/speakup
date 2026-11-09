@@ -22,10 +22,11 @@ Use one simulator and one `xcodebuild` at a time.
   For a throwaway server, run `uv run speakup-server` from `server/` with `SPEAKUP_API_TOKEN`, a scratch `SPEAKUP_DATA_DIR` and a free `SPEAKUP_PORT` in the environment; the environment wins over `server/.env`.
 - Both real-server tests type the token into Settings, so the test log holds it: keep the log private and delete it after.
 - `xcodebuild test` can sit idle after the UI tests report; once the log says "Executed N tests", it is safe to stop it.
-- Install and launch on a booted simulator: `xcrun simctl install <udid> build/DerivedData/Build/Products/Debug-iphonesimulator/SpeakUp.app`, then `xcrun simctl launch <udid> dev.ryangan.speakup <arguments>`.
+- Install and launch on a booted simulator: `xcrun simctl install <udid> build/DerivedData/Build/Products/Debug-iphonesimulator/SpeakUp.app`, then `xcrun simctl launch <udid> com.rystudio.speakup <arguments>`.
 
 `build/` is ignored.
-There is no development team in the project: simulator builds need none, and signing for a device is set locally in Xcode, not committed.
+The app target's bundle ID is `com.rystudio.speakup`, signed with Ryan's team (`DEVELOPMENT_TEAM` in the project, committed); simulator builds need no signing.
+The test targets have no team, so running the UI tests on a device needs one set for `SpeakUpUITests` first.
 
 ## Debug launch arguments
 
@@ -53,7 +54,7 @@ Debug builds only; none of this exists in Release.
 A whole drive in the simulator, in about 35 seconds, ending on the summary with two answers saved:
 
 ```sh
-xcrun simctl launch <udid> dev.ryangan.speakup -debug.useMockServer YES -debug.mockScenario normal -resetState \
+xcrun simctl launch <udid> com.rystudio.speakup -debug.useMockServer YES -debug.mockScenario normal -resetState \
   -debug.syntheticMicrophone -debug.instantSpeech -debug.speechLog -debug.startDrive \
   -debug.recognizerScript '{"betweenTakes": ["three@0.5", "again@0.5", "stop@0.5", "two@0.5"], "recording": ["so that is my answer@0.5 done@3", "this time it is clearer@0.5 done@3"]}'
 ```

@@ -34,7 +34,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 2. Write a short work-context profile for impromptu questions: role, team, current projects, kinds of conversations that are hard.
    Leave out anything your employer would not want sent to Anthropic.
 3. Install Tailscale on the Mac mini and the iPhone, and keep the Mac mini awake.
-   To run the app on the iPhone, sign in to Xcode with your Apple account and pick your team for the SpeakUp target; it stays local, not committed.
+   The SpeakUp target is already signed with your team; to run the app on the iPhone, connect it and pick it as the run destination in Xcode.
 4. Put an ElevenLabs API key in `server/.env` for the bake-off (`server/.env.example` shows the names), and an AssemblyAI key if you want it compared too.
 5. Driving mode decisions:
    1. Prepared prompts in the car: impromptu only (built), or also a "for the drive" queue built at home and read aloud before the tone.
