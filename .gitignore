@@ -1,0 +1,21 @@
+# Secrets
+.env
+*.env
+!.env.example
+
+# Ryan's recordings, transcripts and reports contain his voice and work content.
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Swift
+.build/
+*.xcodeproj/xcuserdata/
+.swiftpm/
+
+.DS_Store

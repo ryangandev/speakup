@@ -1,0 +1,40 @@
+[project]
+name = "speakup-server"
+version = "0.1.0"
+description = "SpeakUp analysis server and the M0 speech-to-text bake-off"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "httpx>=0.28",
+    "numpy>=2.0",
+    "soundfile>=0.13",
+    "silero-vad>=6.2",
+    "torch>=2.6",
+]
+
+[project.optional-dependencies]
+# Local CrisperWhisper. Its fast CTranslate2 backend ships Linux wheels only, so macOS uses
+# the PyTorch (transformers) backend. Model weights download on first run (several GB).
+crisper = ["crisperwhisper[transformers]>=2.0.4"]
+
+[project.scripts]
+speakup-bakeoff = "speakup.bakeoff.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.9"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/speakup"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
