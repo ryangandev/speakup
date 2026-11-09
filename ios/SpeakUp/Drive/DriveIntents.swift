@@ -16,14 +16,17 @@ struct StartDriveIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        switch await app.startDrive() {
-        case .started, .alreadyDriving:
-            // The drive speaks for itself; a drive already running carries on untouched.
-            return .result()
-        case .takeInProgress:
-            throw StartDriveError.takeInProgress
-        case .microphoneDenied:
-            throw StartDriveError.microphoneDenied
+        try Self.check(await app.startDrive())
+        return .result()
+    }
+
+    /// What Siri makes of a start: nothing to say when a drive runs, since the drive speaks for
+    /// itself and one already running carries on untouched; the reason when none could start.
+    static func check(_ start: AppModel.DriveStart) throws(StartDriveError) {
+        switch start {
+        case .started, .alreadyDriving: return
+        case .takeInProgress: throw .takeInProgress
+        case .microphoneDenied: throw .microphoneDenied
         }
     }
 }

@@ -161,4 +161,12 @@ struct DriveStartTests {
         #expect(app.store.openSession == nil)
         #expect(app.store.openHomeSession == nil)
     }
+
+    /// Siri says nothing when a drive runs, and why when none could start.
+    @Test func theIntentSpeaksOnlyWhenNoDriveRuns() {
+        #expect(throws: Never.self) { try StartDriveIntent.check(.started) }
+        #expect(throws: Never.self) { try StartDriveIntent.check(.alreadyDriving) }
+        #expect(throws: StartDriveError.takeInProgress) { try StartDriveIntent.check(.takeInProgress) }
+        #expect(throws: StartDriveError.microphoneDenied) { try StartDriveIntent.check(.microphoneDenied) }
+    }
 }
