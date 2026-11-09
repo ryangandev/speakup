@@ -76,6 +76,22 @@ struct PracticeStoreTests {
         #expect(reloaded.pendingUploads.map(\.id) == [takeID])
     }
 
+    @Test func aDrivingSessionKeepsItsModeAndSendsIt() throws {
+        let store = PracticeStore(directory: directory)
+        let home = store.openNewSession(nervousnessBefore: nil)
+        #expect(home.mode == .home)
+        store.endSession(home.id, endedAt: Date(), nervousnessAfter: nil)
+        let drive = store.openNewSession(mode: .driving, nervousnessBefore: 3)
+
+        let reloaded = PracticeStore(directory: directory)
+        let session = try #require(reloaded.session(id: drive.id))
+        #expect(session.mode == .driving)
+        #expect(session.createRequest.mode == .driving)
+        #expect(reloaded.session(id: home.id)?.mode == .home)
+        let body = try JSONSerialization.jsonObject(with: JSONCoding.encoder().encode(session.createRequest))
+        #expect((body as? [String: Any])?["mode"] as? String == "driving")
+    }
+
     @Test func remoteUpdateMarksTheTakeUploaded() {
         let store = PracticeStore(directory: directory)
         let session = store.openNewSession(nervousnessBefore: nil)
@@ -178,6 +194,7 @@ struct PracticeStoreTests {
 
         let store = PracticeStore(directory: directory)
         let session = try #require(store.openSession)
+        #expect(session.mode == .home)
         #expect(session.isCreated == false)
         #expect(session.isEndSent == false)
         #expect(store.prompt(id: "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8")?.isCreated == false)

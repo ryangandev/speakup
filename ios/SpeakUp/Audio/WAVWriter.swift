@@ -55,9 +55,18 @@ final class WAVWriter {
     }
 
     /// Writes the final sizes and closes the file.
-    func finish() throws {
+    ///
+    /// `keepingFrames` drops every frame after that many first: driving mode cuts the
+    /// spoken "done" off the end of a take this way. A count at or above `frameCount`
+    /// keeps the whole file.
+    func finish(keepingFrames keep: Int? = nil) throws {
         guard !isFinished else { return }
         isFinished = true
+        if let keep, keep < frameCount {
+            let kept = max(0, keep)
+            try handle.truncate(atOffset: UInt64(Self.headerSize + kept * 2))
+            frameCount = kept
+        }
         try updateHeader()
         try handle.close()
     }

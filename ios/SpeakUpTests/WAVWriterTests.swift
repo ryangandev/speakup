@@ -82,6 +82,44 @@ struct WAVWriterTests {
         #expect(file.fileFormat.settings[AVLinearPCMBitDepthKey] as? Int == 16)
     }
 
+    @Test func finishKeepingFramesTruncatesAndRewritesTheHeader() throws {
+        let url = temporaryURL()
+        let writer = try WAVWriter(url: url, sampleRate: 16_000)
+        // Past one header update, so the header on disk is stale before the cut.
+        try writer.append((0..<20_000).map { Int16(truncatingIfNeeded: $0) })
+        try writer.finish(keepingFrames: 12_345)
+
+        let data = try Data(contentsOf: url)
+        #expect(data.count == 44 + 12_345 * 2)
+        #expect(uint32(data, at: 4) == 36 + 12_345 * 2)
+        #expect(uint32(data, at: 40) == 12_345 * 2)
+        #expect(writer.frameCount == 12_345)
+        // The kept frames are the first ones.
+        #expect(uint16(data, at: 44 + 12_344 * 2) == UInt16(12_344))
+        let file = try AVAudioFile(forReading: url)
+        #expect(file.length == 12_345)
+    }
+
+    @Test func finishKeepingMoreFramesThanWrittenKeepsTheWholeFile() throws {
+        let url = temporaryURL()
+        let writer = try WAVWriter(url: url, sampleRate: 16_000)
+        try writer.append([Int16](repeating: 3, count: 100))
+        try writer.finish(keepingFrames: 1_000)
+        #expect(try Data(contentsOf: url).count == 44 + 200)
+        #expect(writer.frameCount == 100)
+    }
+
+    @Test func finishKeepingNoFramesLeavesAnEmptyValidFile() throws {
+        let url = temporaryURL()
+        let writer = try WAVWriter(url: url, sampleRate: 16_000)
+        try writer.append([Int16](repeating: 3, count: 100))
+        try writer.finish(keepingFrames: -5)
+        let data = try Data(contentsOf: url)
+        #expect(data.count == 44)
+        #expect(uint32(data, at: 40) == 0)
+        #expect(writer.frameCount == 0)
+    }
+
     @Test func sha256IsLowercaseHexOfTheWholeFile() throws {
         let url = temporaryURL()
         try FileManager.default.createDirectory(
