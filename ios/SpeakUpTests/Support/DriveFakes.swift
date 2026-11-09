@@ -56,12 +56,24 @@ final class ManualDriveClock: DriveLoopClock, @unchecked Sendable {
 }
 
 /// Records what the drive says; every item takes one second of output.
+///
+/// Speech can be cut short like the real output's: `cut` returns an item unfinished at once
+/// (an engine restart flushed it), and `hold` keeps an item playing until `flush()` cuts it
+/// or `release()` lets it finish.
 @MainActor
 final class FakeSpeech: SpeechOutputting {
     private(set) var outputEnd: TimeInterval = 0
     /// Every utterance and tone, in order: `say: ...` and `tone: ...`.
     private(set) var log: [String] = []
     private(set) var cancels = 0
+    /// Log entries that come back unfinished.
+    var cut: ((String) -> Bool)?
+    /// Log entries that play until `flush()` or `release()`.
+    var hold: ((String) -> Bool)?
+    private var held: CheckedContinuation<Bool, Never>?
+
+    /// Whether an item is playing until it is flushed or released.
+    var isHolding: Bool { held != nil }
 
     /// Only what was said, one entry per segment.
     var said: [String] {
@@ -73,23 +85,48 @@ final class FakeSpeech: SpeechOutputting {
     }
 
     func speak(segments: [String]) async -> SpeechPlayback {
+        var finished = true
         for segment in segments {
-            log.append("say: \(segment)")
-            outputEnd += 1
+            finished = await play("say: \(segment)")
+            guard finished else { break }
         }
-        await Task.yield()
-        return SpeechPlayback(finished: true, end: outputEnd, duration: Double(segments.count))
+        return SpeechPlayback(finished: finished, end: outputEnd, duration: Double(segments.count))
     }
 
     func play(_ tone: DriveTone) async -> SpeechPlayback {
-        log.append("tone: \(tone.logName)")
+        let finished = await play("tone: \(tone.logName)")
+        return SpeechPlayback(finished: finished, end: outputEnd, duration: 1)
+    }
+
+    private func play(_ entry: String) async -> Bool {
+        log.append(entry)
         outputEnd += 1
+        if cut?(entry) == true {
+            await Task.yield()
+            return false
+        }
+        if hold?(entry) == true {
+            return await withCheckedContinuation { held = $0 }
+        }
         await Task.yield()
-        return SpeechPlayback(finished: true, end: outputEnd, duration: 1)
+        return true
+    }
+
+    /// The audio core dropped what was playing: the item held returns unfinished.
+    func flush() {
+        held?.resume(returning: false)
+        held = nil
+    }
+
+    /// The item held finishes playing.
+    func release() {
+        held?.resume(returning: true)
+        held = nil
     }
 
     func cancel() {
         cancels += 1
+        flush()
     }
 }
 
@@ -163,6 +200,16 @@ final class FakeDriveAudio: DriveAudioControlling {
     private(set) var finished: [(cutAt: TimeInterval?, reason: AudioRecorder.StopReason)] = []
     private(set) var openURL: URL?
     private(set) var isRunning = false
+    /// What the player flush does to speech, as `DriveAudio.onPlayerFlush`.
+    var onFlush: (() -> Void)?
+    /// What `resumeAfterInterruption` answers.
+    var resumes = true
+    private(set) var resumeAttempts = 0
+    /// An event for a take whose gate already closed, not delivered yet.
+    private(set) var pendingEvent: DriveAudio.Event?
+    /// When true, `finishTake` on a closed gate delivers the pending event while it runs, as
+    /// the real one can; otherwise the test delivers it with `deliverPending()`.
+    var deliversPendingDuringFinish = false
 
     var isTakeOpen: Bool { openURL != nil }
 
@@ -190,7 +237,13 @@ final class FakeDriveAudio: DriveAudioControlling {
     }
 
     func finishTake(cutAt: TimeInterval?, reason: AudioRecorder.StopReason) async -> DriveAudio.TakeEnd? {
-        guard let url = openURL else { return nil }
+        guard let url = openURL else {
+            if deliversPendingDuringFinish {
+                await Task.yield()
+                deliverPending()
+            }
+            return nil
+        }
         openURL = nil
         finished.append((cutAt, reason))
         let end = nextEnd?(url, reason) ?? Self.kept(url, reason: reason)
@@ -203,6 +256,34 @@ final class FakeDriveAudio: DriveAudioControlling {
         let end = openURL.map { Self.kept($0, reason: .interrupted) }
         openURL = nil
         onEvent?(event(end))
+    }
+
+    /// Like `endTake`, but the event comes later: the gate is closed now and the event waits
+    /// for `deliverPending()`, as when the real core is still finishing the file.
+    func endTakeLater(_ event: (DriveAudio.TakeEnd?) -> DriveAudio.Event) {
+        let end = openURL.map { Self.kept($0, reason: .interrupted) }
+        openURL = nil
+        pendingEvent = event(end)
+    }
+
+    func deliverPending() {
+        guard let event = pendingEvent else { return }
+        pendingEvent = nil
+        onEvent?(event)
+    }
+
+    /// A call, in `DriveAudio.interruptionBegan`'s order: the gate closes and the player is
+    /// flushed at once, and the event follows from a new task.
+    func interrupt() {
+        let end = openURL.map { Self.kept($0, reason: .interrupted) }
+        openURL = nil
+        onFlush?()
+        Task { @MainActor in self.onEvent?(.interrupted(end)) }
+    }
+
+    func resumeAfterInterruption() async -> Bool {
+        resumeAttempts += 1
+        return resumes
     }
 
     func send(_ event: DriveAudio.Event) {
@@ -238,8 +319,11 @@ final class DriveServer: @unchecked Sendable {
     }
 
     let api = FakeAPI()
+    /// Closed, uploads hang until it opens: a weak signal that never times out.
+    let uploadGate = AsyncGate()
     private let lock = NSLock()
     private var _online = true
+    private var _uploadError: APIError?
     private var _processing: Processing = .coached
     private var uploads: [String: TakeUploadMetadata] = [:]
     private var uploadOrder: [String] = []
@@ -257,6 +341,12 @@ final class DriveServer: @unchecked Sendable {
     var online: Bool {
         get { lock.withLock { _online } }
         set { lock.withLock { _online = newValue } }
+    }
+
+    /// When set, the server answers every upload with this error.
+    var uploadError: APIError? {
+        get { lock.withLock { _uploadError } }
+        set { lock.withLock { _uploadError = newValue } }
     }
 
     var processing: Processing {
@@ -304,8 +394,10 @@ final class DriveServer: @unchecked Sendable {
                 category: body.category, targetSeconds: body.targetSeconds,
                 questionSource: body.questionSource, createdAt: Date())
         }
+        api.beforeUpload = { [uploadGate] _ in await uploadGate.wait() }
         api.onUpload = { [unowned self] id, metadata in
             guard online else { throw offline }
+            if let uploadError { throw uploadError }
             lock.withLock {
                 if uploads[id] == nil { uploadOrder.append(id) }
                 uploads[id] = metadata
@@ -372,5 +464,36 @@ final class DriveServer: @unchecked Sendable {
             ] as [String: Any]
         }
         return try! Fixture.decode(Take.self, object: object)
+    }
+}
+
+/// A gate async work waits at while it is closed.
+final class AsyncGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = true
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    var waiting: Int { lock.withLock { waiters.count } }
+
+    func close() { lock.withLock { isOpen = false } }
+
+    func open() {
+        let waiting = lock.withLock {
+            isOpen = true
+            defer { waiters.removeAll() }
+            return waiters
+        }
+        for waiter in waiting { waiter.resume() }
+    }
+
+    func wait() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let passes = lock.withLock {
+                if isOpen { return true }
+                waiters.append(continuation)
+                return false
+            }
+            if passes { continuation.resume() }
+        }
     }
 }

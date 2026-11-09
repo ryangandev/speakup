@@ -18,6 +18,8 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
     var onQuestions: (@Sendable (QuestionsRequest) throws -> QuestionsResponse)?
     var onTake: (@Sendable (String) throws -> Take)?
     var onReport: (@Sendable (String) throws -> TakeReport)?
+    /// Optional: awaited before `onUpload`, so a test can hold an upload in flight.
+    var beforeUpload: (@Sendable (String) async -> Void)?
 
     var calls: [String] { lock.withLock { _calls } }
 
@@ -79,6 +81,7 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
     ) async throws -> Take {
         record("uploadTake \(id)")
         guard let onUpload else { throw APIError.notConfigured }
+        await beforeUpload?(id)
         progress(0.5)
         progress(1)
         return try onUpload(id, metadata)

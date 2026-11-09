@@ -21,6 +21,7 @@ final class DriveHarness {
         let api = server.api
         let sync = TakeSync(store: store, api: { api }, inBackground: { _, work in try await work() })
         recognizer.lines = [.betweenTakes: betweenTakes, .recording: recording]
+        audio.onFlush = { [speech] in speech.flush() }
         loop = DriveLoop(
             audio: audio, recognizer: recognizer, speech: speech, store: store, sync: sync, api: { api },
             questions: DriveQuestions(fileURL: nil, api: { api }), clock: clock, config: config)
@@ -36,6 +37,8 @@ final class DriveHarness {
     var takeIDs: [String] { audio.opened.map { $0.url.deletingPathExtension().lastPathComponent } }
 
     func count(_ line: String) -> Int { said.filter { $0 == line }.count }
+    /// How many start tones were played.
+    var startTones: Int { speech.log.filter { $0 == "tone: start recording" }.count }
 
     /// What has visibly happened so far; while it changes, the drive is still busy.
     private var progress: String {
@@ -252,6 +255,22 @@ struct DriveLoopTests {
         #expect(drive.ended != nil)
     }
 
+    @Test func aRetryReachesTheServerAfterTheOfflineTakeItRetries() async throws {
+        let drive = DriveHarness(betweenTakes: ["skip", "again", "stop", "skip"], recording: ["done", nil])
+        drive.server.online = false
+        await drive.start { drive.loop.state == .recording && drive.audio.opened.count == 2 }
+        // Coverage comes back while the retry is being recorded, after the background sync
+        // before it gave up.
+        drive.server.online = true
+        drive.recognizer.say("done")
+        await drive.runToEnd()
+
+        #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+        #expect(drive.server.uploaded.map(\.metadata.attempt) == [1, 2])
+        // The retry was coached as a retry: what changed leads its feedback.
+        #expect(drive.said.contains(retrySummary))
+    }
+
     @Test func waitingGivesUpAfterTwoMinutes() async throws {
         let drive = DriveHarness(betweenTakes: ["4", nil, "skip"], recording: ["done"])
         drive.server.processing = .stuck
@@ -262,6 +281,72 @@ struct DriveLoopTests {
         #expect(drive.said.contains(DriveScript.waitTimedOut))
         #expect(drive.loop.feedbackLater == [take.id])
         #expect(drive.clock.now >= 120 && drive.clock.now < 125)
+        drive.recognizer.say("stop")
+        await drive.runToEnd()
+        #expect(drive.loop.state == .ended(.stopped))
+    }
+
+    @Test func aStalledUploadCountsAgainstTheWaitAndCarriesOn() async throws {
+        let drive = DriveHarness(betweenTakes: ["4", nil, "skip"], recording: ["done"])
+        drive.server.uploadGate.close()
+        await drive.start { drive.loop.state == .awaitingCommand }
+
+        // The upload never finished, yet he heard "Still working." and the wait ended on time.
+        let take = try #require(drive.session?.takes.first)
+        #expect(drive.count(DriveScript.stillWorking) == 2)
+        #expect(drive.said.last == DriveScript.waitTimedOut)
+        #expect(drive.loop.feedbackLater == [take.id])
+        #expect(drive.clock.now >= 120 && drive.clock.now < 125)
+        #expect(drive.server.uploadGate.waiting == 1)
+
+        // The upload carries on in the background and lands.
+        drive.server.uploadGate.open()
+        drive.recognizer.say("stop")
+        await drive.runToEnd()
+        #expect(drive.server.uploaded.map(\.id) == [take.id])
+        #expect(drive.loop.state == .ended(.stopped))
+    }
+
+    @Test func aServerErrorIsNotCalledOffline() async throws {
+        let drive = DriveHarness(betweenTakes: ["4", "stop", "skip"], recording: ["done"])
+        drive.server.uploadError = .server(
+            status: 422, code: "invalid_audio", message: "The audio could not be read.", details: nil)
+        await drive.runToEnd()
+
+        #expect(drive.said.contains(DriveScript.serverError.segments[0]))
+        #expect(!drive.said.contains(DriveScript.offline.segments[0]))
+        #expect(drive.loop.feedbackLater.isEmpty)
+        // The take stays on the phone.
+        #expect(drive.store.pendingUploads.count == 1)
+    }
+
+    @Test func stopDuringTheWaitEndsTheDriveAndKeepsTheTake() async throws {
+        let drive = DriveHarness(betweenTakes: ["4"], recording: ["done"])
+        drive.server.processing = .stuck
+        await drive.start { drive.loop.state == .waiting }
+
+        drive.loop.stop()
+        await drive.runToEnd()
+
+        #expect(drive.loop.state == .ended(.stoppedFromApp))
+        #expect(drive.loop.feedbackLater == drive.takeIDs)
+        #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+        #expect(drive.said.last == DriveScript.driveEnded(takes: 1))
+    }
+
+    @Test func aCallDuringTheWaitSaysFeedbackComesLater() async throws {
+        let drive = DriveHarness(betweenTakes: ["4", nil, "skip"], recording: ["done"])
+        drive.server.processing = .stuck
+        await drive.start { drive.loop.state == .waiting }
+
+        drive.audio.interrupt()
+        await drive.run { drive.loop.state == .paused }
+        #expect(drive.loop.feedbackLater == drive.takeIDs)
+        drive.audio.send(.interruptionEnded(resumed: true))
+        await drive.run { drive.loop.state == .awaitingCommand }
+
+        #expect(drive.said.last == DriveScript.waitTimedOut)
+        #expect(!drive.said.contains(DriveScript.commandHelp))
         drive.recognizer.say("stop")
         await drive.runToEnd()
         #expect(drive.loop.state == .ended(.stopped))
@@ -323,9 +408,213 @@ struct DriveLoopTests {
         drive.audio.endTake { .takeEnded($0!) }
         await drive.runToEnd()
 
-        #expect(drive.said.contains(DriveScript.takeEnded))
+        // He hears why the take ended, then its feedback.
+        #expect(drive.said.contains(DriveScript.microphoneChanged))
+        #expect(!drive.said.contains(DriveScript.takeEnded))
         #expect(drive.said.contains(firstFeedback[0]))
         #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+    }
+
+    @Test func doneWhileTheTakesEventIsStillComingWaitsForIt() async throws {
+        let drive = DriveHarness(betweenTakes: ["2", "stop", "skip"], recording: [nil])
+        await drive.start { drive.loop.state == .recording }
+
+        // The microphone changed and the core is still finishing the file when "done" is heard.
+        drive.audio.endTakeLater { .takeEnded($0!) }
+        drive.recognizer.say("done")
+        await drive.run { drive.loop.state == .finishingTake }
+        await drive.settle()
+        #expect(drive.loop.state == .finishingTake)
+        #expect(drive.session?.takes.isEmpty == true)
+
+        drive.audio.deliverPending()
+        await drive.runToEnd()
+
+        #expect(drive.takeIDs.count == 1)
+        #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+        #expect(drive.said.contains(DriveScript.takeEnded))
+        #expect(drive.said.contains(firstFeedback[0]))
+    }
+
+    @Test func aTakesEventArrivingWhileItIsFinishedIsKeptOnce() async throws {
+        let drive = DriveHarness(betweenTakes: ["2", "stop", "skip"], recording: [nil])
+        drive.audio.deliversPendingDuringFinish = true
+        await drive.start { drive.loop.state == .recording }
+
+        drive.audio.endTakeLater { .takeEnded($0!) }
+        drive.recognizer.say("done")
+        await drive.runToEnd()
+
+        #expect(drive.audio.pendingEvent == nil)
+        #expect(drive.takeIDs.count == 1)
+        #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+        #expect(drive.said.contains(firstFeedback[0]))
+    }
+
+    @Test func stopWhileTheTakesEventIsStillComingKeepsIt() async throws {
+        let drive = DriveHarness(betweenTakes: ["2"], recording: [nil])
+        await drive.start { drive.loop.state == .recording }
+
+        drive.audio.endTakeLater { .takeEnded($0!) }
+        drive.loop.stop()
+        await drive.settle()
+        drive.audio.deliverPending()
+        await drive.runToEnd()
+
+        #expect(drive.loop.state == .ended(.stoppedFromApp))
+        #expect(drive.takeIDs.count == 1)
+        #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+        #expect(drive.said.last == DriveScript.driveEnded(takes: 1))
+    }
+
+    // MARK: - Calls and cut speech
+
+    @Test func aCallDuringTheRatingAsksItAgainAfterwards() async throws {
+        let drive = DriveHarness(betweenTakes: ["3", "stop", "skip"], recording: ["done"])
+        var holds = 1
+        drive.speech.hold = { entry in
+            guard entry == "say: \(DriveScript.opening)", holds > 0 else { return false }
+            holds -= 1
+            return true
+        }
+        await drive.start { drive.speech.isHolding }
+
+        drive.audio.interrupt()
+        await drive.run { drive.loop.state == .paused }
+        #expect(drive.loop.sessionID == nil)
+        drive.audio.send(.interruptionEnded(resumed: true))
+        await drive.runToEnd()
+
+        #expect(drive.count(DriveScript.opening) == 2)
+        #expect(drive.created?.nervousnessBefore == 3)
+        #expect(drive.loop.state == .ended(.stopped))
+    }
+
+    @Test func aCallDuringThePromptOpensNoTake() async throws {
+        let drive = DriveHarness(betweenTakes: ["3", "stop", "skip"], recording: [])
+        var holds = 1
+        drive.speech.hold = { entry in
+            guard entry.hasSuffix("Answer after the tone."), holds > 0 else { return false }
+            holds -= 1
+            return true
+        }
+        await drive.start { drive.speech.isHolding }
+
+        drive.audio.interrupt()
+        await drive.run { drive.loop.state == .paused }
+        drive.audio.send(.interruptionEnded(resumed: true))
+        await drive.runToEnd()
+
+        #expect(drive.audio.opened.isEmpty)
+        #expect(drive.said.contains(DriveScript.commandHelp))
+        #expect(drive.loop.state == .ended(.stopped))
+    }
+
+    @Test func aCallDuringTheStartToneOpensNoTakeAndPauses() async throws {
+        let drive = DriveHarness(betweenTakes: ["3", "stop", "skip"], recording: [])
+        var holds = 1
+        drive.speech.hold = { entry in
+            guard entry == "tone: start recording", holds > 0 else { return false }
+            holds -= 1
+            return true
+        }
+        await drive.start { drive.speech.isHolding }
+
+        // The tone is cut before the call's event arrives: the loop must not read the prompt
+        // again into the call, nor give up on the audio.
+        drive.audio.interrupt()
+        await drive.run { drive.loop.state == .paused }
+        #expect(drive.audio.opened.isEmpty)
+        #expect(drive.startTones == 1)
+        drive.audio.send(.interruptionEnded(resumed: true))
+        await drive.runToEnd()
+
+        #expect(drive.loop.state == .ended(.stopped))
+        #expect(!drive.said.contains(DriveScript.audioUnstable))
+    }
+
+    @Test func aCutPromptOrToneIsReadAgainBeforeTheTakeOpens() async throws {
+        let drive = DriveHarness(betweenTakes: ["3", "stop", "skip"], recording: ["done"])
+        var cuts = ["prompt", "tone"]
+        drive.speech.cut = { entry in
+            if cuts.first == "prompt", entry.hasSuffix("Answer after the tone.") {
+                cuts.removeFirst()
+                return true
+            }
+            if cuts.first == "tone", entry == "tone: start recording" {
+                cuts.removeFirst()
+                return true
+            }
+            return false
+        }
+        await drive.runToEnd()
+
+        let readOuts = drive.said.filter { $0.hasSuffix("Answer after the tone.") }
+        #expect(readOuts.count == 3)
+        #expect(Set(readOuts).count == 1)
+        #expect(drive.startTones == 2)
+        #expect(drive.audio.opened.count == 1)
+        // The take opened after the tone that played in full.
+        #expect(drive.audio.opened.first?.start == drive.takeStart(1))
+        #expect(drive.said.contains(firstFeedback[0]))
+    }
+
+    @Test func speechCutOffEveryTimeEndsTheDrive() async throws {
+        let drive = DriveHarness(betweenTakes: ["3"], recording: [])
+        drive.speech.cut = { $0 == "tone: start recording" }
+        await drive.runToEnd()
+
+        #expect(drive.audio.opened.isEmpty)
+        #expect(drive.startTones == 3)
+        #expect(drive.said.contains(DriveScript.audioUnstable))
+        if case .ended(.audioFailed) = drive.loop.state {} else {
+            Issue.record("The drive ended as \(drive.loop.state)")
+        }
+        #expect(drive.said.last == DriveScript.driveEnded(takes: 0))
+    }
+
+    @Test func stopWhilePausedKeepsTheTakeAndEnds() async throws {
+        let drive = DriveHarness(betweenTakes: ["2"], recording: [nil])
+        await drive.start { drive.loop.state == .recording }
+
+        drive.audio.interrupt()
+        await drive.run { drive.loop.state == .paused }
+        drive.loop.stop()
+        await drive.runToEnd()
+
+        #expect(drive.loop.state == .ended(.stoppedFromApp))
+        #expect(drive.takeIDs.count == 1)
+        #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+        #expect(drive.said.last == DriveScript.driveEnded(takes: 1))
+    }
+
+    @Test func aPauseWithNoEndTakesTheAudioBackAfterThreeMinutes() async throws {
+        let drive = DriveHarness(betweenTakes: ["2", "stop", "skip"], recording: [nil])
+        await drive.start { drive.loop.state == .recording }
+
+        drive.audio.interrupt()
+        await drive.run { drive.loop.state == .paused }
+        let paused = drive.clock.now
+        await drive.runToEnd()
+
+        #expect(drive.audio.resumeAttempts == 1)
+        #expect(drive.said.contains(DriveScript.cutOff))
+        #expect(drive.clock.now - paused >= 180)
+        #expect(drive.loop.state == .ended(.stopped))
+    }
+
+    @Test func aPauseWithNoEndEndsTheDriveWhenTheAudioStaysTaken() async throws {
+        let drive = DriveHarness(betweenTakes: ["2"], recording: [nil])
+        drive.audio.resumes = false
+        await drive.start { drive.loop.state == .recording }
+
+        drive.audio.interrupt()
+        await drive.runToEnd()
+
+        #expect(drive.audio.resumeAttempts == 1)
+        #expect(drive.loop.state == .ended(.interrupted))
+        #expect(drive.server.uploaded.map(\.id) == drive.takeIDs)
+        #expect(drive.ended != nil)
     }
 
     @Test func aFailedMicrophoneEndsTheDriveAndKeepsTheTake() async throws {
