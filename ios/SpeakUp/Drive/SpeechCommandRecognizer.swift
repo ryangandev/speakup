@@ -18,6 +18,9 @@ final class SpeechCommandRecognizer: CommandRecognizing {
     private var continuation: AsyncStream<CommandRecognizerEvent>.Continuation?
     private var feeding: Task<Void, Never>?
     private var reading: Task<Void, Never>?
+    /// Counts starts, stops and failures, so a `start` that a `stop` overtook while it awaited
+    /// the engine, or a late stop or failure from an old session, cannot act on the current one.
+    private var generation = 0
 
     private static let log = Logger(subsystem: "dev.ryangan.speakup", category: "SpeechCommandRecognizer")
 
@@ -30,9 +33,15 @@ final class SpeechCommandRecognizer: CommandRecognizing {
         try await engine.prepare()
     }
 
+    /// A `stop()` while it waits for the engine wins: the stream it returns has already ended.
     func start(buffers: AsyncStream<DriveAudioBuffer>) async throws -> AsyncStream<CommandRecognizerEvent> {
         await stop()
+        let started = generation
         let session = try await engine.startSession()
+        guard generation == started else {
+            await session.finish()
+            return AsyncStream { $0.finish() }
+        }
         self.session = session
         core = CommandRecognitionCore(config: core.config)
         let (stream, continuation) = AsyncStream.makeStream(of: CommandRecognizerEvent.self)
@@ -43,9 +52,9 @@ final class SpeechCommandRecognizer: CommandRecognizing {
                 for try await result in session.results {
                     self?.received(result)
                 }
-                if !Task.isCancelled { self?.fail("The speech recognizer stopped.") }
+                if !Task.isCancelled { self?.fail("The speech recognizer stopped.", generation: started) }
             } catch {
-                if !Task.isCancelled { self?.fail(error.localizedDescription) }
+                if !Task.isCancelled { self?.fail(error.localizedDescription, generation: started) }
             }
         }
         feeding = Task.detached { [weak self] in
@@ -53,13 +62,13 @@ final class SpeechCommandRecognizer: CommandRecognizing {
                 do {
                     try session.append(buffer)
                 } catch {
-                    await self?.fail(error.localizedDescription)
+                    await self?.fail(error.localizedDescription, generation: started)
                     return
                 }
                 await self?.fed(through: buffer.endTime)
             }
             // The drive's audio stopped: so does recognition, with no failure.
-            if !Task.isCancelled { await self?.stop() }
+            if !Task.isCancelled { await self?.stop(generation: started) }
         }
         return stream
     }
@@ -73,12 +82,18 @@ final class SpeechCommandRecognizer: CommandRecognizing {
     }
 
     func stop() async {
+        generation += 1
         let session = self.session
         tearDown()
         await session?.finish()
     }
 
     // MARK: - Private
+
+    private func stop(generation started: Int) async {
+        guard generation == started else { return }
+        await stop()
+    }
 
     private func received(_ result: RecognizedResult) {
         perform(core.receive(result))
@@ -95,14 +110,21 @@ final class SpeechCommandRecognizer: CommandRecognizing {
                 continuation?.yield(.update(update))
             case .finalize(let time):
                 guard let session else { continue }
+                let started = generation
                 Task { [weak self] in
                     do {
                         try await session.finalize(through: time)
                         self?.finalized(through: time, in: session)
                     } catch {
-                        Self.log.error("Finalizing through \(time, privacy: .public) s failed: \(error.localizedDescription, privacy: .public)")
+                        // Its time is never requested again, so a "done" waiting on it would never
+                        // be confirmed.
+                        self?.fail(
+                            String(format: "Finalizing through %.2f s failed: %@", time, error.localizedDescription),
+                            generation: started)
                     }
                 }
+            case .fail(let message):
+                fail(message, generation: generation)
             }
         }
     }
@@ -112,8 +134,9 @@ final class SpeechCommandRecognizer: CommandRecognizing {
         core.finalized(through: time)
     }
 
-    private func fail(_ message: String) {
-        guard let continuation else { return }
+    private func fail(_ message: String, generation started: Int) {
+        guard generation == started, let continuation else { return }
+        generation += 1
         Self.log.error("Commands failed: \(message, privacy: .public)")
         continuation.yield(.failed(message))
         let session = self.session
@@ -165,16 +188,18 @@ extension DriveAudioBuffer {
 
 /// `SpeechAnalyzer` with one transcriber, on device, in English.
 ///
-/// `SpeechTranscriber` is preferred, and `DictationTranscriber` is the fallback where it is
-/// unavailable, as Apple's documentation recommends. On macOS 27, over the clips in
-/// `tools/drive-commands`:
+/// Commands use `SpeechTranscriber` only. On a phone without it, `prepare()` throws
+/// `CommandRecognizerError.unavailable` and the drive says commands are unavailable, rather than
+/// falling back to `DictationTranscriber`, which fails the clips in `tools/drive-commands`. On
+/// macOS 27, over those clips:
 /// - `SpeechTranscriber` passes every clip: each "done" starts within 0.21 s of where it was
-///   said, mid-sentence "done"s are left alone, and every between-take command is heard. The
-///   task 0 spike saw it write "done" as "Don." right after another word
-///   (`CommandRecognitionCore.misheard`), and it stretches the last word before a pause
-///   (`CommandRecognitionCore.trimmingStretchedEnd`).
+///   said, a "done" followed by more speech is left alone, and every between-take command is
+///   heard. It stretches the last word before a pause
+///   (`CommandRecognitionCore.trimmingStretchedEnd`), and drops words from a final when made to
+///   finalize audio it has not reported yet (`CommandRecognitionCore`).
 /// - `DictationTranscriber` misses a "done" after a thinking pause, starts another 0.36 s
 ///   late (so the take keeps part of it), and invents a word ("no") when silence is finalized.
+///   It stays selectable (`Transcriber.dictation`) so the tool can measure it.
 /// - In the iOS simulator neither works: `SpeechTranscriber` is unsupported and
 ///   `DictationTranscriber` has no model. Debug builds use `ScriptedRecognizer` there.
 ///
@@ -184,9 +209,6 @@ struct SpeechAnalyzerEngine: RecognitionEngine {
     enum Transcriber: String, Sendable, CaseIterable {
         case speech
         case dictation
-
-        /// `SpeechTranscriber` where the phone supports it, otherwise `DictationTranscriber`.
-        static var preferred: Transcriber { SpeechTranscriber.isAvailable ? .speech : .dictation }
     }
 
     /// Words to bias the engine toward: the commands (`CommandSpotter.phrases` and "done").
@@ -195,7 +217,7 @@ struct SpeechAnalyzerEngine: RecognitionEngine {
     let transcriber: Transcriber
     let locale: Locale
 
-    init(transcriber: Transcriber = .preferred, locale: Locale = Locale(identifier: "en-US")) {
+    init(transcriber: Transcriber = .speech, locale: Locale = Locale(identifier: "en-US")) {
         self.transcriber = transcriber
         self.locale = locale
     }

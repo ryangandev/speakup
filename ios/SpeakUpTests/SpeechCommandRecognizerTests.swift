@@ -18,9 +18,13 @@ struct SpeechCommandRecognizerTests {
         private var _appended: [TimeInterval] = []
         private var _finalized: [TimeInterval] = []
         private var _finished = false
+        /// How `finalize` ends: it returns, throws, or waits until the session is finished.
+        enum Finalizing { case returns, fails, hangs }
+        let finalizing: Finalizing
 
-        init() {
+        init(finalizing: Finalizing = .returns) {
             (results, output) = AsyncThrowingStream.makeStream(of: RecognizedResult.self)
+            self.finalizing = finalizing
         }
 
         var appended: [TimeInterval] { lock.withLock { _appended } }
@@ -33,6 +37,11 @@ struct SpeechCommandRecognizerTests {
 
         func finalize(through time: TimeInterval) async throws {
             lock.withLock { _finalized.append(time) }
+            switch finalizing {
+            case .returns: return
+            case .fails: throw Failure()
+            case .hangs: while !finished { try await Task.sleep(for: .milliseconds(5)) }
+            }
         }
 
         func finish() async {
@@ -45,6 +54,8 @@ struct SpeechCommandRecognizerTests {
         var session = FakeSession()
         var prepareError: CommandRecognizerError?
         var startError: CommandRecognizerError?
+        /// Holds `startSession` until it opens.
+        var gate: Gate?
 
         func prepare() async throws {
             if let prepareError { throw prepareError }
@@ -52,7 +63,25 @@ struct SpeechCommandRecognizerTests {
 
         func startSession() async throws -> any RecognitionSession {
             if let startError { throw startError }
+            if let gate { await gate.wait() }
             return session
+        }
+    }
+
+    actor Gate {
+        private(set) var isWaiting = false
+        private var waiter: CheckedContinuation<Void, Never>?
+
+        func wait() async {
+            await withCheckedContinuation {
+                waiter = $0
+                isWaiting = true
+            }
+        }
+
+        func open() {
+            waiter?.resume()
+            waiter = nil
         }
     }
 
@@ -83,9 +112,9 @@ struct SpeechCommandRecognizerTests {
         }
     }
 
-    private func until(_ condition: () -> Bool) async throws {
+    private func until(_ condition: () async -> Bool) async throws {
         let deadline = ContinuousClock.now + .seconds(5)
-        while !condition() {
+        while !(await condition()) {
             guard ContinuousClock.now < deadline else { throw TestFailure("Timed out") }
             try await Task.sleep(for: .milliseconds(2))
         }
@@ -104,8 +133,9 @@ struct SpeechCommandRecognizerTests {
         }
     }
 
-    /// The whole path: a volatile "done" is finalized, the timed final comes back, silence is
-    /// confirmed by a further finalization, and the spotter ends the take at the start of "done".
+    /// The whole path: a volatile "done" is finalized once the engine has had 1.5 s to report
+    /// more, the timed final comes back, silence is confirmed by a further finalization, and the
+    /// spotter ends the take at the start of "done".
     @Test func aDoneAfterAPauseEndsTheTakeAtItsStart() async throws {
         let engine = FakeEngine()
         let session = engine.session
@@ -132,18 +162,22 @@ struct SpeechCommandRecognizerTests {
                 text: "my answer.", timedWords: [Word("my", start: 10.5, end: 10.7), Word("answer.", start: 10.7, end: 11.2)],
                 range: 10...11.3, isFinal: true, finalizedThrough: 11.3))
         session.output.yield(.init(text: " Done", timedWords: [], range: 11.3...13, isFinal: false, finalizedThrough: 11.3))
-        try await feed(input, session, from: 10.5, to: 13.1)
+        try await feed(input, session, from: 10.5, to: 14.4)
+        #expect(session.finalized == [10])
+        try await feed(input, session, from: 14.4, to: 14.6)
         #expect(session.finalized == [10, 13])
 
         session.output.yield(
             .init(
                 text: " Done.", timedWords: [Word("Done.", start: 12.2, end: 12.6)], range: 12.2...13, isFinal: true,
                 finalizedThrough: 13))
-        // 12.6 + 1.2 + 0.1 = 13.9, then 0.3 s to settle.
-        try await feed(input, session, from: 13.1, to: 14.4)
+        // Through 12.6 + 1.2 + 0.3 = 14.1, once the input is 1.5 s past it; then 0.3 s to settle.
+        try await feed(input, session, from: 14.6, to: 15.5)
+        #expect(session.finalized.count == 2)
+        try await feed(input, session, from: 15.5, to: 15.7)
         #expect(session.finalized.count == 3)
-        #expect(abs(session.finalized[2] - 13.9) < 1e-9)
-        try await feed(input, session, from: 14.4, to: 14.5)
+        #expect(abs(session.finalized[2] - 14.1) < 1e-9)
+        try await feed(input, session, from: 15.7, to: 16.1)
         #expect(await collected.value == [.done(cutAt: 12.2)])
         await recognizer.stop()
         #expect(session.finished)
@@ -184,6 +218,59 @@ struct SpeechCommandRecognizerTests {
         #expect(received.isEmpty)
         #expect(engine.session.finished)
         #expect(engine.session.appended == [0])
+    }
+
+    /// Its time is never requested again, so a "done" waiting on it would hang.
+    @Test func aFailedFinalizationIsACommandsFailure() async throws {
+        let engine = FakeEngine(session: FakeSession(finalizing: .fails))
+        let recognizer = SpeechCommandRecognizer(engine: engine)
+        let (buffers, input) = AsyncStream.makeStream(of: DriveAudioBuffer.self)
+        let events = try await recognizer.start(buffers: buffers)
+        recognizer.listen(mode: .recording, from: 10)
+        input.yield(buffer(at: 10))
+        var received: [CommandRecognizerEvent] = []
+        for await event in events { received.append(event) }
+        #expect(received == [.failed("Finalizing through 10.00 s failed: The model crashed.")])
+        try await until { engine.session.finished }
+    }
+
+    @Test func aFinalizationThatNeverReturnsIsACommandsFailure() async throws {
+        let engine = FakeEngine(session: FakeSession(finalizing: .hangs))
+        let session = engine.session
+        let recognizer = SpeechCommandRecognizer(engine: engine)
+        let (buffers, input) = AsyncStream.makeStream(of: DriveAudioBuffer.self)
+        let events = try await recognizer.start(buffers: buffers)
+        let collected = Task {
+            var received: [CommandRecognizerEvent] = []
+            for await event in events { received.append(event) }
+            return received
+        }
+        recognizer.listen(mode: .recording, from: 10)
+        // Requested when 10.1 s is fed; 5 s more input later it has not returned.
+        try await feed(input, session, from: 10, to: 15.1)
+        #expect(session.finalized == [10])
+        input.yield(buffer(at: 15.1))
+        input.yield(buffer(at: 15.2))
+        #expect(await collected.value == [.failed("The speech recognizer did not finalize through 10.00 s.")])
+        try await until { session.finished }
+    }
+
+    /// A drive that ends while the engine is still starting must not be left with a session.
+    @Test func aStopWhileStartingWins() async throws {
+        let gate = Gate()
+        let engine = FakeEngine(gate: gate)
+        let recognizer = SpeechCommandRecognizer(engine: engine)
+        let (buffers, _) = AsyncStream.makeStream(of: DriveAudioBuffer.self)
+        let starting = Task { try await recognizer.start(buffers: buffers) }
+        try await until { await gate.isWaiting }
+        await recognizer.stop()
+        await gate.open()
+        let events = try await starting.value
+        var received: [CommandRecognizerEvent] = []
+        for await event in events { received.append(event) }
+        #expect(received.isEmpty)
+        #expect(engine.session.finished)
+        #expect(engine.session.appended.isEmpty)
     }
 
     @Test func stopEndsTheStream() async throws {

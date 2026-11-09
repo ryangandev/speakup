@@ -26,6 +26,15 @@ clip thinking-pause  recording done "We got it done. [[slnc 2000]] And then we s
 clip long-pause      recording done "The first part was easy. [[slnc 8000]] The second part took longer. [[slnc 1200]] done"
 clip midsentence     recording none "We finally got it done by Friday and the customers were happy about the result"
 clip no-pause-done   recording none "Well, I think the main reason we chose that design was that it kept the team independent, so that is my answer. done"
+# A "done" after a pause, then more speech within 1.2 s: the take goes on.
+clip done-then-more  recording none "That covers the main trade offs. [[slnc 1000]] done [[slnc 700]] actually, one more thing about the cost."
+clip done-then-more2 recording none "So that was my approach. [[slnc 1000]] done [[slnc 1000]] well, almost. The rollout took two more weeks."
+clip done-actually   recording none "So those were the trade offs. [[slnc 1000]] done [[slnc 300]] actually, wait."
+clip done-late-more  recording none "That is my answer. [[slnc 1000]] done [[slnc 900]] and one more thing to add."
+# A name that sounds like "done", after a pause: it is not "done".
+clip don-name        recording none "The person who approved it was my manager. [[slnc 900]] Don. [[slnc 1400]] He ran the team for years."
+# A long silence is not a command.
+clip silence-only    recording none "That was the whole story so far. [[slnc 9000]] and then it continued."
 
 # Between takes, a short utterance that is exactly a command.
 clip again           betweenTakes again         "again"
@@ -34,5 +43,8 @@ clip say-that-again  betweenTakes repeatThat    "say that again"
 clip better-version  betweenTakes betterVersion "read the better version"
 clip stop            betweenTakes stop          "stop"
 clip weather         betweenTakes unrecognized  "what is the weather going to be like today"
+# A command word that starts a longer utterance, after a short pause, is not a command.
+clip again-nowait    betweenTakes unrecognized  "again [[slnc 400]] no wait, never mind"
+clip stop-sentence   betweenTakes unrecognized  "stop [[slnc 500]] at the next exit please"
 
 print "Wrote $(wc -l < "$manifest" | tr -d ' ') clips to $out"

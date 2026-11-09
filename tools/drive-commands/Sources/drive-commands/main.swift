@@ -2,7 +2,7 @@
 // the clips from make-clips.sh, fed in real time as a drive would feed them, and checks each
 // clip's command and cut time.
 //
-// Usage: drive-commands [--transcriber speech|dictation|both] [--clips <dir>] [--only <name>] [--verbose]
+// Usage: drive-commands [--transcriber speech|dictation|both] [--clips <dir>] [--only <name>] [--verbose] [--trace]
 
 import AVFoundation
 import Foundation
@@ -16,6 +16,7 @@ struct Options {
         .appending(path: "clips")
     var only: String?
     var verbose = false
+    var trace = false
 }
 
 func fail(_ message: String) -> Never {
@@ -39,10 +40,12 @@ while let argument = arguments.popFirst() {
         options.clips = URL(fileURLWithPath: path)
     case "--only":
         options.only = arguments.popFirst()
+    case "--trace":
+        options.trace = true
     case "--verbose":
         options.verbose = true
     default:
-        fail("usage: drive-commands [--transcriber speech|dictation|both] [--clips <dir>] [--only <name>] [--verbose]")
+        fail("usage: drive-commands [--transcriber speech|dictation|both] [--clips <dir>] [--only <name>] [--verbose] [--trace]")
     }
 }
 
@@ -240,6 +243,14 @@ func run(_ clip: Clip, with transcriber: SpeechAnalyzerEngine.Transcriber) async
     for await event in events {
         switch event {
         case .update(let update):
+            if options.trace {
+                func time(_ value: TimeInterval) -> String { String(format: "%.2f", value - clipStart) }
+                let covering = update.covering.map { "\(time($0.lowerBound))-\(time($0.upperBound))" } ?? "-"
+                let words = update.words.map { "\($0.text)@\(time($0.start))-\(time($0.end))" }.joined(separator: " ")
+                print(
+                    "    \(update.isFinal ? "final   " : "volatile") fed \(time(clock.now)) covering \(covering)"
+                        + " progress \(update.progress.map(time) ?? "-"): \(words)")
+            }
             if update.isFinal, !update.words.isEmpty {
                 let text = update.words.map { String(format: "%@@%.2f-%.2f", $0.text, $0.start - clipStart, $0.end - clipStart) }
                 outcome.heard += text

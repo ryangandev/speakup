@@ -51,8 +51,9 @@ Why this split:
 - **Microphone in the car:** when the phone is connected to the car, iOS may route input to the car's hands-free microphone, which is often narrowband and noise-suppressed and may erase quiet fillers and short pauses.
   M0 tests this; if it hurts accuracy, the app prefers the iPhone's built-in microphone while playing audio through the car.
 - **Voice commands** in driving mode ("done", "again", "next") use on-device `SpeechAnalyzer`, so they work without the network.
-  `SpeechTranscriber` is preferred, with `DictationTranscriber` where it is unavailable; neither needs speech-recognition permission.
-  Volatile results carry no word times, so the app asks for final results only when the text ends in a command, and finalizes again after the silence window so silence after "done" is confirmed by the recognizer, not the microphone clock (`Drive/CommandRecognition.swift`).
+  They use `SpeechTranscriber` only, which needs no speech-recognition permission; a phone without it has no voice commands, because `DictationTranscriber` fails the command clips.
+  Volatile results carry no word times, so the app asks for final results when the text ends in a command, and finalizes again after the silence window so silence after "done" is confirmed by the recognizer, not the microphone clock (`Drive/CommandRecognition.swift`).
+  Each finalization waits until the recognizer has had 1.5 s to report more words, because finalizing audio it has not reported makes it drop them; so the app acts about 3.5 s after the last word.
   The simulator has neither recognizer, so Debug builds can script the words instead; `tools/drive-commands` checks the real recognizer on the Mac.
 - **Spoken prompts and feedback:** `AVSpeechSynthesizer` with a premium voice first; a server-side voice can replace it later.
 - **Offline queue:** takes are saved locally first and uploaded when the server is reachable.
