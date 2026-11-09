@@ -1,7 +1,7 @@
 # Architecture
 
-Status: planned design.
-Only the speech-to-text layer and the M0 bake-off are built; other sections gain code paths as code lands.
+Status: built for M1 home practice and M2 driving mode, except the locked-phone start in driving mode.
+What runs where, and what has not been checked on a device, is in [status.md](status.md).
 The M1 system contract runs from [Domain model](#domain-model) to [Pipeline orchestration](#pipeline-orchestration).
 
 ## Code map
