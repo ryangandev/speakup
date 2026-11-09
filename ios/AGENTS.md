@@ -30,6 +30,8 @@ Debug builds only; none of this exists in Release.
 - `-debug.syntheticMicrophone` records a generated tone instead of the microphone. Simulators usually have no audio input, so recording fails there without it.
 - `-debug.microphoneFile <path>` records an audio file on the Mac instead, played in real time and looped, so the server gets real speech to transcribe.
   Simulated input of either kind skips the microphone permission prompt.
+- In a drive, either flag replaces the drive engine's input with `ScriptedMicrophone` (`Drive/DriveDebug.swift`): silence in real time, with the `-debug.microphoneFile` clip played once each time a take opens, so a WAV that ends with a spoken "done" drives a take.
+  The simulator's input node reports 0 Hz and cannot be tapped, so a drive there needs one of these flags.
 - `-serverAddress <url>` sets the server address for this launch.
 
 Settings shows the same mock toggle and scenario picker in Debug builds.
@@ -39,6 +41,7 @@ Settings shows the same mock toggle and scenario picker in Debug builds.
 - `App/`: the app entry, `AppModel` (settings, API client, store, server status) and `RootView` (tabs, sheets, the take flow cover).
 - `Models/`: Codable types for every contract shape. `Networking/`: the `SpeakUpAPI` protocol and its HTTP client.
 - `Audio/`: the `AVAudioEngine` recorder, the WAV writer and playback.
+- `Drive/`: driving mode: the drive audio core (`DriveAudio`: one engine for the whole drive, the take gate and trim, the driving audio session), command spotting and the spoken script.
 - `Practice/`: the phone's local store, upload sync, the polling state machine and transcript layout.
 - `Screens/`: one file per screen group. `Settings/`: settings and the Keychain.
 - `Theme/`: every color, font, spacing value and transcript mark, plus reusable components.
