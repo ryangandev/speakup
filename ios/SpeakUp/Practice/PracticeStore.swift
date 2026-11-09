@@ -142,10 +142,14 @@ final class PracticeStore {
 
     // MARK: Writing
 
+    /// Opens a session: `.home` for the practice screens, `.driving` for a drive. Both kinds
+    /// keep and upload their takes the same way.
     @discardableResult
-    func openNewSession(nervousnessBefore: Int?, now: Date = Date()) -> LocalSession {
+    func openNewSession(
+        mode: SessionMode = .home, nervousnessBefore: Int?, now: Date = Date()
+    ) -> LocalSession {
         let session = LocalSession(
-            id: IDs.make(), mode: .home, startedAt: now, nervousnessBefore: nervousnessBefore)
+            id: IDs.make(), mode: mode, startedAt: now, nervousnessBefore: nervousnessBefore)
         sessions.append(session)
         save()
         return session
