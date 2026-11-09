@@ -4,7 +4,7 @@ import XCTest
 /// report, a retry and the comparison.
 ///
 /// It is skipped unless these are set (pass them to `xcodebuild` with the `TEST_RUNNER_`
-/// prefix, which the test runner strips):
+/// prefix, which the test runner strips; `RealServer` reads them):
 ///
 /// - `SPEAKUP_SERVER`: the server address, for example `http://127.0.0.1:18780` for a server
 ///   on the Mac running the simulator.
@@ -22,22 +22,17 @@ final class RealServerTests: XCTestCase {
     }
 
     func testHomeLoopAgainstRealServer() throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard let server = environment["SPEAKUP_SERVER"], let token = environment["SPEAKUP_TOKEN"],
-            let micFile = environment["SPEAKUP_MIC_FILE"]
-        else {
-            throw XCTSkip("Set SPEAKUP_SERVER, SPEAKUP_TOKEN and SPEAKUP_MIC_FILE to run against a real server.")
-        }
-        let seconds = environment["SPEAKUP_RECORD_SECONDS"].flatMap(UInt32.init) ?? 15
+        let server = try RealServer.fromEnvironment()
+        let seconds = ProcessInfo.processInfo.environment["SPEAKUP_RECORD_SECONDS"].flatMap(UInt32.init) ?? 15
 
         app = XCUIApplication()
         app.launchArguments = [
-            "-resetState", "-debug.useMockServer", "NO", "-debug.microphoneFile", micFile,
-            "-serverAddress", server,
+            "-resetState", "-debug.useMockServer", "NO", "-debug.microphoneFile", server.micFile,
+            "-serverAddress", server.address,
         ]
         app.launch()
 
-        enterToken(token)
+        app.saveServerToken(server.token) { shot("real-00-settings") }
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 10))
         shot("real-01-home")
 
@@ -69,27 +64,6 @@ final class RealServerTests: XCTestCase {
     }
 
     // MARK: Steps
-
-    /// Saves the token in Settings, which opens by itself on a fresh install.
-    private func enterToken(_ token: String) {
-        let settings = app.navigationBars["Settings"]
-        if !settings.waitForExistence(timeout: 5) {
-            XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 5))
-            app.buttons["Settings"].tap()
-            XCTAssertTrue(settings.waitForExistence(timeout: 5))
-        }
-        for label in ["Add token", "Replace"] where app.buttons[label].exists {
-            app.buttons[label].tap()
-        }
-        let field = app.secureTextFields["Token"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.tap()
-        field.typeText(token)
-        app.buttons["Test connection"].tap()
-        XCTAssertTrue(app.staticTexts["The server answered"].waitForExistence(timeout: 15))
-        shot("real-00-settings")
-        settings.buttons["Done"].tap()
-    }
 
     private func record(seconds: UInt32) {
         let done = app.buttons["Done"]
