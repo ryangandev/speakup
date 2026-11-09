@@ -21,7 +21,7 @@ ORPHAN_ID = "9d3e5f70-1a2b-4c3d-8e4f-506172839405"
 # -- startup sweep ----------------------------------------------------------------------------
 
 
-def test_startup_empties_tmp_and_removes_take_directories_without_a_row(env):
+def test_startup_empties_tmp_and_moves_take_directories_without_a_row_to_orphans(env):
     env.seed()
     env.upload(TAKE1_ID, attempt=1)
     # What a crash leaves: a staged upload, and audio moved into place before the insert.
@@ -34,6 +34,9 @@ def test_startup_empties_tmp_and_removes_take_directories_without_a_row(env):
     assert sorted(again.swept) == [f"takes/{ORPHAN_ID}", "tmp/upload-123.wav"]
     assert list((env.data_dir / "tmp").iterdir()) == []
     assert not orphan.exists()
+    # Moved aside, not deleted: a database restored from an older backup has no rows for newer
+    # takes, and their recordings must survive.
+    assert (env.data_dir / "orphans" / ORPHAN_ID / "original.wav").is_file()
     # A take with a row keeps its audio.
     assert (env.data_dir / "takes" / TAKE1_ID / "original.wav").is_file()
     assert again.get_take(TAKE1_ID) is not None

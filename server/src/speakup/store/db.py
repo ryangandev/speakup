@@ -139,8 +139,13 @@ class Store:
             conn.close()
 
     def _sweep(self) -> list[str]:
-        """Remove what a crash can leave behind: staged uploads, and take directories with no
-        row (the process died after moving the audio but before the insert committed)."""
+        """Clear what a crash can leave behind.
+
+        Staged uploads in `tmp/` were never acknowledged, so they are deleted. A take directory
+        with no row (the process died after moving the audio but before the insert committed)
+        is moved to `orphans/` instead: a database restored from an older backup also has no
+        rows for newer takes, and those recordings must not be lost.
+        """
         removed: list[str] = []
         for leftover in self.tmp_dir.iterdir():
             if leftover.is_dir():
@@ -150,15 +155,20 @@ class Store:
             removed.append(f"tmp/{leftover.name}")
         with self._read() as conn:
             known = {r["id"] for r in conn.execute("SELECT id FROM takes")}
+        orphans = self.data_dir / "orphans"
         for directory in (self.data_dir / "takes").iterdir():
             if directory.name not in known:
-                if directory.is_dir():
-                    shutil.rmtree(directory)
-                else:
-                    directory.unlink()
+                orphans.mkdir(exist_ok=True)
+                target = orphans / directory.name
+                if target.exists():
+                    target = orphans / f"{directory.name}.{uuid.uuid4().hex[:8]}"
+                os.replace(directory, target)
                 removed.append(f"takes/{directory.name}")
         if removed:
-            log.warning("Removed leftovers of an interrupted run: %s", ", ".join(removed))
+            log.warning(
+                "Cleared leftovers of an interrupted run (take directories moved to orphans/): %s",
+                ", ".join(removed),
+            )
         return removed
 
     def _migrate(self) -> bool:

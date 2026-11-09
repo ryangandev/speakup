@@ -50,7 +50,9 @@ Without automatic login, turn the job into a LaunchDaemon: put the plist in `/Li
 A restart is safe at any time.
 The worker resumes every unfinished take from the start of its current stage.
 A stage that was running when the process died is counted, and after three such interruptions the take stops being retried: it fails, or for coaching it ends with `coaching_status: "failed"`.
-At startup the server also deletes staged uploads in `tmp/` and take directories that have no database row, which are the leftovers of a crash during an upload.
+At startup the server also deletes staged uploads in `tmp/`, which were never acknowledged to the phone.
+Take directories that have no database row, the leftovers of a crash during an upload, are moved to `orphans/` rather than deleted, so restoring an older database backup cannot destroy newer recordings.
+Check `orphans/` after restoring a backup, and delete what you do not need.
 It skips that cleanup when it has just created a new database, because a lost database file must not cost the recordings beside it.
 
 ## Publish to the tailnet
