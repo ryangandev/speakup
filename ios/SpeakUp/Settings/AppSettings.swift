@@ -17,14 +17,33 @@ struct Keychain: Sendable {
         return String(data: data, encoding: .utf8)
     }
 
-    @discardableResult
-    func write(_ value: String?, for account: String) -> Bool {
-        SecItemDelete(baseQuery(account) as CFDictionary)
-        guard let value, !value.isEmpty else { return true }
+    struct WriteError: Error, Equatable {
+        let status: OSStatus
+
+        var message: String {
+            let reason = SecCopyErrorMessageString(status, nil) as String? ?? "error \(status)"
+            return "The token could not be saved in the Keychain: \(reason)"
+        }
+    }
+
+    /// Saves `value`, or deletes the item for nil or empty. Updates an existing item in
+    /// place, so a failed write never leaves the old token deleted.
+    func write(_ value: String?, for account: String) throws(WriteError) {
+        guard let value, !value.isEmpty else {
+            let status = SecItemDelete(baseQuery(account) as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else { throw WriteError(status: status) }
+            return
+        }
+        let data = Data(value.utf8)
+        let update = SecItemUpdate(
+            baseQuery(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if update == errSecSuccess { return }
+        guard update == errSecItemNotFound else { throw WriteError(status: update) }
         var query = baseQuery(account)
-        query[kSecValueData as String] = Data(value.utf8)
+        query[kSecValueData as String] = data
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+        let add = SecItemAdd(query as CFDictionary, nil)
+        guard add == errSecSuccess else { throw WriteError(status: add) }
     }
 
     private func baseQuery(_ account: String) -> [String: Any] {
@@ -97,12 +116,14 @@ final class AppSettings {
         return serverURL != nil && !token.isEmpty
     }
 
-    func saveServer(address: String, token newToken: String?) {
+    /// Saves the address, and the token when one is given. The token in memory only changes
+    /// once the Keychain has it, so the app never runs on a token that is gone after a relaunch.
+    func saveServer(address: String, token newToken: String?) throws(Keychain.WriteError) {
         serverAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         defaults.set(serverAddress, forKey: Keys.serverAddress)
         if let newToken {
             let trimmed = newToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            keychain.write(trimmed, for: Keys.token)
+            try keychain.write(trimmed, for: Keys.token)
             token = trimmed
         }
     }

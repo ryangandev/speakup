@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var newToken: String?
     @State private var test: TestState = .idle
     @State private var hasLoaded = false
+    /// Why the last Done could not save; the sheet stays open.
+    @State private var saveError: String?
     #if DEBUG
     @State private var useMock = false
     @State private var scenario = MockScenario.normal
@@ -77,7 +79,9 @@ struct SettingsView: View {
         } header: {
             Text("Server")
         } footer: {
-            if !address.isEmpty && !addressIsValid {
+            if let saveError {
+                Text(saveError).foregroundStyle(Theme.Colors.negative)
+            } else if !address.isEmpty && !addressIsValid {
                 Text("Enter a full address starting with https://.").foregroundStyle(Theme.Colors.negative)
             } else {
                 Text("The Mac mini's Tailscale address. The token is kept in the Keychain.")
@@ -192,7 +196,13 @@ struct SettingsView: View {
     private func save() {
         let trimmedToken = newToken?.trimmingCharacters(in: .whitespacesAndNewlines)
         // An empty replacement keeps the saved token.
-        settings.saveServer(address: address, token: trimmedToken.flatMap { $0.isEmpty ? nil : $0 })
+        do {
+            try settings.saveServer(address: address, token: trimmedToken.flatMap { $0.isEmpty ? nil : $0 })
+            saveError = nil
+        } catch {
+            saveError = error.message
+            return
+        }
         #if DEBUG
         settings.useMockServer = useMock
         settings.mockScenario = scenario

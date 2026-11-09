@@ -31,6 +31,8 @@ enum APIError: Error, Equatable, Sendable {
     case transport(code: URLError.Code, message: String)
     /// A non-2xx response; `code` is the contract's error code.
     case server(status: Int, code: String, message: String, details: JSONValue?)
+    /// Something on this phone, such as a missing recording; the message says what.
+    case local(String)
     /// A 2xx response whose body did not match the contract.
     case decoding(String)
 
@@ -40,6 +42,26 @@ enum APIError: Error, Equatable, Sendable {
     }
 
     var isUnauthorized: Bool { code == "unauthorized" }
+
+    /// For `404 not_found` on a create: the unknown parent id the body named
+    /// (`details.field`, such as `session_id`), or `""` when the server did not say.
+    var missingParentField: String? {
+        guard case .server(404, "not_found", _, let details) = self else { return nil }
+        if case .object(let object) = details, case .string(let field) = object["field"] {
+            return field
+        }
+        return ""
+    }
+
+    /// The failure is about the connection or the server as a whole, not one take, so the
+    /// next request would fail the same way.
+    var affectsEveryRequest: Bool {
+        switch self {
+        case .notConfigured, .transport: return true
+        case .server(_, let code, _, _): return code == "unauthorized"
+        case .local, .decoding: return false
+        }
+    }
 
     /// The server could not be reached at all, as opposed to answering with an error.
     var isUnreachable: Bool {
@@ -56,6 +78,8 @@ enum APIError: Error, Equatable, Sendable {
         case .server(_, "unauthorized", _, _):
             return "The server did not accept the token. Check it in Settings."
         case .server(_, _, let message, _):
+            return message
+        case .local(let message):
             return message
         case .decoding:
             return "The server sent a response this version of the app does not understand."

@@ -6,6 +6,8 @@ struct ComparisonView: View {
     let takeID: String
     let context: ReportContext
     @State private var comparison: Comparison?
+    /// Whether the previous take has coaching, fetched only when this one has none.
+    @State private var previousHasCoaching: Bool?
     @State private var errorMessage: String?
     @State private var isLoading = false
 
@@ -36,11 +38,31 @@ struct ComparisonView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            comparison = try await app.api.comparison(takeID: takeID)
+            let comparison = try await app.api.comparison(takeID: takeID)
+            if comparison.coachingStatus != .done {
+                previousHasCoaching = (try? await app.api.take(id: comparison.previousTakeId))
+                    .map { $0.coachingStatus == .done }
+            }
+            self.comparison = comparison
             errorMessage = nil
         } catch {
             errorMessage = APIError.wrap(error).userMessage
         }
+    }
+
+    /// Which take lacks coaching. The comparison's own status is this take's; the previous
+    /// take's comes from its Take resource. When that could not be fetched, only what is
+    /// known is said.
+    private func noCoachingMessage(_ comparison: Comparison) -> String {
+        let which: String
+        if comparison.coachingStatus == .done {
+            which = "Take \(comparison.previousAttempt) has no coaching"
+        } else if previousHasCoaching == false {
+            which = "Neither take has coaching"
+        } else {
+            which = "Take \(comparison.attempt) has no coaching"
+        }
+        return which + ", so only metric changes are shown."
     }
 
     /// Retry applies only to a prompt of the open session, from Practice.
@@ -64,7 +86,7 @@ struct ComparisonView: View {
                 if comparison.focusOutcomes.isEmpty && comparison.dimensionChanges.isEmpty {
                     Banner(
                         tone: .info, systemImage: "info.circle",
-                        message: "One of these takes has no coaching, so only metric changes are shown.")
+                        message: noCoachingMessage(comparison))
                 }
                 if !comparison.focusOutcomes.isEmpty { focusCard(comparison) }
                 if !comparison.dimensionChanges.isEmpty { dimensionsCard(comparison) }

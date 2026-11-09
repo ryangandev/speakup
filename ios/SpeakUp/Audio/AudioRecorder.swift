@@ -397,8 +397,11 @@ enum AudioSessionConfig {
     static func activateForRecording() async throws {
         try await Task.detached {
             let session = AVAudioSession.sharedInstance()
+            // Measurement mode turns off the system's automatic gain control and other voice
+            // processing, so the file holds the raw signal: the analysis's volume and pitch
+            // variation measure Ryan, not the gain control evening him out.
             try session.setCategory(
-                .playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+                .playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
             try session.setActive(true)
         }.value
     }
@@ -406,9 +409,9 @@ enum AudioSessionConfig {
     static func activateForPlayback() async throws {
         try await Task.detached {
             let session = AVAudioSession.sharedInstance()
-            if session.category != .playAndRecord {
-                try session.setCategory(.playback, mode: .default)
-            }
+            // Always switch back from the recording setup: measurement mode also lowers
+            // speaker output, which would make report playback quiet.
+            try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
         }.value
     }

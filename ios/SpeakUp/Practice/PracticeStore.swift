@@ -1,10 +1,15 @@
 import Foundation
 import Observation
+import os
 
 // What the phone keeps: the open session, its prompts, and every take until the server
 // has it. The server is the source of truth for everything uploaded; this store exists so
 // a take is saved on the phone before it is uploaded (product.md#recording) and so ids,
 // attempts and session state survive a relaunch.
+//
+// practice.json outlives app updates, so every field with a default is decoded with
+// `decodeIfPresent` in the `init(from:)` below its type: a field added later must not make
+// an older file unreadable. Give any new field a default and decode it the same way.
 
 struct LocalSession: Codable, Hashable, Identifiable, Sendable {
     let id: String
@@ -63,6 +68,8 @@ struct LocalTake: Codable, Hashable, Identifiable, Sendable {
     let audioFileName: String
     /// The server has the audio.
     var isUploaded = false
+    /// Why the last upload attempt failed, shown on Home until an upload succeeds.
+    var uploadError: String?
     /// The latest Take resource the app has seen.
     var remote: Take?
 
@@ -183,6 +190,37 @@ final class PracticeStore {
         mutateSession(id) { $0.isCreated = true }
     }
 
+    /// The server does not know the session (it was rebuilt, or Settings points at another
+    /// one): create it and its prompts again on the next upload, with the same ids.
+    func markSessionMissing(_ id: String) {
+        mutateSession(id) { session in
+            session.isCreated = false
+            session.isEndSent = false
+            for index in session.prompts.indices { session.prompts[index].isCreated = false }
+        }
+    }
+
+    /// The server does not know the prompt: create it again on the next upload.
+    func markPromptMissing(_ id: String) {
+        for index in sessions.indices {
+            if let promptIndex = sessions[index].prompts.firstIndex(where: { $0.id == id }) {
+                sessions[index].prompts[promptIndex].isCreated = false
+            }
+        }
+        save()
+    }
+
+    func setUploadError(_ message: String?, takeID: String) {
+        for index in sessions.indices {
+            if let takeIndex = sessions[index].takes.firstIndex(where: { $0.id == takeID }),
+                sessions[index].takes[takeIndex].uploadError != message
+            {
+                sessions[index].takes[takeIndex].uploadError = message
+                save()
+            }
+        }
+    }
+
     func markPromptCreated(_ id: String) {
         for index in sessions.indices {
             if let promptIndex = sessions[index].prompts.firstIndex(where: { $0.id == id }) {
@@ -196,6 +234,7 @@ final class PracticeStore {
         for index in sessions.indices {
             if let takeIndex = sessions[index].takes.firstIndex(where: { $0.id == take.id }) {
                 sessions[index].takes[takeIndex].isUploaded = true
+                sessions[index].takes[takeIndex].uploadError = nil
                 sessions[index].takes[takeIndex].remote = take
             }
         }
@@ -248,6 +287,7 @@ final class PracticeStore {
     func removeAll() {
         sessions = []
         try? FileManager.default.removeItem(at: directory)
+        canSave = true
         save()
     }
 
@@ -259,12 +299,43 @@ final class PracticeStore {
 
     // MARK: Persistence
 
+    private static let log = Logger(subsystem: "dev.ryangan.speakup", category: "PracticeStore")
+    /// False when practice.json exists but could not be read, so a save would replace takes
+    /// the phone still has with an empty list.
+    private var canSave = true
+
     private func load() {
-        guard let data = try? Data(contentsOf: stateFile) else { return }
-        sessions = (try? JSONCoding.decoder().decode([LocalSession].self, from: data)) ?? []
+        guard FileManager.default.fileExists(atPath: stateFile.path) else { return }
+        let data: Data
+        do {
+            data = try Data(contentsOf: stateFile)
+        } catch {
+            // Most likely the file is still protected (before the first unlock). Keep it and
+            // do not save over it this launch.
+            Self.log.error("Could not read practice.json: \(error.localizedDescription, privacy: .public)")
+            canSave = false
+            return
+        }
+        do {
+            sessions = try JSONCoding.decoder().decode([LocalSession].self, from: data)
+        } catch {
+            // Never overwrite a file that does not decode: it holds the metadata of takes
+            // that may not be uploaded yet. Move it aside and start empty.
+            let stamp = Int(Date().timeIntervalSince1970)
+            let aside = directory.appending(path: "practice.corrupt-\(stamp).json")
+            Self.log.error(
+                "practice.json did not decode, moved to \(aside.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+            do {
+                try FileManager.default.moveItem(at: stateFile, to: aside)
+            } catch {
+                Self.log.error("Could not move practice.json aside: \(error.localizedDescription, privacy: .public)")
+                canSave = false
+            }
+        }
     }
 
     private func save() {
+        guard canSave else { return }
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let data = try JSONCoding.encoder().encode(sessions)
@@ -272,5 +343,59 @@ final class PracticeStore {
         } catch {
             assertionFailure("Could not save practice state: \(error)")
         }
+    }
+}
+
+// MARK: Decoding older files
+
+extension LocalSession {
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        mode = try container.decode(SessionMode.self, forKey: .mode)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        nervousnessBefore = try container.decodeIfPresent(Int.self, forKey: .nervousnessBefore)
+        endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
+        nervousnessAfter = try container.decodeIfPresent(Int.self, forKey: .nervousnessAfter)
+        isCreated = try container.decodeIfPresent(Bool.self, forKey: .isCreated) ?? false
+        isEndSent = try container.decodeIfPresent(Bool.self, forKey: .isEndSent) ?? false
+        prompts = try container.decodeIfPresent([LocalPrompt].self, forKey: .prompts) ?? []
+        takes = try container.decodeIfPresent([LocalTake].self, forKey: .takes) ?? []
+    }
+}
+
+extension LocalPrompt {
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        kind = try container.decode(PromptKind.self, forKey: .kind)
+        text = try container.decode(String.self, forKey: .text)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        category = try container.decodeIfPresent(PromptCategory.self, forKey: .category)
+        targetSeconds = try container.decode(Int.self, forKey: .targetSeconds)
+        questionSource = try container.decode(QuestionSource.self, forKey: .questionSource)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        isCreated = try container.decodeIfPresent(Bool.self, forKey: .isCreated) ?? false
+    }
+}
+
+extension LocalTake {
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        promptId = try container.decode(String.self, forKey: .promptId)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        attempt = try container.decode(Int.self, forKey: .attempt)
+        recordedAt = try container.decode(Date.self, forKey: .recordedAt)
+        durationS = try container.decode(Double.self, forKey: .durationS)
+        micRoute = try container.decode(MicRoute.self, forKey: .micRoute)
+        audioSha256 = try container.decode(String.self, forKey: .audioSha256)
+        audioFileName = try container.decode(String.self, forKey: .audioFileName)
+        isUploaded = try container.decodeIfPresent(Bool.self, forKey: .isUploaded) ?? false
+        uploadError = try container.decodeIfPresent(String.self, forKey: .uploadError)
+        // A Take shape the app no longer understands is dropped, not fatal: the next poll
+        // fetches it again.
+        remote = try? container.decodeIfPresent(Take.self, forKey: .remote)
     }
 }

@@ -46,13 +46,18 @@ struct RecordingView: View {
                 .screenContent()
             }
             BottomBar {
-                Button {
-                    flow.finish()
-                } label: {
-                    Label("Done", systemImage: "stop.fill")
+                if flow.unsavedRecording != nil {
+                    Button("Save again") { flow.retryKeep() }
+                        .buttonStyle(.primary)
+                } else {
+                    Button {
+                        flow.finish()
+                    } label: {
+                        Label("Done", systemImage: "stop.fill")
+                    }
+                    .buttonStyle(.primary)
+                    .disabled(!recorder.isRecording)
                 }
-                .buttonStyle(.primary)
-                .disabled(!recorder.isRecording)
                 Button("Cancel", role: .destructive) { isConfirmingCancel = true }
                     .buttonStyle(.secondary)
             }
@@ -61,7 +66,7 @@ struct RecordingView: View {
             "Discard this take?", isPresented: $isConfirmingCancel, titleVisibility: .visible
         ) {
             Button("Discard take", role: .destructive) { flow.discard() }
-            Button("Keep recording", role: .cancel) {}
+            Button(flow.unsavedRecording == nil ? "Keep recording" : "Keep the take", role: .cancel) {}
         } message: {
             Text("The recording is deleted and does not count as an attempt.")
         }
@@ -147,6 +152,7 @@ struct RecordingView: View {
 /// Processing (product.md#processing).
 struct ProcessingView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.scenePhase) private var scenePhase
     let flow: TakeFlowModel
     let controller: ProcessingController
 
@@ -166,10 +172,20 @@ struct ProcessingView: View {
                         Banner(tone: .warning, systemImage: "pause.circle", message: Self.message(for: reason))
                     }
                     content
-                    if let issue = controller.connectionIssue, !controller.phase.isTerminal {
-                        Label(issue + " Trying again.", systemImage: "wifi.exclamationmark")
-                            .font(Theme.Fonts.caption)
-                            .foregroundStyle(Theme.Colors.caution)
+                    if let issue = controller.connectionIssue {
+                        switch controller.phase {
+                        case .uploading, .processing:
+                            Label(issue + " Trying again.", systemImage: "wifi.exclamationmark")
+                                .font(Theme.Fonts.caption)
+                                .foregroundStyle(Theme.Colors.caution)
+                        case .failed:
+                            // Try again could not start reprocessing.
+                            Banner(
+                                tone: .warning, systemImage: "exclamationmark.triangle.fill",
+                                message: "Try again did not start. \(issue)")
+                        case .uploadFailed, .done:
+                            EmptyView()
+                        }
                     }
                 }
                 .screenContent()
@@ -180,6 +196,9 @@ struct ProcessingView: View {
         }
         .onChange(of: controller.phase) { _, phase in
             if case .done(let take) = phase { app.practice.showReport(takeID: take.id) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { controller.resume() }
         }
     }
 

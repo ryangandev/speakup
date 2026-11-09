@@ -15,6 +15,7 @@ struct HomeView: View {
                 if let session { OpenSessionCard(session: session, onEnd: { isEndingSession = true }) }
                 startButtons
                 if let session, !session.takes.isEmpty { TakesList(session: session) }
+                if !stuckTakes.isEmpty { StuckTakesList(takes: stuckTakes) }
             }
             .screenContent()
         }
@@ -49,6 +50,12 @@ struct HomeView: View {
                 try? await Task.sleep(for: .seconds(4))
             }
         }
+    }
+
+    /// Takes of ended sessions the server does not have yet. The open session's own takes
+    /// are listed under it.
+    private var stuckTakes: [LocalTake] {
+        app.store.pendingUploads.filter { app.store.session(id: $0.sessionId)?.isOpen == false }
     }
 
     private var processingTakeIDs: [String] {
@@ -237,6 +244,21 @@ private struct TakesList: View {
     }
 }
 
+/// Takes from ended sessions still waiting for upload, oldest first, each with why it failed.
+private struct StuckTakesList: View {
+    @Environment(AppModel.self) private var app
+    let takes: [LocalTake]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            SectionTitle("Waiting to upload")
+            ForEach(takes) { take in
+                TakeRow(take: take, prompt: app.store.prompt(id: take.promptId))
+            }
+        }
+    }
+}
+
 private struct TakeRow: View {
     @Environment(AppModel.self) private var app
     let take: LocalTake
@@ -286,13 +308,21 @@ private struct TakeRow: View {
 
     @ViewBuilder private var statusView: some View {
         if !take.isUploaded {
-            HStack(spacing: Theme.Spacing.s) {
-                Badge(text: "Not uploaded", color: Theme.Colors.caution)
-                if app.store.uploadingTakeIDs.contains(take.id) {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Button("Retry upload") { app.retryUpload(takeID: take.id) }
-                        .font(Theme.Fonts.captionEmphasis)
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                HStack(spacing: Theme.Spacing.s) {
+                    Badge(text: "Not uploaded", color: Theme.Colors.caution)
+                    if app.store.uploadingTakeIDs.contains(take.id) {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Retry upload") { app.retryUpload(takeID: take.id) }
+                            .font(Theme.Fonts.captionEmphasis)
+                    }
+                }
+                if let error = take.uploadError, !app.store.uploadingTakeIDs.contains(take.id) {
+                    Text(error)
+                        .font(Theme.Fonts.caption)
+                        .foregroundStyle(Theme.Colors.negative)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         } else if let remote = take.remote {

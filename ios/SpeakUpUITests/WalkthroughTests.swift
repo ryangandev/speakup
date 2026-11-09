@@ -147,10 +147,21 @@ final class WalkthroughTests: XCTestCase {
             .waitForExistence(timeout: 5))
         shootScrolling("21-report-no-coaching")
 
-        // Turn coaching on in the mock, then come back to the report.
-        app.swipeDown()
-        app.swipeDown()
-        app.navigationBars.buttons.firstMatch.tap()
+        // Retry without coaching: the comparison names which takes lack it.
+        app.buttons["Retry"].tap()
+        record(shotName: nil)
+        waitForReport(attempt: 2)
+        let card = app.buttons["report.comparison"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+        XCTAssertTrue(app.staticTexts["Neither take has coaching, so only metric changes are shown."]
+            .waitForExistence(timeout: 10))
+        shot("21-comparison-no-coaching")
+
+        // Turn coaching on in the mock, then come back to the first report.
+        app.navigationBars["Comparison"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Take 2"].waitForExistence(timeout: 5))
+        app.navigationBars["Take 2"].buttons.firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 5))
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
@@ -159,7 +170,7 @@ final class WalkthroughTests: XCTestCase {
         app.buttons["Normal"].firstMatch.tap()
         app.navigationBars["Settings"].buttons["Done"].tap()
         waitForServer()
-        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Take 1'")).firstMatch
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Take 1,'")).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
         let get = app.buttons["Get coaching"]
@@ -212,6 +223,13 @@ final class WalkthroughTests: XCTestCase {
         app.buttons["Back to Home"].tap()
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 5))
         shootScrolling("28-home-not-uploaded")
+
+        // Ending the session keeps the take on Home, with why it is stuck.
+        app.buttons["End session"].tap()
+        XCTAssertTrue(app.buttons["Skip"].waitForExistence(timeout: 5))
+        app.buttons["Skip"].tap()
+        XCTAssertTrue(app.staticTexts["Waiting to upload"].waitForExistence(timeout: 5))
+        shot("28-home-stuck-take")
     }
 
     func testSlowProcessing() throws {

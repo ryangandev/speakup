@@ -112,10 +112,13 @@ final class AppModel {
         }
     }
 
-    /// Retry upload from Home: uploads in place, without the Processing screen.
+    /// Retry upload from Home: uploads in place, without the Processing screen. A failure
+    /// is recorded on the take, and Home shows it under the row.
     func retryUpload(takeID: String) {
         Task {
-            _ = try? await sync.upload(takeID: takeID, progress: { _ in })
+            guard (try? await sync.upload(takeID: takeID, progress: { _ in })) != nil else { return }
+            // The rest of the queue (session ends, pruning) may have waited on this take.
+            await sync.syncPending()
             await sync.refreshOpenSessionTakes()
         }
     }

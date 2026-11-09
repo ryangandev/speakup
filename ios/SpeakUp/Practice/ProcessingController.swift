@@ -37,7 +37,8 @@ final class ProcessingController {
     private(set) var phase: Phase
     /// When server processing started, for the elapsed time on screen.
     private(set) var processingStartedAt: Date?
-    /// The last polling error, cleared by the next successful poll.
+    /// The last polling error, cleared by the next successful poll; or why Try again could
+    /// not start reprocessing.
     private(set) var connectionIssue: String?
     /// Every Take resource the controller receives, so the phone's copy stays current.
     @ObservationIgnored var onUpdate: ((Take) -> Void)?
@@ -101,9 +102,16 @@ final class ProcessingController {
         start()
     }
 
+    /// Back in the foreground. An upload that died while the phone was locked is retried,
+    /// which also picks up a take the background sync uploaded meanwhile, and polling goes on.
+    func resume() {
+        retryUpload()
+    }
+
     /// "Try again" on a failed take: reprocess from the start, then poll.
     func tryAgain() {
         guard case .failed = phase else { return }
+        connectionIssue = nil
         task?.cancel()
         task = Task { await reprocessAndPoll(from: .transcribing) }
     }

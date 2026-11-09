@@ -148,4 +148,61 @@ struct PracticeStoreTests {
         store.pruneFinishedSessions()
         #expect(store.sessions.map(\.id) == [unsent.id, open.id])
     }
+
+    // MARK: Older and broken files
+
+    /// A file written before fields with defaults existed (`is_created`, `is_end_sent`,
+    /// `is_uploaded`, `upload_error`, `remote`), as an app update would find it.
+    @Test func aFileMissingNewerFieldsStillLoads() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let old = """
+            [{
+              "id": "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10", "mode": "home",
+              "started_at": "2026-11-09T08:12:03.115Z", "nervousness_before": 3,
+              "prompts": [{
+                "id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8",
+                "session_id": "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10", "kind": "prepared",
+                "text": "Why Postgres?", "target_seconds": 120, "question_source": "typed",
+                "created_at": "2026-11-09T08:12:10.000Z"
+              }],
+              "takes": [{
+                "id": "e98b1f37-2a4c-4d1e-9f60-6b5c8a0d3e21",
+                "prompt_id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8",
+                "session_id": "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10", "attempt": 1,
+                "recorded_at": "2026-11-09T08:13:00.000Z", "duration_s": 61.2, "mic_route": "built_in",
+                "audio_sha256": "abc", "audio_file_name": "e98b1f37-2a4c-4d1e-9f60-6b5c8a0d3e21.wav"
+              }]
+            }]
+            """
+        try Data(old.utf8).write(to: directory.appending(path: "practice.json"))
+
+        let store = PracticeStore(directory: directory)
+        let session = try #require(store.openSession)
+        #expect(session.isCreated == false)
+        #expect(session.isEndSent == false)
+        #expect(store.prompt(id: "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8")?.isCreated == false)
+        let take = try #require(store.take(id: "e98b1f37-2a4c-4d1e-9f60-6b5c8a0d3e21"))
+        #expect(take.isUploaded == false)
+        #expect(take.uploadError == nil)
+        #expect(take.remote == nil)
+        #expect(store.pendingUploads.map(\.id) == [take.id])
+    }
+
+    @Test func aFileThatDoesNotDecodeIsMovedAsideNotOverwritten() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let garbage = Data("{ not the practice state".utf8)
+        let stateFile = directory.appending(path: "practice.json")
+        try garbage.write(to: stateFile)
+
+        let store = PracticeStore(directory: directory)
+        #expect(store.sessions.isEmpty)
+        // A save after the failed load writes a fresh file; the old one is kept beside it.
+        store.openNewSession(nervousnessBefore: nil)
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        let aside = try #require(files.first { $0.hasPrefix("practice.corrupt-") && $0.hasSuffix(".json") })
+        #expect(try Data(contentsOf: directory.appending(path: aside)) == garbage)
+        #expect(try Data(contentsOf: stateFile) != garbage)
+        #expect(PracticeStore(directory: directory).sessions.count == 1)
+    }
 }

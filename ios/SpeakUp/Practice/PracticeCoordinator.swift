@@ -20,13 +20,18 @@ final class PracticeCoordinator {
     /// Shown when the microphone is off for the app.
     var isMicrophoneDeniedAlertPresented = false
     var recordingError: String?
+    /// A take is being started; a second Record or Retry tap in the meantime is ignored, so
+    /// two engines never record at once.
+    private var isStarting = false
 
     @ObservationIgnored weak var app: AppModel?
 
     /// Records a new take of `prompt`. Recording starts here, before the cover appears, so
     /// it starts the moment Record is tapped.
     func record(_ prompt: LocalPrompt) async {
-        guard let app else { return }
+        guard let app, takeFlow == nil, !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
         guard await MicrophonePermission.request() else {
             isMicrophoneDeniedAlertPresented = true
             return
@@ -84,6 +89,8 @@ final class TakeFlowModel: Identifiable {
     private(set) var autoStopReason: AudioRecorder.StopReason?
     private(set) var takeID = IDs.make()
     var errorMessage: String?
+    /// A stopped recording that could not be kept; Save again or Cancel deals with it.
+    private(set) var unsavedRecording: AudioRecorder.Recording?
 
     @ObservationIgnored private unowned let app: AppModel
     @ObservationIgnored private weak var coordinator: PracticeCoordinator?
@@ -113,7 +120,17 @@ final class TakeFlowModel: Identifiable {
     /// Cancel: discard the recording. It never gets an attempt number.
     func discard() {
         recorder.cancel()
+        if let unsavedRecording {
+            try? FileManager.default.removeItem(at: unsavedRecording.url)
+            self.unsavedRecording = nil
+        }
         coordinator?.cancelTakeFlow()
+    }
+
+    /// Save again, after keeping a stopped recording failed.
+    func retryKeep() {
+        guard let unsavedRecording else { return }
+        keep(unsavedRecording)
     }
 
     private func keep(_ recording: AudioRecorder.Recording) {
@@ -122,16 +139,20 @@ final class TakeFlowModel: Identifiable {
         do {
             sha = try WAVWriter.sha256(of: recording.url)
         } catch {
-            errorMessage = "The recording could not be saved."
+            unsavedRecording = recording
+            errorMessage = "The recording could not be saved: \(error.localizedDescription)"
             return
         }
         guard
             app.store.keepTake(id: takeID, promptID: prompt.id, recording: recording, sha256: sha)
                 != nil
         else {
-            errorMessage = "The recording could not be saved."
+            unsavedRecording = recording
+            errorMessage = "The recording could not be saved: its prompt is no longer on this phone."
             return
         }
+        unsavedRecording = nil
+        errorMessage = nil
         let sync = app.sync
         let takeID = takeID
         let controller = ProcessingController(
