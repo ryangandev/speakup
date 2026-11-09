@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Two tabs, Practice and History; Settings is a sheet; the take flow covers everything.
+/// Two tabs, Practice and History; Settings is a sheet; the take flow and a drive cover
+/// everything.
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
@@ -25,6 +26,10 @@ struct RootView: View {
                 .environment(app)
                 .environment(app.player)
         }
+        .fullScreenCover(item: Binding(get: { app.drive }, set: { if $0 == nil { app.closeDrive() } })) { drive in
+            DriveView(drive: drive)
+                .environment(app)
+        }
         .alert("Microphone is off", isPresented: $practice.isMicrophoneDeniedAlertPresented) {
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -33,7 +38,7 @@ struct RootView: View {
             }
             Button("Not now", role: .cancel) {}
         } message: {
-            Text("SpeakUp needs the microphone to record a take. Turn it on in Settings.")
+            Text("SpeakUp needs the microphone to record a take or start a drive. Turn it on in Settings.")
         }
         .alert(
             "Could not start recording",
@@ -53,7 +58,12 @@ struct RootView: View {
         } message: {
             Text(app.player.errorMessage ?? "")
         }
-        .task { await app.refresh() }
+        .task {
+            #if DEBUG
+            if DebugLaunch.startsDrive { await app.startDrive() }
+            #endif
+            await app.refresh()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await app.refresh() } }
         }

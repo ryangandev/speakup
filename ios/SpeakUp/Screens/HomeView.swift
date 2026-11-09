@@ -6,7 +6,7 @@ struct HomeView: View {
     @State private var pendingRoute: PracticeRoute?
     @State private var isEndingSession = false
 
-    private var session: LocalSession? { app.store.openSession }
+    private var session: LocalSession? { app.store.openHomeSession }
 
     var body: some View {
         ScrollView {
@@ -14,6 +14,7 @@ struct HomeView: View {
                 ServerStatusRow(status: app.serverStatus)
                 if let session { OpenSessionCard(session: session, onEnd: { isEndingSession = true }) }
                 startButtons
+                DriveCard { Task { await app.startDrive() } }
                 if let session, !session.takes.isEmpty { TakesList(session: session) }
                 if !stuckTakes.isEmpty { StuckTakesList(takes: stuckTakes) }
             }
@@ -36,6 +37,13 @@ struct HomeView: View {
             NervousnessSheet(title: "Before you start: how nervous do you feel?") { rating in
                 app.store.openNewSession(nervousnessBefore: rating)
                 app.practice.path.append(route)
+            }
+        }
+        .onChange(of: app.isDriving) { _, driving in
+            // Siri can start a drive with a sheet up; the drive's cover goes over Home.
+            if driving {
+                pendingRoute = nil
+                isEndingSession = false
             }
         }
         .sheet(isPresented: $isEndingSession) {
@@ -114,6 +122,39 @@ private struct StartButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("start.\(title.lowercased())")
+    }
+}
+
+/// Starts a drive: hands-free practice in the car (product.md#driving-mode).
+private struct DriveCard: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.m) {
+                Image(systemName: "car.fill")
+                    .font(Theme.Fonts.title)
+                    .foregroundStyle(Theme.Colors.accent)
+                    .frame(minWidth: 32)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text("Start a drive").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    Text("Hands-free in the car: questions, answers and feedback by voice")
+                        .font(Theme.Fonts.secondary).foregroundStyle(Theme.Colors.textSecondary)
+                }
+                .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(Theme.Fonts.bodyEmphasis)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+            .padding(Theme.Spacing.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("start.drive")
+        .accessibilityHint("Starts a drive. Siri can too: say Start a SpeakUp drive.")
     }
 }
 
