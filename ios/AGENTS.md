@@ -57,6 +57,7 @@ The project uses synchronized folders: a new file under `SpeakUp/`, `SpeakUpTest
 - Contract enums are `OpenEnum` structs, not Swift enums, so a value the server adds later decodes instead of failing the whole response. Every `switch` over one needs a default that does something sensible.
 - Ids the app creates are lowercase UUIDs from `IDs.make()`, and every create is an idempotent `PUT`, so retries are always safe. Never retry with a new id.
 - A take is written to the phone before it is uploaded and is only dropped once the server has it. Do not delete take audio anywhere except `PracticeStore.pruneFinishedSessions`.
+  The exceptions are files the store never received: a recording discarded before it is kept (home Cancel), and a drive take that `DriveAudio` reports as `.empty` (no input reached it, or the cut left no audio), which it deletes itself.
 - The server token lives in the Keychain only. Never log it, put it in `UserDefaults` or show it unmasked.
 - Mock code is wrapped in `#if DEBUG`. Anything that references it must be too, or Release will not build.
 - When a contract example changes, update its fixture in `SpeakUpTests/Fixtures/` verbatim; the decoding tests are only as good as the fixtures.

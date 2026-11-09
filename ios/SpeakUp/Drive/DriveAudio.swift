@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import Observation
+import os
 
 /// What the drive loop needs from the audio core, so its tests can use a fake.
 @MainActor
@@ -12,10 +13,10 @@ protocol DriveAudioControlling: AnyObject {
     var onEvent: ((DriveAudio.Event) -> Void)? { get set }
 
     func start() async throws
-    func stop() async -> DriveAudio.FinishedTake?
+    func stop() async -> DriveAudio.TakeEnd?
     func recognizerBuffers() -> AsyncStream<DriveAudioBuffer>
-    func openTake(url: URL) throws
-    func finishTake(cutAt: TimeInterval?, reason: AudioRecorder.StopReason) async throws -> DriveAudio.FinishedTake?
+    func openTake(url: URL, at start: TimeInterval?) throws
+    func finishTake(cutAt: TimeInterval?, reason: AudioRecorder.StopReason) async -> DriveAudio.TakeEnd?
 }
 
 /// The audio core of a drive (plan section 4): one `AVAudioEngine` that runs from the start
@@ -29,28 +30,61 @@ protocol DriveAudioControlling: AnyObject {
 /// Because both outputs use the same clock, a time the recognizer reports (the start of
 /// "done") maps to an exact frame of the take, and `finishTake(cutAt:)` trims the take there.
 ///
-/// `player` is the seam for spoken prompts and tones: it is attached to the engine and
-/// connected to the output, in `playerFormat` until `connectPlayer(format:)` changes it.
+/// Every way a take ends gives exactly one `TakeEnd`: as the return value of `finishTake` or
+/// `stop()` when the loop ends it, or inside exactly one event when the audio core ends it.
+/// A take whose file the store never received is deleted here when it holds no audio
+/// (`.empty`); that is the one exception to "only the prune deletes take audio".
+///
+/// `player` is the seam for spoken prompts and tones: it is attached to the engine, connected
+/// to the output (in `playerFormat` until `connectPlayer(format:)` changes it), and playing
+/// whenever the engine runs, so a scheduled buffer plays at once.
 @MainActor
 @Observable
 final class DriveAudio: DriveAudioControlling {
+    /// What the audio core does by itself. Events arrive in the order things happened; one
+    /// that carries a take arrives once the take is finished and hashed.
     enum Event: Sendable, Equatable {
-        /// The audio core ended the open take by itself and kept it up to that point:
-        /// `.interrupted` for a call or Siri, `.routeChanged` when the microphone changed.
-        case takeEnded(FinishedTake)
-        /// A call or Siri took the audio. Input stops until the interruption ends.
-        case interrupted
+        /// The microphone changed during a take, which ends it, kept up to that point.
+        /// A take that was opened but had no input yet is moved to the new microphone instead,
+        /// with no event.
+        case takeEnded(TakeEnd)
+        /// A call or Siri took the audio. Input stops until the interruption ends. Carries the
+        /// take that was open, if any.
+        case interrupted(TakeEnd?)
         /// The interruption ended. `resumed` is false when the system said not to resume or
         /// the engine could not restart; the drive then ends.
         case interruptionEnded(resumed: Bool)
-        /// The engine stopped and could not restart. The drive ends.
-        case failed(String)
+        /// The engine stopped and could not restart, and the audio core has stopped. Carries
+        /// the take that was open, if any. The drive ends.
+        case failed(String, TakeEnd?)
+    }
+
+    /// How a take ended.
+    enum TakeEnd: Sendable, Equatable {
+        /// Keep it: `PracticeStore.keepTake` with the recording and hash.
+        case kept(FinishedTake)
+        /// Nothing to keep: no input reached the take, or the cut was at or before its start.
+        /// Its file is already deleted. The loop says it did not catch an answer.
+        case empty(AudioRecorder.StopReason)
+        /// Writing or hashing the file failed (a full disk, say). Nothing can be kept.
+        case failed(AudioRecorder.StopReason, message: String)
     }
 
     /// A take as the store keeps it: the trimmed file and the hash of the trimmed file.
     struct FinishedTake: Sendable, Equatable {
         let recording: AudioRecorder.Recording
         let sha256: String
+        /// Where input was missing (an engine restart). The audio on either side is spliced,
+        /// not padded with silence: padding would invent a pause the speaker never made.
+        let gaps: [Gap]
+    }
+
+    /// Missing input inside a take.
+    struct Gap: Sendable, Equatable {
+        /// Seconds into the take's file where the splice is.
+        let at: TimeInterval
+        /// Seconds of input that were lost there.
+        let length: TimeInterval
     }
 
     enum DriveAudioError: LocalizedError {
@@ -76,6 +110,8 @@ final class DriveAudio: DriveAudioControlling {
 
     /// Speech and tones go through this node (task 4 schedules buffers on it).
     let player = AVAudioPlayerNode()
+    /// The format `player` plays; a scheduled buffer must be in it.
+    private(set) var playerFormat = DriveAudio.playerFormat
 
     private let engine = AVAudioEngine()
     private let input: Input
@@ -86,6 +122,8 @@ final class DriveAudio: DriveAudioControlling {
     private var micName = ""
     private var isInterrupted = false
     private var observers: [NSObjectProtocol] = []
+    /// The latest queued event; each event waits for the one before it.
+    private var pendingEvent: Task<Void, Never>?
 
     /// Where the input comes from.
     enum Input {
@@ -114,8 +152,7 @@ final class DriveAudio: DriveAudioControlling {
 
     var now: TimeInterval { tap.now }
 
-    /// The format `player` plays; a scheduled buffer must be in it.
-    private(set) var playerFormat = DriveAudio.playerFormat
+    var takeDuration: TimeInterval? { tap.gate.duration }
 
     /// Connects `player` in the format of the buffers about to be scheduled, such as the
     /// 22.05 kHz mono buffers `AVSpeechSynthesizer.write` delivers, so they need no conversion.
@@ -124,9 +161,8 @@ final class DriveAudio: DriveAudioControlling {
         engine.disconnectNodeOutput(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
         playerFormat = format
+        if engine.isRunning, !player.isPlaying { player.play() }
     }
-
-    var takeDuration: TimeInterval? { tap.gate.duration }
 
     // MARK: Start and stop
 
@@ -165,18 +201,23 @@ final class DriveAudio: DriveAudioControlling {
         observeSession()
     }
 
-    /// Stops the engine and deactivates the session. An open take is finished and returned,
-    /// kept up to this point; the caller decides whether to keep it.
-    func stop() async -> FinishedTake? {
-        guard isRunning else { return nil }
-        let take = try? await finishTake(cutAt: nil, reason: .finished)
+    /// Stops the engine and deactivates the session. Events already under way are delivered
+    /// first. A take still open is finished, kept up to this point, and returned; the
+    /// caller decides whether to keep it.
+    func stop() async -> TakeEnd? {
+        guard isRunning else {
+            await pendingEvent?.value
+            return nil
+        }
         isRunning = false
-        for observer in observers { NotificationCenter.default.removeObserver(observer) }
-        observers.removeAll()
+        removeObservers()
+        let finish = closeGate(reason: .finished)
         stopEngine()
         tap.finishRecognizerStream()
+        await pendingEvent?.value
+        let end = await finish?(nil)
         await AudioSessionConfig.deactivateAfterDriving()
-        return take
+        return end
     }
 
     private func startEngine() throws {
@@ -189,10 +230,7 @@ final class DriveAudio: DriveAudioControlling {
             guard format.sampleRate > 0, format.channelCount > 0, hardware.sampleRate > 0 else {
                 throw AudioRecorder.RecorderError.noInput
             }
-            let route = AVAudioSession.sharedInstance().currentRoute.inputs.first
-            micRoute = MicRoute(port: route?.portType)
-            micName = route?.portName ?? "Microphone"
-            inputPortID = route?.uid
+            updateRoute()
             inputFormat = format
             tap.startSegment(rate: format.sampleRate)
             node.installTap(onBus: 0, bufferSize: 4096, format: format, block: Self.tapBlock(for: tap))
@@ -204,6 +242,8 @@ final class DriveAudio: DriveAudioControlling {
             if case .microphone = input { engine.inputNode.removeTap(onBus: 0) }
             throw error
         }
+        // Stopping the engine stops its player nodes; speech scheduled later must play.
+        if !player.isPlaying { player.play() }
     }
 
     private func stopEngine() {
@@ -215,6 +255,13 @@ final class DriveAudio: DriveAudioControlling {
         }
         player.stop()
         engine.stop()
+    }
+
+    private func updateRoute() {
+        let route = AVAudioSession.sharedInstance().currentRoute.inputs.first
+        micRoute = MicRoute(port: route?.portType)
+        micName = route?.portName ?? "Microphone"
+        inputPortID = route?.uid
     }
 
     /// Built outside the main actor: the tap runs on an audio thread.
@@ -232,29 +279,55 @@ final class DriveAudio: DriveAudioControlling {
 
     // MARK: Takes
 
-    /// Opens the take gate: the take starts with the next input buffer, at that buffer's
-    /// time on the drive clock.
-    func openTake(url: URL) throws {
-        guard isRunning, let inputFormat else { throw DriveAudioError.notRunning }
+    /// Opens the take gate. The take starts exactly at drive time `start` (now when nil):
+    /// input before it, such as the tail of the tone, is left out, even inside one buffer.
+    func openTake(url: URL, at start: TimeInterval? = nil) throws {
+        guard isRunning, !isInterrupted, let inputFormat else { throw DriveAudioError.notRunning }
         guard !tap.gate.isActive else { throw DriveAudioError.takeAlreadyOpen }
         let sink = try RecordingSink(url: url, inputFormat: inputFormat)
-        tap.gate.arm(sink, micRoute: micRoute, micName: micName)
+        tap.gate.arm(sink, at: start ?? tap.now, micRoute: micRoute, micName: micName)
         isTakeOpen = true
         #if DEBUG
         if case .scripted(let microphone) = input { microphone.playTakeClip() }
         #endif
     }
 
-    /// Closes the take gate, trims the take, and hashes the trimmed file.
+    /// Closes the take gate, trims the take, and hashes the trimmed file. Nil when no take
+    /// was open.
     ///
     /// `cutAt` is the start of "done" on the drive clock (`CommandSpotter.Event.done`); the
     /// take keeps everything before `cutAt - cutMargin`. Nil keeps the whole take (time
-    /// limit, interruption, stop).
-    func finishTake(cutAt: TimeInterval?, reason: AudioRecorder.StopReason) async throws -> FinishedTake? {
-        guard let closed = tap.gate.close() else { return nil }
+    /// limit, stop). A cut at or before the take's start leaves nothing: `.empty`.
+    func finishTake(cutAt: TimeInterval?, reason: AudioRecorder.StopReason) async -> TakeEnd? {
+        guard let finish = closeGate(reason: reason) else { return nil }
+        return await finish(cutAt.map { $0 - Self.cutMargin })
+    }
+
+    /// Closes the gate now, so no later input reaches the take, and returns how to finish
+    /// what it held (nil when nothing was armed or open).
+    private func closeGate(
+        reason: AudioRecorder.StopReason
+    ) -> (@Sendable (TimeInterval?) async -> TakeEnd)? {
+        let closed = tap.gate.close()
         isTakeOpen = false
-        let cut = cutAt.map { $0 - Self.cutMargin }
-        return try await Task.detached { try closed.finish(cutAt: cut, reason: reason) }.value
+        switch closed {
+        case .nothing:
+            return nil
+        case .empty:
+            return { _ in .empty(reason) }
+        case .take(let take):
+            return { cut in await Task.detached { take.finish(cutAt: cut, reason: reason) }.value }
+        }
+    }
+
+    /// Queues an event after the ones before it. `make` may finish a take first.
+    private func emit(_ make: @escaping @MainActor @Sendable () async -> Event) {
+        let previous = pendingEvent
+        pendingEvent = Task { @MainActor in
+            await previous?.value
+            let event = await make()
+            onEvent?(event)
+        }
     }
 
     // MARK: Interruptions and route changes
@@ -301,27 +374,35 @@ final class DriveAudio: DriveAudioControlling {
             })
     }
 
+    private func removeObservers() {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+        observers.removeAll()
+    }
+
     private func interruptionBegan() {
         guard isRunning, !isInterrupted else { return }
         isInterrupted = true
-        endTakeByItself(.interrupted)
-        onEvent?(.interrupted)
+        let finish = closeGate(reason: .interrupted)
+        emit { .interrupted(await finish?(nil)) }
     }
 
     private func interruptionEnded(shouldResume: Bool) {
         guard isRunning, isInterrupted else { return }
         isInterrupted = false
         guard shouldResume else {
-            onEvent?(.interruptionEnded(resumed: false))
+            emit { .interruptionEnded(resumed: false) }
             return
         }
-        Task {
+        emit { [weak self] in
+            guard let self else { return .interruptionEnded(resumed: false) }
             do {
                 try await AudioSessionConfig.activateForDriving()
-                try restartEngine()
-                onEvent?(.interruptionEnded(resumed: true))
+                // The drive may have stopped, or been interrupted again, meanwhile.
+                guard self.isRunning, !self.isInterrupted else { return .interruptionEnded(resumed: false) }
+                try self.restartEngine()
+                return .interruptionEnded(resumed: true)
             } catch {
-                onEvent?(.interruptionEnded(resumed: false))
+                return .interruptionEnded(resumed: false)
             }
         }
     }
@@ -333,10 +414,8 @@ final class DriveAudio: DriveAudioControlling {
         if reason == .newDeviceAvailable { AudioSessionConfig.preferBuiltInMicrophone() }
         let current = AVAudioSession.sharedInstance().currentRoute.inputs.first
         guard current?.uid != inputPortID else { return }
-        inputPortID = current?.uid
-        micRoute = MicRoute(port: current?.portType)
-        micName = current?.portName ?? "Microphone"
-        endTakeByItself(.routeChanged)
+        updateRoute()
+        inputChanged(to: inputFormat)
     }
 
     /// The engine stops itself when the hardware configuration changes; restart it at once
@@ -351,40 +430,55 @@ final class DriveAudio: DriveAudioControlling {
     }
 
     /// Starts the engine again after it stopped. The drive clock moves on by the time that
-    /// passed, so recognizer times stay monotonic. An open take continues when the input
-    /// format is the same, and ends otherwise.
+    /// passed, so recognizer times stay monotonic. An open take goes on (spliced over the
+    /// gap) when the microphone and its format are the same, and ends otherwise. This
+    /// notification can come before the route change's, so the port is checked here too.
     private func restartEngine() throws {
         if case .microphone = input {
             engine.inputNode.removeTap(onBus: 0)
-            // The take's file converts from the old format; end it before any buffer in the
-            // new one reaches the gate.
-            if let inputFormat, engine.inputNode.outputFormat(forBus: 0) != inputFormat {
-                endTakeByItself(.routeChanged)
+            let format = engine.inputNode.outputFormat(forBus: 0)
+            let port = AVAudioSession.sharedInstance().currentRoute.inputs.first?.uid
+            if port != inputPortID || format != inputFormat {
+                updateRoute()
+                inputChanged(to: format)
             }
         }
         try startEngine()
     }
 
-    private func fail(_ message: String) {
-        guard isRunning else { return }
-        endTakeByItself(.interrupted)
-        isRunning = false
-        for observer in observers { NotificationCenter.default.removeObserver(observer) }
-        observers.removeAll()
-        stopEngine()
-        tap.finishRecognizerStream()
-        onEvent?(.failed(message))
-        Task { await AudioSessionConfig.deactivateAfterDriving() }
+    /// The microphone or its format changed. An open take ends here, kept up to this point.
+    /// A take with no input yet moves to the new microphone at the same start.
+    private func inputChanged(to format: AVAudioFormat?) {
+        guard tap.gate.isActive else { return }
+        if let format, tap.gate.isArmedOnly {
+            let route = micRoute
+            let name = micName
+            do {
+                if try tap.gate.rearm(micRoute: route, micName: name, sink: { try RecordingSink(url: $0, inputFormat: format) }) {
+                    return
+                }
+            } catch {
+                isTakeOpen = false
+                emit { .takeEnded(.failed(.routeChanged, message: "The take could not move to the new microphone: \(error.localizedDescription)")) }
+                return
+            }
+        }
+        let finish = closeGate(reason: .routeChanged)
+        if let finish { emit { .takeEnded(await finish(nil)) } }
     }
 
-    /// Closes the gate at once, so no later input reaches the take, then finishes the take
-    /// and reports it.
-    private func endTakeByItself(_ reason: AudioRecorder.StopReason) {
-        guard let closed = tap.gate.close() else { return }
-        isTakeOpen = false
-        Task {
-            let finished = try? await Task.detached { try closed.finish(cutAt: nil, reason: reason) }.value
-            if let finished { onEvent?(.takeEnded(finished)) }
+    /// Stops everything after an unrecoverable error and reports it with any open take.
+    private func fail(_ message: String) {
+        guard isRunning else { return }
+        isRunning = false
+        removeObservers()
+        let finish = closeGate(reason: .interrupted)
+        stopEngine()
+        tap.finishRecognizerStream()
+        emit {
+            let end = await finish?(nil)
+            await AudioSessionConfig.deactivateAfterDriving()
+            return .failed(message, end)
         }
     }
 }
@@ -483,15 +577,23 @@ final class DriveTap: @unchecked Sendable {
 
 /// Writes input to a take only while the take is open.
 ///
-/// `arm` opens it at the next buffer, so the take's first frame is that buffer's start on
-/// the drive clock. The gate records where each run of contiguous input starts, as a
-/// (drive time, take frame) pair, so a drive time maps to the right take frame even when a
-/// restart left a gap.
+/// `arm` sets the take's start on the drive clock; the take opens with the first input at or
+/// after it, dropping the frames of that buffer that come before it. The gate records where
+/// each run of contiguous input starts, as a (drive time, take frame) pair, so a drive time
+/// maps to the right take frame even when a restart left a gap.
 final class TakeGate: @unchecked Sendable {
     /// Where a run of contiguous input starts: its drive time and its first take frame.
     struct Segment: Sendable, Equatable {
         var time: TimeInterval
         var frame: Int
+    }
+
+    /// What `close()` found.
+    enum Closed {
+        case nothing
+        /// Armed, but no input reached it; its file is deleted.
+        case empty
+        case take(ClosedTake)
     }
 
     /// A take whose gate has closed, ready to trim and hash.
@@ -502,25 +604,49 @@ final class TakeGate: @unchecked Sendable {
         let micName: String
         let segments: [Segment]
 
-        /// Trims at drive time `cut` (keeps everything when nil), finishes the file and hashes it.
-        func finish(cutAt cut: TimeInterval?, reason: AudioRecorder.StopReason) throws -> DriveAudio.FinishedTake {
+        private static let log = Logger(subsystem: "dev.ryangan.speakup", category: "DriveAudio")
+
+        /// Trims at drive time `cut` (keeps everything when nil), finishes the file and hashes
+        /// it. A take left with no frames is deleted and reported as `.empty`.
+        func finish(cutAt cut: TimeInterval?, reason: AudioRecorder.StopReason) -> DriveAudio.TakeEnd {
             let keep = cut.map {
                 TakeGate.frame(at: $0, segments: segments, outputRate: sink.outputRate, frames: sink.frames)
             }
-            let frames = try sink.finish(keepingFrames: keep)
-            let sha = try WAVWriter.sha256(of: sink.url)
+            let frames: Int
+            do {
+                frames = try sink.finish(keepingFrames: keep)
+            } catch {
+                return .failed(reason, message: "The take could not be written: \(error.localizedDescription)")
+            }
+            guard frames > 0 else {
+                // The store never saw this file, and it holds no audio.
+                try? FileManager.default.removeItem(at: sink.url)
+                return .empty(reason)
+            }
+            let sha: String
+            do {
+                sha = try WAVWriter.sha256(of: sink.url)
+            } catch {
+                return .failed(reason, message: "The take could not be read back: \(error.localizedDescription)")
+            }
+            let gaps = TakeGate.gaps(in: segments, outputRate: sink.outputRate, frames: frames)
+            for gap in gaps {
+                Self.log.notice(
+                    "Take \(sink.url.lastPathComponent, privacy: .public) has \(gap.length, privacy: .public) s of input missing at \(gap.at, privacy: .public) s")
+            }
             let recording = AudioRecorder.Recording(
                 url: sink.url, recordedAt: recordedAt,
                 duration: Double(frames) / Double(sink.outputRate), sampleRate: sink.outputRate,
                 micRoute: micRoute, micName: micName, stopReason: reason)
-            return DriveAudio.FinishedTake(recording: recording, sha256: sha)
+            return .kept(DriveAudio.FinishedTake(recording: recording, sha256: sha, gaps: gaps))
         }
     }
 
-    private enum State {
-        case closed
-        case armed(RecordingSink, MicRoute, String)
-        case open(Open)
+    private struct Armed {
+        let sink: RecordingSink
+        let start: TimeInterval
+        let micRoute: MicRoute
+        let micName: String
     }
 
     private struct Open {
@@ -532,6 +658,12 @@ final class TakeGate: @unchecked Sendable {
         var expectedNext: TimeInterval
     }
 
+    private enum State {
+        case closed
+        case armed(Armed)
+        case open(Open)
+    }
+
     private let lock = NSLock()
     private var state = State.closed
 
@@ -540,6 +672,14 @@ final class TakeGate: @unchecked Sendable {
         lock.withLock {
             if case .closed = state { return false }
             return true
+        }
+    }
+
+    /// Armed, with no input in the take yet.
+    var isArmedOnly: Bool {
+        lock.withLock {
+            if case .armed = state { return true }
+            return false
         }
     }
 
@@ -554,38 +694,61 @@ final class TakeGate: @unchecked Sendable {
         }
     }
 
-    func arm(_ sink: RecordingSink, micRoute: MicRoute, micName: String) {
-        lock.withLock { state = .armed(sink, micRoute, micName) }
+    /// Opens the take at drive time `start`.
+    func arm(_ sink: RecordingSink, at start: TimeInterval, micRoute: MicRoute, micName: String) {
+        lock.withLock { state = .armed(Armed(sink: sink, start: start, micRoute: micRoute, micName: micName)) }
+    }
+
+    /// Replaces an armed take's file with one from `sink` (same URL, new input format) and
+    /// keeps its start. Returns false when the gate is not armed with no input yet.
+    func rearm(micRoute: MicRoute, micName: String, sink makeSink: (URL) throws -> RecordingSink) throws -> Bool {
+        try lock.withLock {
+            guard case .armed(let armed) = state else { return false }
+            _ = try? armed.sink.finish()
+            try? FileManager.default.removeItem(at: armed.sink.url)
+            do {
+                let sink = try makeSink(armed.sink.url)
+                state = .armed(Armed(sink: sink, start: armed.start, micRoute: micRoute, micName: micName))
+                return true
+            } catch {
+                state = .closed
+                throw error
+            }
+        }
     }
 
     /// Called for every input buffer; writes it only while the take is open.
     func ingest(_ buffer: AVAudioPCMBuffer, at time: TimeInterval) {
         lock.withLock {
-            let length = Double(buffer.frameLength) / buffer.format.sampleRate
+            let rate = buffer.format.sampleRate
+            let frames = Int(buffer.frameLength)
+            let end = time + Double(frames) / rate
             switch state {
             case .closed:
                 return
-            case .armed(let sink, let route, let name):
+            case .armed(let armed):
+                let skip = max(0, Int(((armed.start - time) * rate).rounded()))
+                guard skip < frames, let used = skip == 0 ? buffer : buffer.dropFirst(skip) else { return }
                 state = .open(
                     Open(
-                        sink: sink, recordedAt: Date(), micRoute: route, micName: name,
-                        segments: [Segment(time: time, frame: 0)], expectedNext: time + length))
-                sink.append(buffer)
+                        sink: armed.sink, recordedAt: Date(), micRoute: armed.micRoute, micName: armed.micName,
+                        segments: [Segment(time: skip > 0 ? armed.start : time, frame: 0)], expectedNext: end))
+                armed.sink.append(used)
             case .open(var open):
                 // Half a frame of slack absorbs floating-point rounding of contiguous times.
-                if abs(time - open.expectedNext) > 0.5 / buffer.format.sampleRate {
+                if abs(time - open.expectedNext) > 0.5 / rate {
                     open.segments.append(Segment(time: time, frame: open.sink.frames))
                 }
-                open.expectedNext = time + length
+                open.expectedNext = end
                 open.sink.append(buffer)
                 state = .open(open)
             }
         }
     }
 
-    /// Closes the gate. Returns the take, or nil when no input reached it (an armed gate
-    /// that never opened deletes its empty file, which no take ever pointed at).
-    func close() -> ClosedTake? {
+    /// Closes the gate. An armed gate that never got input deletes its file, which no take
+    /// ever pointed at.
+    func close() -> Closed {
         let previous = lock.withLock {
             let previous = state
             state = .closed
@@ -593,15 +756,16 @@ final class TakeGate: @unchecked Sendable {
         }
         switch previous {
         case .closed:
-            return nil
-        case .armed(let sink, _, _):
-            _ = try? sink.finish()
-            try? FileManager.default.removeItem(at: sink.url)
-            return nil
+            return .nothing
+        case .armed(let armed):
+            _ = try? armed.sink.finish()
+            try? FileManager.default.removeItem(at: armed.sink.url)
+            return .empty
         case .open(let open):
-            return ClosedTake(
-                sink: open.sink, recordedAt: open.recordedAt, micRoute: open.micRoute,
-                micName: open.micName, segments: open.segments)
+            return .take(
+                ClosedTake(
+                    sink: open.sink, recordedAt: open.recordedAt, micRoute: open.micRoute,
+                    micName: open.micName, segments: open.segments))
         }
     }
 
@@ -613,6 +777,34 @@ final class TakeGate: @unchecked Sendable {
         let limit = index + 1 < segments.count ? segments[index + 1].frame : frames
         let offset = Int(((time - segment.time) * Double(outputRate)).rounded())
         return min(max(segment.frame + offset, segment.frame), limit)
+    }
+
+    /// The gaps between segments that lie inside the first `frames` frames of the take.
+    static func gaps(in segments: [Segment], outputRate: Int, frames: Int) -> [DriveAudio.Gap] {
+        zip(segments, segments.dropFirst()).compactMap { previous, segment in
+            guard segment.frame < frames else { return nil }
+            let previousEnd = previous.time + Double(segment.frame - previous.frame) / Double(outputRate)
+            return DriveAudio.Gap(
+                at: Double(segment.frame) / Double(outputRate), length: max(0, segment.time - previousEnd))
+        }
+    }
+}
+
+extension AVAudioPCMBuffer {
+    /// A copy without the first `count` frames, for float buffers (what the input tap and the
+    /// scripted microphone deliver).
+    func dropFirst(_ count: Int) -> AVAudioPCMBuffer? {
+        let remaining = Int(frameLength) - count
+        guard remaining > 0, let source = floatChannelData,
+            let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(remaining)),
+            let target = copy.floatChannelData
+        else { return nil }
+        copy.frameLength = AVAudioFrameCount(remaining)
+        let stride = self.stride
+        for channel in 0..<(format.isInterleaved ? 1 : Int(format.channelCount)) {
+            target[channel].update(from: source[channel] + count * stride, count: remaining * stride)
+        }
+        return copy
     }
 }
 
