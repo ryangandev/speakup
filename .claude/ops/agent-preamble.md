@@ -34,3 +34,9 @@ A task brief adds only what is specific to the task.
 - Reproduce a bug before fixing it.
 - If you see a failing test or a warning, even outside your task, report it; fix it only if it is inside your scope.
 - Stop and report instead of guessing when the plan does not hold, the scope grows, or a check fails for a reason outside your task.
+
+## Shared files during parallel M1 work
+
+- Do not edit `server/pyproject.toml` or `server/uv.lock`: every dependency M1 needs is already there. If you need another, stop and ask the orchestrator.
+- Do not edit `AGENTS.md`, `docs/README.md` or `docs/status.md`. Put proposed changes (new commands, status lines) in your report; the orchestrator applies them.
+- `docs/architecture.md` and `docs/product.md` are the contract. Do not edit them to fit your code. If the contract is wrong or impossible, stop and report; if you deviate in a small way, list it in your report.
