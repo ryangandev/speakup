@@ -55,14 +55,17 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// A secondary action next to a primary one.
+/// A secondary action next to a primary one. A destructive role reads in the negative colour.
 struct SecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Theme.Fonts.bodyEmphasis)
-            .foregroundStyle(isEnabled ? Theme.Colors.accent : Theme.Colors.textTertiary)
+            .foregroundStyle(
+                isEnabled
+                    ? (configuration.role == .destructive ? Theme.Colors.negative : Theme.Colors.accent)
+                    : Theme.Colors.textTertiary)
             .frame(maxWidth: .infinity, minHeight: 50)
             .padding(.horizontal, Theme.Spacing.m)
             .background(

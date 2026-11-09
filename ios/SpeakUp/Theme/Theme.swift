@@ -53,9 +53,13 @@ enum Theme {
     }
 
     /// Driving mode: what the drive is doing, read at a glance from a phone on a mount.
-    /// Sizes are bases that Dynamic Type scales (`@ScaledMetric` in the view).
+    /// Sizes are bases that Dynamic Type scales (`@ScaledMetric` in the view), up to caps that
+    /// keep the status, its detail and the question on one screen at accessibility sizes.
     enum Drive {
         static let statusSize: CGFloat = 40
+        static let statusMaxSize: CGFloat = 52
+        /// The largest size the detail, the question and the count grow to.
+        static let maxTypeSize = DynamicTypeSize.accessibility1
         static let symbolSize: CGFloat = 56
         static func status(size: CGFloat) -> Font { .system(size: size, weight: .bold, design: .rounded) }
         static func symbol(size: CGFloat) -> Font { .system(size: size, weight: .semibold) }

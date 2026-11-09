@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A drive, full screen (product.md#driving-mode): what the drive is doing, in words big enough
-/// to read from a mount at a glance, then a summary when it ends.
+/// A drive, in place of the tabs (product.md#driving-mode): what the drive is doing, in words
+/// big enough to read from a mount at a glance, then a summary when it ends.
 ///
 /// Nothing here is ever needed: the drive runs by voice from start to end. Stop is for a
 /// passenger, or when parked. The screen stays awake while the drive runs.
@@ -18,7 +18,6 @@ struct DriveView: View {
             }
         }
         .background(Theme.Colors.background.ignoresSafeArea())
-        .interactiveDismissDisabled()
         .onChange(of: drive.hasEnded, initial: true) { _, ended in
             UIApplication.shared.isIdleTimerDisabled = !ended
         }
@@ -31,6 +30,7 @@ private struct DriveRunningView: View {
     let drive: DriveLoop
     @ScaledMetric(relativeTo: .largeTitle) private var statusSize = Theme.Drive.statusSize
     @ScaledMetric(relativeTo: .largeTitle) private var symbolSize = Theme.Drive.symbolSize
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var status: DriveStatus { DriveStatus(drive.state) }
 
@@ -49,7 +49,7 @@ private struct DriveRunningView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
-            BottomBar {
+            BottomBar(hasMaterial: false) {
                 #if DEBUG
                 SpokenLogText(drive: drive)
                 #endif
@@ -60,6 +60,7 @@ private struct DriveRunningView: View {
                 }
                 .buttonStyle(.secondary)
                 .disabled(drive.state == .ending)
+                .dynamicTypeSize(...Theme.Drive.maxTypeSize)
                 .accessibilityHint("Ends the drive. Saying stop does the same.")
             }
         }
@@ -67,20 +68,24 @@ private struct DriveRunningView: View {
 
     private var statusBlock: some View {
         VStack(spacing: Theme.Spacing.l) {
-            Image(systemName: status.symbol)
-                .font(Theme.Drive.symbol(size: symbolSize))
-                .foregroundStyle(status.tint)
-                // Scales only: a pulse dims the icon, and it must stay readable at a glance.
-                .symbolEffect(.breathe.plain, options: .repeating, isActive: drive.state == .recording)
-                .frame(height: symbolSize * 1.2)
-                .accessibilityHidden(true)
+            // At accessibility sizes the words need the room more than the symbol does.
+            if !typeSize.isAccessibilitySize {
+                Image(systemName: status.symbol)
+                    .font(Theme.Drive.symbol(size: symbolSize))
+                    .foregroundStyle(status.tint)
+                    // Scales only: a pulse dims the icon, and it must stay readable at a glance.
+                    .symbolEffect(.breathe.plain, options: .repeating, isActive: drive.state == .recording)
+                    .frame(height: symbolSize * 1.2)
+                    .accessibilityHidden(true)
+            }
             Text(status.title)
-                .font(Theme.Drive.status(size: statusSize))
+                .font(Theme.Drive.status(size: min(statusSize, Theme.Drive.statusMaxSize)))
                 .foregroundStyle(Theme.Colors.textPrimary)
             if let detail = status.detail {
                 Text(detail)
                     .font(Theme.Drive.detail)
                     .foregroundStyle(Theme.Colors.textSecondary)
+                    .dynamicTypeSize(...Theme.Drive.maxTypeSize)
             }
         }
         .multilineTextAlignment(.center)
@@ -107,6 +112,7 @@ private struct DriveRunningView: View {
                 .contentTransition(.numericText())
                 .accessibilityIdentifier("drive.answersSaved")
         }
+        .dynamicTypeSize(...Theme.Drive.maxTypeSize)
         .frame(maxWidth: .infinity)
         .padding(.bottom, Theme.Spacing.l)
     }
@@ -155,7 +161,7 @@ private struct DriveSummaryView: View {
                 .screenContent()
                 .padding(.top, Theme.Spacing.xl)
             }
-            BottomBar {
+            BottomBar(hasMaterial: false) {
                 #if DEBUG
                 SpokenLogText(drive: drive)
                 #endif
