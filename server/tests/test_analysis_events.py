@@ -198,6 +198,12 @@ def test_repeated_start_words_without_a_break_are_not_restarts() -> None:
         ("the queries need |0.6| uh joins for reports", ("block", "before_filler")),
         ("so we nee- |0.5| we picked Postgres", ("block", "before_restart")),
         ("so we picked |0.5| the the team", ("block", "before_restart")),
+        # No sentence punctuation anywhere: a capital letter marks the sentence boundary.
+        ("we need joins |0.7| The team knew it", ("boundary_pause", "sentence")),
+        ("we need joins |0.7| I think the team knew", ("boundary_pause", "sentence")),
+        ("we need joins and |0.7| more of them", ("block", "inside_phrase")),
+        # With punctuation, a capital mid-sentence is a name, not a boundary.
+        ("We like it. we moved to |0.6| Postgres for billing", ("block", "inside_phrase")),
     ],
 )
 def test_pause_classification(script: str, expected: tuple[str, str]) -> None:

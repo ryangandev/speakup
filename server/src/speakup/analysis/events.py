@@ -208,6 +208,8 @@ class _Transcript:
         self.content = content_indexes(words)
         self.position = {i: p for p, i in enumerate(self.content)}
         self.pause_before = {p.before: p for p in pauses}
+        # An engine that writes no sentence punctuation at all hides every sentence boundary.
+        self.punctuated = any(ends_sentence(words[i]) for i in self.content)
 
     def norm(self, i: int) -> str:
         return self.words[i]["norm"].replace("\N{RIGHT SINGLE QUOTATION MARK}", "'")
@@ -522,6 +524,10 @@ def _classify_pause(
     k = pause.before
     prev, nxt = t.prev_content(k), t.next_content(k)
     if prev is None or nxt is None or ends_sentence(t.words[prev]):
+        return "boundary_pause", "sentence"
+    # Without punctuation, a capital letter is the only sign of a new sentence. It also marks
+    # names and "I" ("we moved to DynamoDB"), which costs a missed block rather than a false one.
+    if not t.punctuated and t.words[nxt]["text"][:1].isupper():
         return "boundary_pause", "sentence"
     # Engines put commas around fillers ("because, like,"), so those commas mark no clause.
     if ends_clause(t.words[prev]) and prev not in filler_words:
