@@ -55,14 +55,23 @@ _I_MEAN_AFTER = {"what"}
 # as a repetition only with a hesitation between the copies.
 _DELIBERATE_DOUBLES = {"had", "that", "is", "very", "really", "bye", "no", "yes", "yeah", "ha"}
 
-# Words that cannot end a phrase, so a restart right after one abandons the phrase: the "to" in
-# "we need to - we should".
-_INCOMPLETE_ENDINGS = {
-    "a", "an", "the", "to", "of", "for", "with", "from", "in", "on", "at", "by", "about", "into",
-    "and", "but", "or", "is", "are", "was", "were", "be", "been", "will", "would", "should",
-    "could", "can", "must", "might", "need", "needs", "have", "has", "do", "does", "did", "my",
-    "our", "your", "their", "his", "her", "its", "this", "these", "those", "some", "any", "very",
-    "more", "most", "than", "if", "because",
+# Abandoned phrases: the last word of the abandoned start must be one the repair word cannot
+# grammatically follow. After an article or possessive nothing can start again ("the - the
+# team" is a repetition, "we need the - we should" a restart).
+_DETERMINERS = {"a", "an", "the", "my", "our", "your", "their", "its"}
+# After a modal, an auxiliary or "to", only a new subject restarts: "we should - we need",
+# "I want to - I would". Conjunctions and prepositions never qualify: "because - the old
+# system" and "the end of - the quarter" continue the sentence.
+_VERBAL_ENDINGS = {
+    "to", "will", "would", "should", "could", "can", "must", "might", "shall", "am", "is", "are",
+    "was", "were", "be", "been", "have", "has", "do", "does", "did",
+}  # fmt: skip
+_SUBJECT_PRONOUNS = {"i", "we", "you", "they", "he", "she", "it"}
+# Words that open a clause allowed to end on a modal or auxiliary ("if we could, we would",
+# "whatever it was, it worked"), so a start right after one is not abandoned.
+_SUBORDINATORS = {
+    "if", "when", "whenever", "as", "because", "since", "though", "although", "while", "unless",
+    "whatever", "what", "how", "where", "than",
 }  # fmt: skip
 
 # A pause before one of these starts a new clause.
@@ -74,6 +83,16 @@ _CLAUSE_STARTERS = {
 _DISCOURSE_MARKERS = {
     "so", "okay", "ok", "well", "right", "yeah", "yes", "no", "now", "alright", "anyway", "sure",
 }  # fmt: skip
+
+
+_I_FORMS = {"i", "i'm", "i've", "i'll", "i'd"}
+_CALENDAR = {
+    "january", "february", "march", "april", "may", "june", "july", "august", "september",
+    "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday",
+    "saturday", "sunday",
+}  # fmt: skip
+# Quotes and brackets around a word, which hide its first letter.
+_EDGE_MARKS = "\"'“”‘’([{<*"
 
 
 @dataclass(frozen=True)
@@ -210,9 +229,42 @@ class _Transcript:
         self.pause_before = {p.before: p for p in pauses}
         # An engine that writes no sentence punctuation at all hides every sentence boundary.
         self.punctuated = any(ends_sentence(words[i]) for i in self.content)
+        self.names = self._names()
 
     def norm(self, i: int) -> str:
         return self.words[i]["norm"].replace("\N{RIGHT SINGLE QUOTATION MARK}", "'")
+
+    def _names(self) -> set[str]:
+        """Norms of words that look like names, so their capital letter is no sentence start:
+        inner capitals ("DynamoDB", "AWS"), months and weekdays, and words never written in
+        lower case that are capitalized mid-sentence at least twice ("Postgres")."""
+        lower: set[str] = set()
+        mid_capitals: dict[str, int] = {}
+        names = set()
+        for p, i in enumerate(self.content):
+            text, norm = self.words[i]["text"].strip(_EDGE_MARKS), self.norm(i)
+            if not text[:1].isupper():
+                lower.add(norm)
+                continue
+            if any(c.isupper() for c in text[1:]) or norm in _CALENDAR:
+                names.add(norm)
+            if p > 0 and not ends_sentence(self.words[self.content[p - 1]]):
+                mid_capitals[norm] = mid_capitals.get(norm, 0) + 1
+        return names | {n for n, count in mid_capitals.items() if count >= 2 and n not in lower}
+
+    def starts_sentence(self, i: int) -> bool:
+        """Whether content word i opens a sentence the engine did not end with punctuation.
+
+        Engines often drop a period before a pause ("focus on [pause] Reliability"), so a
+        capital letter starts a sentence unless the word is "I" or looks like a name. In a
+        transcript with no sentence punctuation at all, every capital counts. Either way a
+        wrong call costs a missed block, not a false one.
+        """
+        if not self.words[i]["text"].strip(_EDGE_MARKS)[:1].isupper():
+            return False
+        if not self.punctuated:
+            return True
+        return self.norm(i) not in _I_FORMS and self.norm(i) not in self.names
 
     def prev_content(self, i: int) -> int | None:
         """The last word of kind `word` before index i."""
@@ -336,13 +388,25 @@ def _repetitions(t: _Transcript) -> list[EventDoc]:
     return events
 
 
+def _abandons(t: _Transcript, span: list[int], repair: int) -> bool:
+    """Whether starting again at `repair` right after `span` leaves the span unfinished."""
+    last = t.norm(span[-1])
+    if last in _DETERMINERS:
+        return True
+    if last not in _VERBAL_ENDINGS or t.norm(repair) not in _SUBJECT_PRONOUNS:
+        return False
+    before = t.prev_content(span[0])
+    return before is None or t.norm(before) not in _SUBORDINATORS
+
+
 def _abandoned_phrases(t: _Transcript, taken: set[int], thresholds: Thresholds) -> list[EventDoc]:
     """A phrase given up whole and started again: "we need to - we should migrate".
 
-    All of these must hold, because ordinary speech repeats words too ("we said we would"):
-    the repair starts with the same word as the abandoned phrase; the abandoned phrase ends on a
-    word that cannot end a phrase ("to", "the", "is"); and there is a break between them (a
-    silent or filled pause, a comma, a dash or a trail-off).
+    All of these must hold, because ordinary speech repeats words too ("we said we would",
+    "we built it and - we shipped it"): the repair starts with the same word as the abandoned
+    phrase; the repair cannot grammatically continue the abandoned phrase's last word (see
+    `_abandons`); and there is a break between them (a silent or filled pause, a word gap of
+    pause length, a comma, a dash or a trail-off).
     """
     events = []
     words, content = t.words, t.content
@@ -363,15 +427,17 @@ def _abandoned_phrases(t: _Transcript, taken: set[int], thresholds: Thresholds) 
             if [t.norm(i) for i in span] == [t.norm(i) for i in content[q : q + length]]:
                 continue  # said again whole: a repetition, not a restart
             last = span[-1]
-            if t.norm(last) not in _INCOMPLETE_ENDINGS:
+            if not _abandons(t, span, content[q]):
                 continue
             dash_between = any(
                 words[j]["kind"] == "non_speech"
                 and words[j]["text"].strip("-\N{EM DASH}\N{EN DASH}") == ""
                 for j in range(last + 1, content[q])
             )
+            gap = words[content[q]]["start"] - words[last]["end"]
             if (
                 t.hesitation_between(last, content[q])
+                or round(gap, 3) >= thresholds.min_pause_s
                 or dash_between
                 or final_punctuation(words[last]) in {",", ";", "..."}
             ):
@@ -513,34 +579,72 @@ def _filled_pauses(words: list[WordDoc]) -> list[EventDoc]:
 # --- Pause classification --------------------------------------------------------------------
 
 
-def _classify_pause(
-    t: _Transcript, pause: Pause, restart_points: set[int], filler_words: set[int]
-) -> tuple[str, str]:
-    """(type, reason) of a pause: a natural `boundary_pause` or a `block`.
-
-    Boundaries come first, so a pause between sentences stays natural even when a filler
-    follows it; the filler is marked on its own.
-    """
-    k = pause.before
-    prev, nxt = t.prev_content(k), t.next_content(k)
+def _boundary(
+    t: _Transcript, prev: int | None, nxt: int | None, filler_words: set[int]
+) -> str | None:
+    """`sentence` or `clause` when the gap between content words prev and nxt is a boundary."""
     if prev is None or nxt is None or ends_sentence(t.words[prev]):
-        return "boundary_pause", "sentence"
-    # Without punctuation, a capital letter is the only sign of a new sentence. It also marks
-    # names and "I" ("we moved to DynamoDB"), which costs a missed block rather than a false one.
-    if not t.punctuated and t.words[nxt]["text"][:1].isupper():
-        return "boundary_pause", "sentence"
+        return "sentence"
+    if t.starts_sentence(nxt):
+        return "sentence"
     # Engines put commas around fillers ("because, like,"), so those commas mark no clause.
     if ends_clause(t.words[prev]) and prev not in filler_words:
-        return "boundary_pause", "clause"
+        return "clause"
     if t.norm(nxt) in _CLAUSE_STARTERS and not t.words[nxt]["cutoff"]:
-        return "boundary_pause", "clause"
+        return "clause"
     if t.norm(prev) in _DISCOURSE_MARKERS and t.sentence_initial(prev):
-        return "boundary_pause", "clause"
-    if t.words[k]["kind"] == "filled_pause":
-        return "block", "before_filler"
-    if k in restart_points:
-        return "block", "before_restart"
-    return "block", "inside_phrase"
+        return "clause"
+    return None
+
+
+def _hesitations(t: _Transcript, pauses: list[Pause]) -> list[list[Pause]]:
+    """Pauses grouped by the gap between two content words they fall in. Silence, filler,
+    silence between the same two words is one hesitation, not two."""
+    groups: dict[int | None, list[Pause]] = {}
+    for pause in sorted(pauses, key=lambda p: p.before):
+        groups.setdefault(t.prev_content(pause.before), []).append(pause)
+    return list(groups.values())
+
+
+def _pause_event(
+    t: _Transcript,
+    silences: list[Pause],
+    restart_points: set[int],
+    filler_words: set[int],
+    thresholds: Thresholds,
+) -> EventDoc | None:
+    """One `block` or `boundary_pause` for a hesitation, or None for a short silence inside a
+    phrase.
+
+    The event spans the whole hesitation: from the start of its first silence or filled pause
+    to the end of its last, with an empty word range just before its first word. A silence
+    followed by a filled pause is a block. At a sentence or clause boundary that needs the
+    whole hesitation to last `boundary_filler_block_min_s`; shorter, the pause is natural and
+    the filler is marked on its own.
+    """
+    prev = t.prev_content(silences[0].before)
+    nxt = t.next_content(silences[-1].before)
+    lo = 0 if prev is None else prev + 1
+    hi = len(t.words) if nxt is None else nxt
+    fillers = [t.words[j] for j in range(lo, hi) if t.words[j]["kind"] == "filled_pause"]
+    start = min([p.start for p in silences] + [w["start"] for w in fillers])
+    end = max([p.end for p in silences] + [w["end"] for w in fillers])
+    point = min([p.before for p in silences] + [w["i"] for w in fillers])
+    length = round(end - start, 3)
+    stuck_on_filler = any(t.words[p.before]["kind"] == "filled_pause" for p in silences)
+
+    boundary = _boundary(t, prev, nxt, filler_words)
+    if boundary and not (stuck_on_filler and length >= thresholds.boundary_filler_block_min_s):
+        type_, reason = "boundary_pause", boundary
+    elif stuck_on_filler:
+        type_, reason = "block", "before_filler"
+    elif nxt in restart_points:
+        type_, reason = "block", "before_restart"
+    elif length >= thresholds.block_min_s:
+        type_, reason = "block", "inside_phrase"
+    else:
+        return None
+    return event(type_, start, end, point, point, reason=reason)
 
 
 def detect_events(
@@ -558,12 +662,11 @@ def detect_events(
         e["repair_word"] for e in restarts + repetitions if e["repair_word"] is not None
     }
     filler_words = {i for e in lexical for i in range(e["word_start"], e["word_end"])}
-    pause_events = []
-    for pause in pauses:
-        type_, reason = _classify_pause(t, pause, restart_points, filler_words)
-        pause_events.append(
-            event(type_, pause.start, pause.end, pause.before, pause.before, reason=reason)
-        )
+    pause_events = [
+        e
+        for silences in _hesitations(t, pauses)
+        if (e := _pause_event(t, silences, restart_points, filler_words, thresholds)) is not None
+    ]
 
     events = _filled_pauses(words) + lexical + restarts + repetitions + pause_events
     return sorted(events, key=sort_key)

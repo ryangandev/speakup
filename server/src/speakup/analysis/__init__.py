@@ -24,7 +24,7 @@ from speakup.analysis.finalize import (
 )
 from speakup.analysis.metrics import compute_metrics, nervousness_signs, word_count
 from speakup.analysis.thresholds import Thresholds
-from speakup.analysis.words import word_docs
+from speakup.analysis.words import WordDoc, word_docs
 from speakup.stt import Transcript
 
 __all__ = [
@@ -76,19 +76,20 @@ def _provenance(transcript: Transcript, thresholds: Thresholds) -> dict[str, Any
     }
 
 
-def build_analysis(
-    *,
-    take_id: str,
-    transcript: Transcript,
-    acoustics: Acoustics,
-    thresholds: Thresholds | None = None,
-) -> AnalysisDoc:
-    """`analyze` with the audio already measured, so tests can pass hand-built acoustics."""
-    thresholds = thresholds or Thresholds()
+def _spoken_words(transcript: Transcript, thresholds: Thresholds) -> list[WordDoc]:
     words = word_docs(transcript.words)
     if word_count(words) < thresholds.min_words:
         raise NoSpeech(f"{word_count(words)} words transcribed; at least {thresholds.min_words}")
+    return words
 
+
+def _document(
+    take_id: str,
+    transcript: Transcript,
+    words: list[WordDoc],
+    acoustics: Acoustics,
+    thresholds: Thresholds,
+) -> AnalysisDoc:
     track, _ = voice_track(words, acoustics.speech, thresholds)
     pauses = find_pauses(words, track, thresholds)
     events = detect_events(words, pauses, thresholds)
@@ -109,6 +110,19 @@ def build_analysis(
     }
 
 
+def build_analysis(
+    *,
+    take_id: str,
+    transcript: Transcript,
+    acoustics: Acoustics,
+    thresholds: Thresholds | None = None,
+) -> AnalysisDoc:
+    """`analyze` with the audio already measured, so tests can pass hand-built acoustics."""
+    thresholds = thresholds or Thresholds()
+    words = _spoken_words(transcript, thresholds)
+    return _document(take_id, transcript, words, acoustics, thresholds)
+
+
 def analyze(
     *,
     take_id: str,
@@ -116,10 +130,8 @@ def analyze(
     transcript: Transcript,
     thresholds: Thresholds | None = None,
 ) -> AnalysisDoc:
-    """Rules-only analysis. Raises NoSpeech when fewer than 5 words were transcribed."""
+    """Rules-only analysis. Raises NoSpeech when fewer than 5 words were transcribed, before
+    the audio is read."""
     thresholds = thresholds or Thresholds()
-    if word_count(word_docs(transcript.words)) < thresholds.min_words:
-        raise NoSpeech(f"fewer than {thresholds.min_words} words transcribed")
-    return build_analysis(
-        take_id=take_id, transcript=transcript, acoustics=measure(wav16k), thresholds=thresholds
-    )
+    words = _spoken_words(transcript, thresholds)
+    return _document(take_id, transcript, words, measure(wav16k), thresholds)

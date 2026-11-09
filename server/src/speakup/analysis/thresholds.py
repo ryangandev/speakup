@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Thresholds:
-    version: str = "thresholds/0"
+    version: str = "thresholds/1"
 
     # A transcript with fewer words than this is treated as no speech.
     min_words: int = 5
@@ -26,6 +26,14 @@ class Thresholds:
     # When voice activity covers less than this share of the transcribed word time, the track
     # is not trusted (whispering, heavy noise) and pauses and voiced time come from word times.
     vad_min_word_coverage: float = 0.5
+
+    # Blocks. 250 ms counts a pause; getting stuck takes longer. A hesitation inside a phrase is
+    # a block from this length (silences and filled pauses together); shorter ones are no event.
+    block_min_s: float = 0.5
+    # At a sentence or clause boundary a silence followed by "um" is a natural beat until the
+    # whole hesitation (silence, filler, silence) lasts this long; then it is a block. Ryan's
+    # main problem is getting stuck between ideas. Both values await calibration on his takes.
+    boundary_filler_block_min_s: float = 1.0
 
     # Restarts: how many words back a repair may reach to find where the abandoned start began.
     restart_lookback_words: int = 3

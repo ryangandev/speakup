@@ -18,7 +18,7 @@
       "engine": "parselmouth",
       "version": "0.4.6"
     },
-    "thresholds_version": "thresholds/0"
+    "thresholds_version": "thresholds/1"
   },
   "words": [
     {
@@ -261,13 +261,13 @@
     },
     {
       "id": "e4",
-      "type": "boundary_pause",
+      "type": "block",
       "start": 7.1,
-      "end": 7.8,
+      "end": 8.1,
       "word_start": 14,
       "word_end": 14,
       "source": "rules",
-      "reason": "sentence",
+      "reason": "before_filler",
       "repair_word": null,
       "is_filler": null,
       "filler_resolution": null,

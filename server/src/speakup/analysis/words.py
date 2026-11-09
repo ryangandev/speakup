@@ -6,6 +6,7 @@ indexes coaching quotes are the same list. See docs/architecture.md#words.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from speakup.stt import Word
@@ -17,6 +18,14 @@ SENTENCE_END = (".", "?", "!")
 CLAUSE_END = (",", ";", ":")
 # Closing quotes and brackets that may follow a word's final punctuation.
 _TRAILING = "\"'”’)]}"
+
+
+def _confidence(value: float | None) -> float | None:
+    """The engine's confidence, or None when it gave none or a non-finite number (NaN, inf),
+    which JSON cannot carry."""
+    if value is None or not math.isfinite(value):
+        return None
+    return float(value)
 
 
 def word_docs(words: list[Word]) -> list[WordDoc]:
@@ -37,7 +46,7 @@ def word_docs(words: list[Word]) -> list[WordDoc]:
                 "norm": norm,
                 "start": float(word.start),
                 "end": float(word.end),
-                "confidence": None if word.confidence is None else float(word.confidence),
+                "confidence": _confidence(word.confidence),
                 "kind": kind,
                 "cutoff": bool(tokens) and tokens[-1].cutoff,
             }

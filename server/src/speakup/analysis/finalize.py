@@ -106,11 +106,14 @@ def _change(before: float, after: float, kind: str) -> str:
 
 def compare_metrics(previous: AnalysisDoc, current: AnalysisDoc) -> list[MetricChange]:
     """The fixed metric list of a retry's comparison, previous take first. Lower is better for
-    every graded metric; the others are shown for information."""
+    every graded metric; the others are shown for information. Filler rates judged differently
+    (rules on one take, coaching on the other) are not comparable, so they are information too."""
+    resolutions = {_get(doc["metrics"], ("fillers", "resolution")) for doc in (previous, current)}
     changes = []
     for metric, label, unit, path, graded, kind in _COMPARED:
         before, after = _get(previous["metrics"], path), _get(current["metrics"], path)
-        if not graded or before is None or after is None:
+        comparable = metric != "fillers_per_100_words" or len(resolutions) == 1
+        if not graded or not comparable or before is None or after is None:
             change = "info"
         else:
             change = _change(before, after, kind)

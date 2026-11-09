@@ -85,16 +85,19 @@ def test_analyze_matches_the_contract_example_shape(tmp_path: Path) -> None:
     }
     assert doc["metrics"]["fillers"]["resolution"] == "rules"
     assert len(doc["metrics"]["pace"]["by_quarter_wpm"]) == 4
-    # Under 20 seconds of speech there are no quarter-based signs, and there are two blocks only.
-    assert doc["nervousness_signs"] == []
+    # Under 20 seconds of speech there are no quarter-based signs; the three blocks within
+    # seven seconds are a cluster.
+    [sign] = doc["nervousness_signs"]
+    assert sign["type"] == "block_cluster"
+    assert _shape(sign) == _shape(EXAMPLE["nervousness_signs"][0])
 
 
 def test_example_events_from_rules() -> None:
     """The rules events for the example's 18 words, measured without audio so the pauses are
     the word gaps. They match the example's events except where the example, cut by hand,
     leaves out what the documented rules imply: the "So" candidate (not a filler: no silence
-    after it), the 250 ms pause after "um" (a natural beat after a sentence-initial "So"), and
-    the pause between "nee-" and its repair (a block before a restart)."""
+    after it), the "um" and 250 ms pause after "So" (a natural beat after a sentence-initial
+    "So"), and the pause between "nee-" and its repair (a block before a restart)."""
     acoustics = Acoustics(duration_s=9.5, speech=[])
     doc = build_analysis(take_id="t", transcript=_example_transcript(), acoustics=acoustics)
     got = [
@@ -112,7 +115,7 @@ def test_example_events_from_rules() -> None:
     assert got == [
         ("lexical_filler", 0.84, 1.02, 0, 1, None, None, False),
         example["e0"],
-        ("boundary_pause", 1.46, 1.71, 2, 2, "clause", None, None),
+        ("boundary_pause", 1.1, 1.71, 1, 1, "clause", None, None),
         example["e1"],
         ("block", 2.02, 2.45, 4, 4, "before_restart", None, None),
         example["e2"],
@@ -447,3 +450,14 @@ def test_null_metrics_compare_as_info() -> None:
     pitch = next(c for c in changes if c["metric"] == "pitch_variation_st")
     assert (pitch["before"], pitch["after"], pitch["change"]) == (2.3, None, "info")
     assert compare_metrics(previous, current) == changes  # pure and repeatable
+
+
+def test_fillers_judged_differently_compare_as_info() -> None:
+    previous, current = _metrics(3.74, 4, 2, 3), _metrics(2.9, 1, 2, 4)
+    current["metrics"]["fillers"]["resolution"] = "rules"
+    changes = compare_metrics(previous, current)
+    fillers = changes[0]
+    assert (fillers["before"], fillers["after"], fillers["change"]) == (3.74, 2.9, "info")
+    assert [c["change"] for c in changes[1:4]] == ["better", "same", "worse"]
+    previous["metrics"]["fillers"]["resolution"] = "rules"
+    assert compare_metrics(previous, current)[0]["change"] == "better"

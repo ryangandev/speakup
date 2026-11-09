@@ -1,0 +1,165 @@
+{
+  "engine": "crisper-turbo",
+  "text": "We shipped the first version in March [UM] and then the second one took much longer than we expected [UH] mostly because of the database work.",
+  "words": [
+    {
+      "text": "We",
+      "start": 0.04,
+      "end": 0.12000000000000001,
+      "confidence": 0.9918620586395264
+    },
+    {
+      "text": "shipped",
+      "start": 0.12000000000000001,
+      "end": 0.38,
+      "confidence": 0.9590942859649658
+    },
+    {
+      "text": "the",
+      "start": 0.38,
+      "end": 0.52,
+      "confidence": 0.9998809099197388
+    },
+    {
+      "text": "first",
+      "start": 0.52,
+      "end": 0.79,
+      "confidence": 0.9954639077186584
+    },
+    {
+      "text": "version",
+      "start": 0.79,
+      "end": 1.22,
+      "confidence": 0.9963141083717346
+    },
+    {
+      "text": "in",
+      "start": 1.22,
+      "end": 1.34,
+      "confidence": 0.9996562004089355
+    },
+    {
+      "text": "March",
+      "start": 1.34,
+      "end": 1.76,
+      "confidence": 0.9617149829864502
+    },
+    {
+      "text": "[UM]",
+      "start": 2.9,
+      "end": 3.14,
+      "confidence": 0.9875002503395081
+    },
+    {
+      "text": "and",
+      "start": 3.72,
+      "end": 3.84,
+      "confidence": 0.5876258015632629
+    },
+    {
+      "text": "then",
+      "start": 3.84,
+      "end": 4.0,
+      "confidence": 0.9995779395103455
+    },
+    {
+      "text": "the",
+      "start": 4.0,
+      "end": 4.119999999999999,
+      "confidence": 0.999600350856781
+    },
+    {
+      "text": "second",
+      "start": 4.119999999999999,
+      "end": 4.540000000000001,
+      "confidence": 0.9976853132247925
+    },
+    {
+      "text": "one",
+      "start": 4.540000000000001,
+      "end": 4.77,
+      "confidence": 0.9997956156730652
+    },
+    {
+      "text": "took",
+      "start": 4.77,
+      "end": 4.970000000000001,
+      "confidence": 0.9984230995178223
+    },
+    {
+      "text": "much",
+      "start": 4.970000000000001,
+      "end": 5.199999999999999,
+      "confidence": 0.9989509582519531
+    },
+    {
+      "text": "longer",
+      "start": 5.199999999999999,
+      "end": 5.66,
+      "confidence": 0.9997891783714294
+    },
+    {
+      "text": "than",
+      "start": 5.66,
+      "end": 5.82,
+      "confidence": 0.9994983673095703
+    },
+    {
+      "text": "we",
+      "start": 5.82,
+      "end": 5.98,
+      "confidence": 0.9998539686203003
+    },
+    {
+      "text": "expected",
+      "start": 5.98,
+      "end": 6.640000000000001,
+      "confidence": 0.9893094301223755
+    },
+    {
+      "text": "[UH]",
+      "start": 7.5,
+      "end": 7.8,
+      "confidence": 0.9952238202095032
+    },
+    {
+      "text": "mostly",
+      "start": 8.24,
+      "end": 8.58,
+      "confidence": 0.8932651281356812
+    },
+    {
+      "text": "because",
+      "start": 8.58,
+      "end": 9.0,
+      "confidence": 0.9998071789741516
+    },
+    {
+      "text": "of",
+      "start": 9.0,
+      "end": 9.14,
+      "confidence": 0.9999500513076782
+    },
+    {
+      "text": "the",
+      "start": 9.14,
+      "end": 9.24,
+      "confidence": 0.9999469518661499
+    },
+    {
+      "text": "database",
+      "start": 9.24,
+      "end": 9.780000000000001,
+      "confidence": 0.9965667724609375
+    },
+    {
+      "text": "work.",
+      "start": 9.780000000000001,
+      "end": 10.22,
+      "confidence": 0.9780207872390747
+    }
+  ],
+  "audio_seconds": 10.4165,
+  "elapsed_seconds": 0.0,
+  "raw": {}
+}

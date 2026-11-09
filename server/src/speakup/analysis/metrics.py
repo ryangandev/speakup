@@ -119,7 +119,7 @@ def _quarter_masks(times: np.ndarray, parts: list[Segment]) -> list[np.ndarray]:
 
 def _pitch(acoustics: Acoustics, span: Segment, parts: list[Segment]) -> MetricsDoc | None:
     times, hz = acoustics.pitch_times, acoustics.pitch_hz
-    voiced = (hz > 0) & _frames_in(times, [span])
+    voiced = np.isfinite(hz) & (hz > 0) & _frames_in(times, [span])
     if voiced.sum() < MIN_FRAMES:
         return None
     center = float(np.median(hz[voiced]))

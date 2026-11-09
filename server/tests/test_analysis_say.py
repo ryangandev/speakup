@@ -86,12 +86,17 @@ def test_analyze_synthesized_take(take: tuple[Path, Transcript]) -> None:
     assert blocks == [
         ("the", "inside_phrase"),
         ("uh", "before_filler"),
+        # 0.8 s of silence after "joins." and then "Um": over a second stuck between ideas.
+        ("Um", "before_filler"),
         ("we", "before_restart"),
     ]
     boundaries = [(at(e), e["reason"]) for e in by_type["boundary_pause"]]
-    assert boundaries == [("Um", "sentence"), ("We", "sentence"), ("and", "clause")]
+    assert boundaries == [("We", "sentence"), ("and", "clause")]
     long_block = by_type["block"][0]
     assert 0.8 <= long_block["end"] - long_block["start"] <= 1.0
+    um_block, um = by_type["block"][2], doc["words"][12]
+    assert um_block["start"] < um["start"] and um_block["end"] >= um["end"]
+    assert um_block["end"] - um_block["start"] >= 1.0
 
     assert [at(e) for e in by_type["filled_pause"]] == ["uh", "Um"]
     [repetition] = by_type["repetition"]
@@ -114,4 +119,5 @@ def test_analyze_synthesized_take(take: tuple[Path, Transcript]) -> None:
     assert metrics["pace"]["wpm_voiced"] > metrics["pace"]["wpm_speaking"]
     assert metrics["pitch"] is not None and 60 < metrics["pitch"]["median_hz"] < 400
     assert metrics["volume"] is not None
-    assert metrics["blocks"]["count"] == 3
+    assert metrics["blocks"]["count"] == 4
+    assert [(s["type"], s["value"]) for s in doc["nervousness_signs"]] == [("block_cluster", 4)]
