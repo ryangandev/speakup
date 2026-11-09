@@ -343,6 +343,18 @@ def test_finalize_applies_rulings_and_annotations() -> None:
     assert all(final["metrics"][k] == stage["metrics"][k] for k in unchanged)
 
 
+def test_filler_resolution_is_coaching_only_when_every_candidate_was_judged() -> None:
+    stage = _stage()
+    report = _coaching(stage)
+    partial = finalize(stage, report | {"filler_rulings": report["filler_rulings"][:1]})
+    assert partial["metrics"]["fillers"]["resolution"] == "rules"
+
+    none = analyze_script("we picked Postgres for the billing service")
+    assert none["metrics"]["fillers"]["resolution"] == "rules"
+    coached = finalize(none, report | {"filler_rulings": [], "annotations": []})
+    assert coached["metrics"]["fillers"]["resolution"] == "coaching"
+
+
 def test_finalize_rejects_reports_that_do_not_fit() -> None:
     stage = _stage()
     report = _coaching(stage)

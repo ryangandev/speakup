@@ -43,7 +43,9 @@ def word_count(words: list[WordDoc]) -> int:
     return sum(w["kind"] == "word" for w in words)
 
 
-def event_metrics(events: list[EventDoc], words: int, speaking_s: float) -> MetricsDoc:
+def event_metrics(
+    events: list[EventDoc], words: int, speaking_s: float, *, coached: bool = False
+) -> MetricsDoc:
     """The metrics that count events: fillers, blocks, pauses, restarts and repetitions."""
 
     def of(type_: str) -> list[EventDoc]:
@@ -52,7 +54,7 @@ def event_metrics(events: list[EventDoc], words: int, speaking_s: float) -> Metr
     filled = len(of("filled_pause"))
     candidates = of("lexical_filler")
     lexical = sum(e["is_filler"] is True for e in candidates)
-    judged = bool(candidates) and all(e["filler_resolution"] == "coaching" for e in candidates)
+    judged = coached and all(e["filler_resolution"] == "coaching" for e in candidates)
     blocks = [e["end"] - e["start"] for e in of("block")]
     boundary = [e["end"] - e["start"] for e in of("boundary_pause")]
     return {

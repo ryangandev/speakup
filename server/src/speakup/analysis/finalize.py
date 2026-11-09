@@ -61,7 +61,9 @@ def finalize(analysis: AnalysisDoc, coaching: CoachingReportDoc | None) -> Analy
     events.sort(key=sort_key)
 
     metrics = doc["metrics"]
-    metrics.update(event_metrics(events, metrics["word_count"], metrics["speaking_s"]))
+    metrics.update(
+        event_metrics(events, metrics["word_count"], metrics["speaking_s"], coached=True)
+    )
     doc["coaching_applied"] = True
     return doc
 
