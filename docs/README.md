@@ -15,6 +15,15 @@ Load only the document and section a request needs.
 | Hands-free practice in the car | [product.md#driving-mode](product.md#driving-mode) |
 | Milestones and their order | [product.md#roadmap](product.md#roadmap) |
 | System shape, components and why | [architecture.md](architecture.md) |
+| What the iOS app's screens show, their actions and navigation | [product.md#screens](product.md#screens) |
+| Ids, entities, and a take's lifecycle states | [architecture.md#domain-model](architecture.md#domain-model) |
+| The analysis JSON: words, events, metrics, nervousness signs | [architecture.md#analysis-output](architecture.md#analysis-output) |
+| The coaching report and retry comparison JSON | [architecture.md#coaching-report](architecture.md#coaching-report) |
+| Server endpoints, request and response bodies, auth and errors | [architecture.md#server-api](architecture.md#server-api) |
+| SQLite tables and the audio file layout | [architecture.md#storage](architecture.md#storage) |
+| Which Python package owns what, and the functions between them | [architecture.md#module-boundaries-and-ownership](architecture.md#module-boundaries-and-ownership) |
+| How a take moves through stages, retries, and running without coaching | [architecture.md#pipeline-orchestration](architecture.md#pipeline-orchestration) |
+| Server settings and secrets | [architecture.md#configuration](architecture.md#configuration) |
 | Which speech-to-text engine and why | [architecture.md#speech-to-text](architecture.md#speech-to-text), [research.md#speech-to-text](research.md#speech-to-text) |
 | Running the M0 bake-off, reading its report, and deciding | [bakeoff.md](bakeoff.md) |
 | Which files a change touches | [architecture.md#code-map](architecture.md#code-map) |
