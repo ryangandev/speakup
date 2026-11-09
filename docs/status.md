@@ -4,7 +4,8 @@
 
 Milestone 1, home practice end to end, as defined in [product.md#roadmap](product.md#roadmap).
 The analysis server is built and runs end to end on synthesized takes: upload, transcription with local CrisperWhisper, analysis, a retry linked to its previous take, and the comparison.
-Coaching is built and tested against fakes; it has not run against Claude yet, because there is no Anthropic API key.
+Coaching runs against Claude: the key is in `server/.env`, and a synthesized take and its retry got a full report and a comparison on 2026-11-09, about 30 s for coaching.
+It has not yet seen Ryan's real recordings, so the prompt and rubric are still v1.
 The analysis rules have only seen synthesized speech; their block thresholds (0.5 s inside a phrase, 1.0 s for a pause plus a filler between ideas) are starting values to calibrate on Ryan's recordings.
 The iPhone app's home mode is built and runs end to end against the real server in the simulator: settings, a prepared take, its report, a retry and the comparison.
 It still uses system colors; the visual direction below is not applied yet, and it has not run on a real iPhone.
@@ -35,7 +36,6 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 3. Install Tailscale on the Mac mini and the iPhone, and keep the Mac mini awake.
    To run the app on the iPhone, sign in to Xcode with your Apple account and pick your team for the SpeakUp target; it stays local, not committed.
 4. Put an ElevenLabs API key in `server/.env` for the bake-off (`server/.env.example` shows the names), and an AssemblyAI key if you want it compared too.
-   An Anthropic API key goes there later, for coaching.
 5. Driving mode decisions:
    1. Prepared prompts in the car: impromptu only (built), or also a "for the drive" queue built at home and read aloud before the tone.
       The agent recommends impromptu only for M2.
@@ -60,7 +60,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 ## Next steps
 
 1. Run the bake-off on Ryan's recordings and record the engine decision in [architecture.md#speech-to-text](architecture.md#speech-to-text).
-2. Iterate the coaching prompt and rubric v1 on the same recordings with Ryan, once an Anthropic API key is in `server/.env`.
+2. Iterate the coaching prompt and rubric v1 on the same recordings with Ryan.
 3. Calibrate the block thresholds in `speakup.analysis.thresholds` on Ryan's recordings.
 4. Set up the server on the Mac mini as [server.md](server.md) describes, outside `~/Documents`.
 5. Apply the visual direction in [design/README.md](design/README.md) to the iOS app's `Theme` and screens.
