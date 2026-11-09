@@ -1,0 +1,380 @@
+{
+  "$defs": {
+    "Anchor": {
+      "additionalProperties": false,
+      "properties": {
+        "quote": {
+          "description": "The exact words, copied from the transcript in order.",
+          "type": "string"
+        },
+        "word_start": {
+          "description": "Index of the first quoted word.",
+          "type": "integer"
+        },
+        "word_end": {
+          "description": "Index just after the last quoted word.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "quote",
+        "word_start",
+        "word_end"
+      ],
+      "type": "object"
+    },
+    "Annotation": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "off_topic",
+            "restart"
+          ],
+          "type": "string"
+        },
+        "word_start": {
+          "type": "integer"
+        },
+        "word_end": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "word_start",
+        "word_end",
+        "note"
+      ],
+      "type": "object"
+    },
+    "Comparison": {
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "focus_outcomes": {
+          "items": {
+            "$ref": "#/$defs/FocusOutcome"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "summary",
+        "focus_outcomes"
+      ],
+      "type": "object"
+    },
+    "DimensionLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "enum": [
+            "strong",
+            "okay",
+            "needs_work"
+          ],
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "Dimensions": {
+      "additionalProperties": false,
+      "properties": {
+        "answer_first": {
+          "$ref": "#/$defs/DimensionLevel"
+        },
+        "layering": {
+          "$ref": "#/$defs/DimensionLevel"
+        },
+        "focus": {
+          "$ref": "#/$defs/DimensionLevel"
+        },
+        "concision": {
+          "$ref": "#/$defs/DimensionLevel"
+        },
+        "fluency": {
+          "$ref": "#/$defs/DimensionLevel"
+        },
+        "close": {
+          "$ref": "#/$defs/DimensionLevel"
+        }
+      },
+      "required": [
+        "answer_first",
+        "layering",
+        "focus",
+        "concision",
+        "fluency",
+        "close"
+      ],
+      "type": "object"
+    },
+    "FillerRuling": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "type": "string"
+        },
+        "is_filler": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "event_id",
+        "is_filler"
+      ],
+      "type": "object"
+    },
+    "FocusItem": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "enum": [
+            "answer_first",
+            "layering",
+            "focus",
+            "concision",
+            "fluency",
+            "close"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "description": "A short imperative, at most six words.",
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "evidence": {
+          "description": "One to three anchors.",
+          "items": {
+            "$ref": "#/$defs/Anchor"
+          },
+          "type": "array"
+        },
+        "instruction": {
+          "description": "What to do differently in the very next take.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dimension",
+        "title",
+        "problem",
+        "evidence",
+        "instruction"
+      ],
+      "type": "object"
+    },
+    "FocusOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "previous_focus_index": {
+          "type": "integer"
+        },
+        "outcome": {
+          "enum": [
+            "improved",
+            "partly_improved",
+            "not_improved",
+            "not_applicable"
+          ],
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Anchor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "previous_focus_index",
+        "outcome",
+        "evidence",
+        "anchor"
+      ],
+      "type": "object"
+    },
+    "Outline": {
+      "additionalProperties": false,
+      "properties": {
+        "main_point": {
+          "type": "string"
+        },
+        "main_point_first": {
+          "type": "boolean"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/OutlinePoint"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "main_point",
+        "main_point_first",
+        "points"
+      ],
+      "type": "object"
+    },
+    "OutlinePoint": {
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "main",
+            "support",
+            "example",
+            "aside",
+            "close"
+          ],
+          "type": "string"
+        },
+        "word_start": {
+          "type": "integer"
+        },
+        "word_end": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "summary",
+        "role",
+        "word_start",
+        "word_end"
+      ],
+      "type": "object"
+    },
+    "ReferenceVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "description": "Paragraphs separated by a blank line.",
+          "type": "string"
+        },
+        "structure": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "structure"
+      ],
+      "type": "object"
+    },
+    "Strength": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "enum": [
+            "answer_first",
+            "layering",
+            "focus",
+            "concision",
+            "fluency",
+            "close"
+          ],
+          "type": "string"
+        },
+        "point": {
+          "type": "string"
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor"
+        }
+      },
+      "required": [
+        "dimension",
+        "point",
+        "anchor"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string"
+    },
+    "strength": {
+      "$ref": "#/$defs/Strength"
+    },
+    "focus": {
+      "description": "One or two items, most important first.",
+      "items": {
+        "$ref": "#/$defs/FocusItem"
+      },
+      "type": "array"
+    },
+    "dimensions": {
+      "$ref": "#/$defs/Dimensions"
+    },
+    "outline": {
+      "$ref": "#/$defs/Outline"
+    },
+    "reference_version": {
+      "$ref": "#/$defs/ReferenceVersion"
+    },
+    "filler_rulings": {
+      "items": {
+        "$ref": "#/$defs/FillerRuling"
+      },
+      "type": "array"
+    },
+    "annotations": {
+      "items": {
+        "$ref": "#/$defs/Annotation"
+      },
+      "type": "array"
+    },
+    "comparison": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Comparison"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "verdict",
+    "strength",
+    "focus",
+    "dimensions",
+    "outline",
+    "reference_version",
+    "filler_rulings",
+    "annotations",
+    "comparison"
+  ],
+  "type": "object"
+}

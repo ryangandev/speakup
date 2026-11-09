@@ -1,0 +1,42 @@
+<prompt>
+Kind: impromptu
+Category: decision
+Question: Why did we choose Postgres over DynamoDB for the billing service?
+Suggested length: 90 seconds
+Attempt: 1
+</prompt>
+<transcript>
+[0]So [1]um [2]we [3]nee- [4]we [5]picked [6]Postgres [7]because, [8]like, [9]the [10]reporting [11]queries [12]need [13]joins. [14]Uh [15]the [16]the [17]team [18]and [19]the
+[20]team [21]also [22]knows [23]Postgres [24]much [25]better [26]than [27]Dynamo [28]which [29]matters [30]when [31]something [32]breaks [33]at [34]night [35]so [36]we [37]can [38]fix [39]it
+[40]fast [41]and [42]the [43]team [44]also [45]knows [46]Postgres [47]much [48]better [49]than [50]Dynamo [51]which [52]matters [53]when [54]something [55]breaks [56]at [57]night [58]so [59]we
+[60]can [61]fix [62]it [63]fast [64]and [65]the [66]team [67]also [68]knows [69]Postgres [70]much [71]better [72]than [73]Dynamo [74]which [75]matters [76]when [77]something [78]breaks [79]at
+[80]night [81]so [82]we [83]can [84]fix [85]it [86]fast [87]and [88]the [89]team [90]also [91]knows [92]Postgres [93]much [94]better [95]than [96]Dynamo [97]which [98]matters [99]when
+[100]something [101]breaks [102]at [103]night [104]so [105]we [106]can [107]fix [108]it [109]fast [110]and [111]the [112]team [113]also [114]knows [115]Postgres [116]much [117]better [118]than [119]Dynamo
+[120]which [121]matters [122]when [123]something [124]breaks [125]at [126]night [127]so [128]we [129]can [130]fix [131]it [132]fast [133]and [134]the [135]team [136]also [137]knows [138]Postgres [139]much
+[140]better [141]than [142]Dynamo [143]which [144]matters [145]when [146]something [147]breaks [148]at [149]night [150]so [151]we [152]can [153]fix [154]it [155]fast [156]and [157]the [158]team [159]also
+[160]knows [161]Postgres [162]much [163]better [164]than [165]Dynamo [166]which [167]matters [168]when [169]something [170]breaks [171]at [172]night [173]so [174]we [175]can [176]fix [177]it [178]fast [179]and
+[180]the [181]team [182]also [183]knows [184]Postgres [185]much [186]better [187]than [188]Dynamo [189]which [190]matters [191]when [192]something [193]breaks [194]at [195]night [196]so [197]we [198]can [199]fix
+[200]it [201]fast [202]and [203]the [204]team [205]also [206]knows [207]Postgres [208]much [209]better [210]than [211]Dynamo [212]which [213]matters [214]when [215]something [216]breaks [217]at [218]night
+</transcript>
+<rule_events>
+e0 filled_pause: [1]um
+e1 restart (cutoff): [2]we [3]nee-; repair starts at word 4
+e2 lexical_filler: [8]like,; rules' guess: filler
+e3 block (inside_phrase): 1.1 s silence before word 9
+e5 filled_pause: [14]Uh
+e6 repetition (word): [15]the [16]the; repair starts at word 16
+</rule_events>
+<metrics>
+Recording 96.4 s; first word after 0.8 s; speaking 94.1 s; 214 words.
+Fillers: 5 filled pauses (um, uh), 3 of 7 lexical candidates judged fillers by rules; 3.74 per 100 words (ordinary speech: about 2 to 6).
+Blocks: 4 (2.55 per minute), longest 1.1 s, total 3.6 s.
+Restarts: 2. Repetitions: 3.
+Boundary pauses (normal): 21, median 0.55 s.
+Pace (information only, not graded): 180 words per minute; by quarter 166, 174, 182, 197.
+</metrics>
+<nervousness_signs>
+Pace rose 19% from the first quarter to the last (166 to 197 words per minute).
+</nervousness_signs>
+Coach this take.
+Rule on these lexical filler events: e2.
+There is no previous coaching to compare with, so comparison is null.
