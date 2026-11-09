@@ -35,7 +35,7 @@ body {
   -webkit-font-smoothing: antialiased;
   font-size: 15px;
 }
-.board-head { max-width: 1120px; margin: 0 auto; padding: 48px 24px 8px; }
+.board-head { max-width: 1280px; margin: 0 auto; padding: 48px 24px 8px; }
 .board-head h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
 .board-head p { margin: 0; max-width: 62ch; color: var(--board-mute); line-height: 1.45; }
 .board-bar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin-top: 20px; }
@@ -52,8 +52,8 @@ body {
 }
 .seg button[aria-pressed="true"] { background: var(--board-chip); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .screen-sec {
-  max-width: 1120px; margin: 0 auto; padding: 40px 24px;
-  display: grid; grid-template-columns: 240px 1fr; gap: 32px;
+  max-width: 1280px; margin: 0 auto; padding: 40px 24px;
+  display: grid; grid-template-columns: 220px 1fr; gap: 32px;
   border-top: 1px solid var(--board-line);
 }
 .screen-sec h2 { font-size: 20px; font-weight: 650; margin: 0 0 6px; letter-spacing: -0.01em; }
@@ -361,7 +361,7 @@ button { font: inherit; color: inherit; }
 .lg.off { color: var(--label2); background: transparent; box-shadow: inset 0 0 0 1px var(--sep); }
 .lg .n { font-variant-numeric: tabular-nums; color: var(--label2); font-weight: 500; }
 .lg .sw { display: inline-block; }
-.sw-f { width: 14px; height: 12px; border-radius: 3px; background: var(--accent-tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+.sw-f { width: 14px; height: 12px; border-radius: 3px; background: var(--accent-tint); }
 .sw-b { width: 14px; height: 10px; border-radius: 5px; background: var(--accent); }
 .sw-p { width: 14px; height: 6px; border-bottom: 2px dotted var(--accent); }
 .sw-x { width: 14px; height: 2px; background: var(--label2); }
@@ -435,10 +435,10 @@ button { font: inherit; color: inherit; }
 .mtable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .mtable th { font-size: 13px; font-weight: 600; color: var(--label2); text-align: right; padding: 0 0 8px; }
 .mtable th:first-child { text-align: left; }
-.mtable td { font-size: 17px; padding: 11px 0; border-top: 0.5px solid var(--sep); text-align: right; white-space: nowrap; }
+.mtable td { vertical-align: middle; font-size: 17px; padding: 11px 0; border-top: 0.5px solid var(--sep); text-align: right; white-space: nowrap; }
 .mtable td:first-child { text-align: left; white-space: normal; font-size: 16px; }
 .mtable td.old { color: var(--label2); padding-right: 16px; }
-.mtable td .d { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; }
+.mtable td .d { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; vertical-align: middle; line-height: 22px; }
 .mtable td .d .ms { font-size: 16px; font-variation-settings: 'FILL' 0, 'wght' 700, 'opsz' 20; }
 .mtable td .d.up { color: var(--good); }
 .mtable .info td:first-child::after { content: " (not graded)"; color: var(--label2); font-size: 13px; }
@@ -465,13 +465,13 @@ button { font: inherit; color: inherit; }
 .heat-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .heat-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .chart { position: relative; height: 150px; margin-top: 8px; }
-.chart .band { position: absolute; left: 22px; right: 0; border-radius: 4px; background: color-mix(in srgb, var(--label) 7%, transparent); }
+.chart .band { position: absolute; left: 22px; right: 0; border-radius: 4px; background: color-mix(in srgb, var(--label) 5%, transparent); }
 .chart .band-l { position: absolute; right: 4px; font-size: 11px; color: var(--label2); }
 .chart .gl { position: absolute; left: 22px; right: 0; height: 0.5px; background: var(--sep); }
 .chart .yl { position: absolute; left: 0; font-size: 11px; color: var(--label2); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
 .chart .bars { position: absolute; left: 30px; right: 8px; bottom: 0; top: 0; display: flex; align-items: flex-end; justify-content: space-between; }
 .chart .bar { width: 18px; border-radius: 4px 4px 0 0; background: var(--label); position: relative; }
-.chart .bar.hi { background: var(--level-okay); }
+.chart .bar.hi { background: color-mix(in srgb, var(--label) 42%, transparent); }
 .chart .bar .bv { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .chart-x { display: flex; justify-content: space-between; padding: 6px 8px 0 30px; font-size: 11px; color: var(--label2); font-variant-numeric: tabular-nums; }
 .chart-x span { width: 18px; text-align: center; white-space: nowrap; display: flex; justify-content: center; }
@@ -708,7 +708,7 @@ screens.push({ id: 'report', name: 'Report', note: 'One scroll, in the order Rya
       <h2 class="sec-title">Structure</h2>
       <p class="outline-note">What you said, in order. <b>The main point came last.</b></p>
       <div class="ol">
-        <div class="ol-item ghost"><span class="t">0:00</span><div class="p">The decision belongs here</div></div>
+        <div class="ol-item ghost"><span class="t"></span><div class="p">The decision belongs here</div></div>
         <div class="ol-item"><span class="t">0:00</span><div class="p">Access patterns were unknown; DynamoDB needs the table designed around queries up front.<span class="role">Reason</span></div></div>
         <div class="ol-item"><span class="t">0:31</span><div class="p">The team already knew Postgres.<span class="role">Supporting reason</span></div></div>
         <div class="ol-item off"><span class="t">0:38</span><div class="p">Aurora Serverless cold starts and a two-week VPC setup.<span class="role">Off-topic</span></div></div>
