@@ -155,7 +155,7 @@ struct ServerStatusRow: View {
     private var color: Color {
         switch status {
         case .reachable(let health): return health.coaching.available ? Theme.Colors.positive : Theme.Colors.caution
-        case .unreachable: return Theme.Colors.negative
+        case .unreachable, .failing: return Theme.Colors.negative
         case .notConfigured, .checking: return Theme.Colors.neutral
         }
     }
@@ -165,6 +165,7 @@ struct ServerStatusRow: View {
         case .reachable(let health):
             return health.coaching.available ? "Server reachable" : "Server reachable, coaching off"
         case .unreachable: return "Can't reach the server"
+        case .failing: return "Server problem"
         case .notConfigured: return "Server not set up"
         case .checking: return "Checking the server"
         }
@@ -175,7 +176,7 @@ struct ServerStatusRow: View {
         case .reachable(let health):
             return health.coaching.available
                 ? nil : "Reports show the transcript and metrics only. Add an Anthropic API key on the server."
-        case .unreachable(let message): return message
+        case .unreachable(let message), .failing(let message): return message
         case .notConfigured: return "Add the server address and token."
         case .checking: return nil
         }
@@ -247,32 +248,40 @@ private struct TakeRow: View {
     }
 
     var body: some View {
-        Button {
-            if canOpenReport { app.practice.path.append(.report(takeID: take.id)) }
-        } label: {
-            HStack(alignment: .top, spacing: Theme.Spacing.m) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Text(prompt?.text ?? "Prompt")
-                        .font(Theme.Fonts.bodyEmphasis)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                        .lineLimit(2)
-                    Text("Take \(take.attempt), \(Format.clock(take.durationS))")
-                        .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-                    statusView
-                }
-                .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-                if canOpenReport {
-                    Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
-                }
+        // Only a take with a report is a button; a disabled button would dim the status text.
+        if canOpenReport {
+            Button {
+                app.practice.path.append(.report(takeID: take.id))
+            } label: {
+                row
             }
-            .padding(Theme.Spacing.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+        } else {
+            row
         }
-        .buttonStyle(.plain)
-        .disabled(!canOpenReport && take.isUploaded)
+    }
+
+    private var row: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.m) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(prompt?.text ?? "Prompt")
+                    .font(Theme.Fonts.bodyEmphasis)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .lineLimit(2)
+                Text("Take \(take.attempt), \(Format.clock(take.durationS))")
+                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+                statusView
+            }
+            .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+            if canOpenReport {
+                Image(systemName: "chevron.right").foregroundStyle(Theme.Colors.textTertiary)
+            }
+        }
+        .padding(Theme.Spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder private var statusView: some View {

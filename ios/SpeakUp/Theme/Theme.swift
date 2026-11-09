@@ -13,6 +13,8 @@ enum Theme {
         static let background = Color(uiColor: .systemGroupedBackground)
         static let surface = Color(uiColor: .secondarySystemGroupedBackground)
         static let surfaceSunken = Color(uiColor: .tertiarySystemFill)
+        /// Short sheets are opaque, so what is under them, like a red Retry button, does not glow through.
+        static let sheet = Color(uiColor: .systemBackground)
         static let textPrimary = Color.primary
         static let textSecondary = Color.secondary
         static let textTertiary = Color(uiColor: .tertiaryLabel)

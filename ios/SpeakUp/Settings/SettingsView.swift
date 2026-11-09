@@ -51,7 +51,7 @@ struct SettingsView: View {
 
     private var serverSection: some View {
         Section {
-            TextField("https://mac-mini.example-tailnet.ts.net", text: $address)
+            TextField("https://mac-mini.ts.net", text: $address)
                 .keyboardType(.URL)
                 .textContentType(.URL)
                 .textInputAutocapitalization(.never)

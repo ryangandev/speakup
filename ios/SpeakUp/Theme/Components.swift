@@ -249,6 +249,37 @@ struct QuoteButton: View {
     }
 }
 
+/// A label with a value on its trailing side, or under it when they do not fit.
+/// At accessibility text sizes every row stacks, so a list of rows does not mix the two layouts.
+struct LabeledRow<Label: View, Value: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    var spacing: CGFloat = Theme.Spacing.xs
+    @ViewBuilder let label: Label
+    @ViewBuilder let value: Value
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            stacked
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
+                    label
+                    Spacer(minLength: Theme.Spacing.s)
+                    value
+                }
+                stacked
+            }
+        }
+    }
+
+    private var stacked: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            label
+            value
+        }
+    }
+}
+
 /// A label and a value on one row, wrapping under each other at large text sizes.
 struct ValueRow: View {
     let label: String
@@ -256,16 +287,10 @@ struct ValueRow: View {
     var note: String?
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline) {
-                labelStack
-                Spacer(minLength: Theme.Spacing.s)
-                Text(value).font(Theme.Fonts.numeric).foregroundStyle(Theme.Colors.textPrimary)
-            }
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                labelStack
-                Text(value).font(Theme.Fonts.numeric).foregroundStyle(Theme.Colors.textPrimary)
-            }
+        LabeledRow(spacing: Theme.Spacing.xxs) {
+            labelStack
+        } value: {
+            Text(value).font(Theme.Fonts.numeric).foregroundStyle(Theme.Colors.textPrimary)
         }
     }
 
@@ -382,6 +407,7 @@ private struct FittedSheet: ViewModifier {
         }
         .scrollBounceBehavior(.basedOnSize)
         .presentationDetents([.height(contentHeight)])
+        .presentationBackground(Theme.Colors.sheet)
         .presentationDragIndicator(.visible)
     }
 }

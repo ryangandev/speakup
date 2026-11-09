@@ -48,15 +48,13 @@ struct PreparedPromptView: View {
         .scrollDismissesKeyboard(.interactively)
         .toolbar {
             // The notes editor takes returns, so the keyboard needs its own way out to reach
-            // the length picker underneath.
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button {
-                    focusedField = nil
-                } label: {
-                    Image(systemName: "keyboard.chevron.compact.down")
+            // the length picker underneath. It is in the navigation bar, not a keyboard
+            // toolbar: SwiftUI logs "Invalid frame dimension" whenever a keyboard toolbar shows.
+            if focusedField != nil {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { focusedField = nil }
+                        .accessibilityIdentifier("hideKeyboard")
                 }
-                .accessibilityLabel("Hide keyboard")
             }
         }
         .background(Theme.Colors.background)

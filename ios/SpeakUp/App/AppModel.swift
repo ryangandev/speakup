@@ -6,7 +6,10 @@ enum ServerStatus: Equatable {
     case notConfigured
     case checking
     case reachable(Health)
+    /// No answer at all; the message is the system's reason.
     case unreachable(String)
+    /// The server answered /health with an error, such as a rejected token.
+    case failing(String)
 
     var coachingAvailable: Bool {
         if case .reachable(let health) = self { return health.coaching.available }
@@ -90,7 +93,12 @@ final class AppModel {
         do {
             serverStatus = .reachable(try await api.health())
         } catch {
-            serverStatus = .unreachable(APIError.wrap(error).userMessage)
+            let apiError = APIError.wrap(error)
+            if case .transport(_, let message) = apiError {
+                serverStatus = .unreachable(message)
+            } else {
+                serverStatus = .failing(apiError.userMessage)
+            }
         }
     }
 

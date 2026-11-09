@@ -60,6 +60,7 @@ final class WalkthroughTests: XCTestCase {
             notes.tap()
             notes.typeText("Joins for reporting. Team knows it. Cost.")
         }
+        shot("04-prepared-keyboard")
         dismissKeyboard()
         shot("04-prepared")
         app.buttons["Record"].tap()
@@ -124,6 +125,8 @@ final class WalkthroughTests: XCTestCase {
         sleep(1)
         shootScrolling("18-session-detail")
         let take = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Take 2'")).firstMatch
+        // At large text sizes the row starts below the fold, and the list only loads what is near.
+        for _ in 0..<6 where !(take.exists && take.isHittable) { scrollPage() }
         XCTAssertTrue(take.waitForExistence(timeout: 5))
         take.tap()
         waitForReport(attempt: 2)
@@ -310,7 +313,7 @@ final class WalkthroughTests: XCTestCase {
     }
 
     private func dismissKeyboard() {
-        let hide = app.buttons["Hide keyboard"]
+        let hide = app.buttons["hideKeyboard"]
         if hide.exists { hide.tap() }
         sleep(1)
     }
@@ -318,18 +321,35 @@ final class WalkthroughTests: XCTestCase {
     // MARK: Screenshots
 
     /// Screenshots the screen, then scrolls a page at a time until the content stops moving.
-    private func shootScrolling(_ name: String, maxPages: Int = 8) {
+    private func shootScrolling(_ name: String, maxPages: Int = 12) {
         var previous = XCUIScreen.main.screenshot().pngRepresentation
+        var previousLayout = textLayout()
         shot(name, data: previous)
         for page in 2...maxPages {
-            app.swipeUp()
+            scrollPage()
             usleep(600_000)
             let current = XCUIScreen.main.screenshot().pngRepresentation
-            if current == previous { break }
+            let layout = textLayout()
+            // A spinner changes the pixels without scrolling, so also stop when no text moved.
+            if current == previous || layout == previousLayout { break }
             shot("\(name)-p\(page)", data: current)
             previous = current
+            previousLayout = layout
         }
         for _ in 0..<maxPages { app.swipeDown() }
+    }
+
+    /// Drags up most of a screen in the side margin, where no button or transcript word can
+    /// take the gesture instead of the scroll view.
+    private func scrollPage() {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.7))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.2))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .default, thenHoldForDuration: 0.1)
+    }
+
+    /// Where the visible texts are, to tell whether a swipe scrolled anything.
+    private func textLayout() -> [CGRect] {
+        app.staticTexts.allElementsBoundByIndex.prefix(40).map(\.frame)
     }
 
     private func shot(_ name: String, data: Data? = nil) {

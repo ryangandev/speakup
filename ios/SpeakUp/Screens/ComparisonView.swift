@@ -139,16 +139,10 @@ struct ComparisonView: View {
         Card {
             SectionTitle("Dimensions", detail: "Before → after")
             ForEach(comparison.dimensionChanges, id: \.dimension) { change in
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
-                        Text(change.dimension.label).font(Theme.Fonts.body)
-                        Spacer(minLength: Theme.Spacing.s)
-                        levels(change)
-                    }
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Text(change.dimension.label).font(Theme.Fonts.body)
-                        levels(change)
-                    }
+                LabeledRow {
+                    Text(change.dimension.label).font(Theme.Fonts.body)
+                } value: {
+                    levels(change)
                 }
                 .accessibilityElement(children: .combine)
             }
@@ -182,16 +176,10 @@ struct ComparisonView: View {
     }
 
     private func metricRow(_ change: Comparison.MetricChange, showsChange: Bool) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
-                Text(change.label).font(Theme.Fonts.body)
-                Spacer(minLength: Theme.Spacing.s)
-                metricValues(change, showsChange: showsChange)
-            }
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                Text(change.label).font(Theme.Fonts.body)
-                metricValues(change, showsChange: showsChange)
-            }
+        LabeledRow {
+            Text(change.label).font(Theme.Fonts.body)
+        } value: {
+            metricValues(change, showsChange: showsChange)
         }
         .accessibilityElement(children: .combine)
     }
