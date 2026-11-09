@@ -26,6 +26,7 @@ crisper = ["crisperwhisper[transformers]>=2.0.4", "transformers>=4.57,<5"]
 
 [project.scripts]
 speakup-bakeoff = "speakup.bakeoff.cli:main"
+speakup-server = "speakup.api.cli:main"
 
 [dependency-groups]
 dev = [
