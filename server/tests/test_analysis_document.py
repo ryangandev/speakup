@@ -63,8 +63,11 @@ def test_analyze_matches_the_contract_example_shape(tmp_path: Path) -> None:
     assert doc["schema_version"] == "analysis/1"
     assert doc["created_at"].endswith("Z")
     assert doc["coaching_applied"] is False
+    # stt.version is the installed package version: a string with the crisper extra, else null.
+    stt_version = doc["provenance"]["stt"]["version"]
+    assert stt_version is None or isinstance(stt_version, str)
     assert _shape(doc["provenance"]) == _shape(EXAMPLE["provenance"]) | {
-        "stt": {"engine": "str", "model": "str", "version": "NoneType"}
+        "stt": {"engine": "str", "model": "str", "version": type(stt_version).__name__}
     }
     assert doc["words"] == EXAMPLE["words"]
 
