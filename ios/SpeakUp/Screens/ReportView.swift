@@ -24,7 +24,7 @@ struct ReportView: View {
                         tone: .error, systemImage: "exclamationmark.triangle.fill", message: error,
                         actionTitle: "Try again", isWorking: model.isLoading
                     ) { Task { await model.load(app: app) } }
-                    .padding(Theme.Spacing.screen)
+                    .screenContent()
                 }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -76,7 +76,7 @@ struct ReportView: View {
                 MetricsCard(analysis: report.analysis, takeID: takeID)
                 NervousnessCard(signs: report.analysis.nervousnessSigns, ratings: model.ratings)
             }
-            .padding(Theme.Spacing.screen)
+            .screenContent()
         }
         .refreshable { await model.load(app: app) }
         .safeAreaInset(edge: .bottom) {
@@ -190,6 +190,7 @@ private struct ComparisonCard: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("report.comparison")
         .accessibilityHint("Opens the comparison")
     }
 }

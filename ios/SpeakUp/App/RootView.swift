@@ -69,16 +69,24 @@ struct PracticeTab: View {
         NavigationStack(path: $practice.path) {
             HomeView()
                 .navigationDestination(for: PracticeRoute.self) { route in
-                    switch route {
-                    case .prepared:
-                        PreparedPromptView()
-                    case .impromptu:
-                        ImpromptuPromptView()
-                    case .report(let takeID):
-                        ReportView(takeID: takeID, context: .practice)
-                    case .comparison(let takeID):
-                        ComparisonView(takeID: takeID, context: .practice)
+                    Group {
+                        switch route {
+                        case .prepared:
+                            PreparedPromptView()
+                        case .impromptu:
+                            ImpromptuPromptView()
+                        case .report(let takeID):
+                            ReportView(takeID: takeID, context: .practice)
+                        case .comparison(let takeID):
+                            ComparisonView(takeID: takeID, context: .practice)
+                        }
                     }
+                    // Retry replaces the Report at the same depth with the next take's;
+                    // the id makes that a new screen rather than the old one's state.
+                    .id(route)
+                    // Past Home the practice loop has its own pinned actions (Record, Retry,
+                    // Next prompt), so the tab bar steps aside to leave room for content.
+                    .toolbar(.hidden, for: .tabBar)
                 }
         }
     }

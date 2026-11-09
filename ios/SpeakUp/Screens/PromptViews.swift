@@ -43,9 +43,22 @@ struct PreparedPromptView: View {
                         get: { targetSeconds ?? app.settings.defaultPreparedSeconds },
                         set: { targetSeconds = $0 }))
             }
-            .padding(Theme.Spacing.screen)
+            .screenContent()
         }
         .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            // The notes editor takes returns, so the keyboard needs its own way out to reach
+            // the length picker underneath.
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button {
+                    focusedField = nil
+                } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                }
+                .accessibilityLabel("Hide keyboard")
+            }
+        }
         .background(Theme.Colors.background)
         .navigationTitle("Prepared")
         .navigationBarTitleDisplayMode(.inline)
@@ -113,7 +126,7 @@ struct ImpromptuPromptView: View {
                     LengthPicker(options: AppSettings.impromptuLengths, selection: $model.targetSeconds)
                 }
             }
-            .padding(Theme.Spacing.screen)
+            .screenContent()
         }
         .background(Theme.Colors.background)
         .navigationTitle("Impromptu")

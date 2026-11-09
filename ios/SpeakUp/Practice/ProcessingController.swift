@@ -39,6 +39,8 @@ final class ProcessingController {
     private(set) var processingStartedAt: Date?
     /// The last polling error, cleared by the next successful poll.
     private(set) var connectionIssue: String?
+    /// Every Take resource the controller receives, so the phone's copy stays current.
+    @ObservationIgnored var onUpdate: ((Take) -> Void)?
 
     private let api: any SpeakUpAPI
     private let upload: Upload
@@ -114,7 +116,7 @@ final class ProcessingController {
                     Task { @MainActor in self?.setUploadProgress(fraction) }
                 }
                 processingStartedAt = now()
-                phase = Self.phase(for: take)
+                apply(take)
             } catch {
                 phase = .uploadFailed(message: APIError.wrap(error).userMessage)
                 return
@@ -129,7 +131,7 @@ final class ProcessingController {
             let take = try await api.reprocess(takeID: takeID, from: stage)
             processingStartedAt = now()
             connectionIssue = nil
-            phase = Self.phase(for: take)
+            apply(take)
         } catch {
             connectionIssue = APIError.wrap(error).userMessage
             return
@@ -148,11 +150,16 @@ final class ProcessingController {
             do {
                 let take = try await api.take(id: takeID)
                 connectionIssue = nil
-                phase = Self.phase(for: take)
+                apply(take)
             } catch {
                 connectionIssue = APIError.wrap(error).userMessage
             }
         }
+    }
+
+    private func apply(_ take: Take) {
+        onUpdate?(take)
+        phase = Self.phase(for: take)
     }
 
     private func setUploadProgress(_ fraction: Double) {

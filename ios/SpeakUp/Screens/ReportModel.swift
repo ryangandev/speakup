@@ -83,6 +83,8 @@ final class ReportModel {
             takeID: takeID, api: app.api, needsUpload: false, upload: { _ in
                 throw APIError.notConfigured
             })
+        let store = app.store
+        controller.onUpdate = { take in store.update(remote: take) }
         coachingController = controller
         coachingWatch = Task {
             if reprocess {

@@ -358,13 +358,41 @@ struct NervousnessSheet: View {
                 .font(Theme.Fonts.body)
                 .frame(maxWidth: .infinity)
         }
-        .padding(Theme.Spacing.xl)
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
+        .fittedSheet()
     }
 
     private func finish(_ value: Int?) {
         dismiss()
         onFinish(value)
+    }
+}
+
+/// A sheet exactly as tall as its content at any text size, up to the full screen.
+private struct FittedSheet: ViewModifier {
+    @State private var contentHeight: CGFloat = 300
+
+    func body(content: Content) -> some View {
+        ScrollView {
+            content
+                .padding(.horizontal, Theme.Spacing.xl)
+                .padding(.top, Theme.Spacing.xxl)
+                .padding(.bottom, Theme.Spacing.l)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .presentationDetents([.height(contentHeight)])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+extension View {
+    func fittedSheet() -> some View { modifier(FittedSheet()) }
+
+    /// A scrolling screen's content: full width, so short content stays at the leading
+    /// margin instead of centering, with the screen's side margins.
+    func screenContent() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Theme.Spacing.screen)
     }
 }

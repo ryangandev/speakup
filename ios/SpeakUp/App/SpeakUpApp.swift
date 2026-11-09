@@ -34,11 +34,14 @@ struct SpeakUpApp: App {
 ///   (they are read from the argument domain of UserDefaults).
 /// - `-resetState` deletes the phone's practice state at launch.
 /// - `-slowAfter <seconds>` shortens the "Taking longer than usual" threshold.
+/// - `-debug.syntheticMicrophone` records a generated signal instead of the microphone, for
+///   simulators with no audio input.
 enum DebugLaunch {
     @MainActor
     static func apply(store: PracticeStore) {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-resetState") { store.removeAll() }
+        if arguments.contains("-debug.syntheticMicrophone") { AudioRecorder.usesSyntheticInput = true }
         if let index = arguments.firstIndex(of: "-slowAfter"), index + 1 < arguments.count,
             let seconds = TimeInterval(arguments[index + 1])
         {

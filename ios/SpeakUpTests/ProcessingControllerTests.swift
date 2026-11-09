@@ -52,9 +52,12 @@ struct ProcessingControllerTests {
         ])
         let clock = Clock()
         let controller = controller(api: api, clock: clock)
+        var updates: [TakeStatus] = []
+        controller.onUpdate = { updates.append($0.status) }
         #expect(controller.phase == .uploading(progress: 0))
 
         await controller.run()
+        #expect(updates == [.uploaded, .transcribing, .analyzing, .coaching, .done])
 
         guard case .done(let take) = controller.phase else {
             Issue.record("Expected done, got \(controller.phase)")

@@ -58,11 +58,18 @@ final class AudioRecorder {
 
     var isPastWarning: Bool { elapsed >= Self.warningAfter }
 
-    func start(to url: URL) throws {
+    func start(to url: URL) async throws {
+        guard !isRecording else { return }
+        #if DEBUG
+        if Self.usesSyntheticInput {
+            try startSynthetic(to: url)
+            return
+        }
+        #endif
         guard AVAudioApplication.shared.recordPermission == .granted else {
             throw RecorderError.permissionDenied
         }
-        try AudioSessionConfig.activateForRecording()
+        try await AudioSessionConfig.activateForRecording()
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
@@ -84,12 +91,15 @@ final class AudioRecorder {
             self.sink = nil
             throw error
         }
+        observeInterruptions()
+        didStart()
+    }
 
+    private func didStart() {
         recordedAt = Date()
         elapsed = 0
         level = 0
         isRecording = true
-        observeInterruptions()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(100))
@@ -121,6 +131,14 @@ final class AudioRecorder {
         isRecording = false
         ticker?.cancel()
         ticker = nil
+        #if DEBUG
+        if let synthetic {
+            synthetic.cancel()
+            self.synthetic = nil
+            level = 0
+            return
+        }
+        #endif
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
@@ -184,6 +202,45 @@ final class AudioRecorder {
     private nonisolated static func tapBlock(for sink: RecordingSink) -> AVAudioNodeTapBlock {
         { buffer, _ in sink.append(buffer) }
     }
+
+    #if DEBUG
+    /// Debug builds only, set by `-debug.syntheticMicrophone`: records a generated signal
+    /// instead of the microphone, for simulators that have no audio input.
+    static var usesSyntheticInput = false
+    private var synthetic: Task<Void, Never>?
+
+    private func startSynthetic(to url: URL) throws {
+        let rate = 48_000.0
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1) else {
+            throw RecorderError.noInput
+        }
+        let sink = try RecordingSink(url: url, inputFormat: format)
+        self.sink = sink
+        micRoute = .builtIn
+        micName = "Simulated microphone"
+        synthetic = Task.detached {
+            guard let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1) else { return }
+            var frame = 0
+            let chunk = 4_800
+            while !Task.isCancelled {
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(chunk))
+                else { return }
+                buffer.frameLength = AVAudioFrameCount(chunk)
+                let samples = buffer.floatChannelData![0]
+                for index in 0..<chunk {
+                    let t = Double(frame + index) / rate
+                    // A tone whose loudness rises and falls like syllables, so the meter moves.
+                    let envelope = 0.5 + 0.5 * sin(2 * .pi * 3 * t)
+                    samples[index] = Float(0.3 * envelope * sin(2 * .pi * 220 * t))
+                }
+                frame += chunk
+                sink.append(buffer)
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        didStart()
+    }
+    #endif
 }
 
 extension MicRoute {
@@ -296,20 +353,27 @@ final class RecordingSink: @unchecked Sendable {
 }
 
 /// The app's one audio session setup, shared by recording and playback.
+///
+/// Activation can block for a while (another app's audio has to stop first), so it runs
+/// off the main actor.
 enum AudioSessionConfig {
-    static func activateForRecording() throws {
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(
-            .playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
-        try session.setActive(true)
+    static func activateForRecording() async throws {
+        try await Task.detached {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(
+                .playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+            try session.setActive(true)
+        }.value
     }
 
-    static func activateForPlayback() throws {
-        let session = AVAudioSession.sharedInstance()
-        if session.category != .playAndRecord {
-            try session.setCategory(.playback, mode: .default)
-        }
-        try session.setActive(true)
+    static func activateForPlayback() async throws {
+        try await Task.detached {
+            let session = AVAudioSession.sharedInstance()
+            if session.category != .playAndRecord {
+                try session.setCategory(.playback, mode: .default)
+            }
+            try session.setActive(true)
+        }.value
     }
 }
 

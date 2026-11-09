@@ -34,7 +34,7 @@ final class PracticeCoordinator {
         app.player.stop()
         let flow = TakeFlowModel(prompt: prompt, app: app, coordinator: self)
         do {
-            try flow.startRecording()
+            try await flow.startRecording()
             takeFlow = flow
         } catch {
             recordingError = error.localizedDescription
@@ -97,11 +97,11 @@ final class TakeFlowModel: Identifiable {
 
     var session: LocalSession? { app.store.session(id: prompt.sessionId) }
 
-    func startRecording() throws {
+    func startRecording() async throws {
         takeID = IDs.make()
         autoStopReason = nil
         stage = .recording
-        try recorder.start(to: app.store.newRecordingURL(takeID: takeID))
+        try await recorder.start(to: app.store.newRecordingURL(takeID: takeID))
     }
 
     /// Done: stop and keep the take.
@@ -137,15 +137,17 @@ final class TakeFlowModel: Identifiable {
         let controller = ProcessingController(
             takeID: takeID, api: app.api, needsUpload: true,
             upload: { progress in try await sync.upload(takeID: takeID, progress: progress) })
+        let store = app.store
+        controller.onUpdate = { take in store.update(remote: take) }
         stage = .processing(controller)
         controller.start()
     }
 
     /// Record again on the same prompt, after a take with no speech.
-    func recordAgain() {
+    func recordAgain() async {
         stop()
         do {
-            try startRecording()
+            try await startRecording()
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -36,7 +36,7 @@ final class AudioPlayer {
             do {
                 let url = try await resolveAudio(takeID)
                 guard loadingKey == key else { return }
-                try play(url: url, key: key, from: start, to: end)
+                try await play(url: url, key: key, from: start, to: end)
             } catch {
                 if loadingKey == key {
                     errorMessage = (error as? APIError)?.userMessage ?? error.localizedDescription
@@ -57,8 +57,9 @@ final class AudioPlayer {
         loadingKey = nil
     }
 
-    private func play(url: URL, key: String, from start: Double, to end: Double?) throws {
-        try AudioSessionConfig.activateForPlayback()
+    private func play(url: URL, key: String, from start: Double, to end: Double?) async throws {
+        try await AudioSessionConfig.activateForPlayback()
+        guard loadingKey == key else { return }
         let player = try AVAudioPlayer(contentsOf: url)
         let begin = max(0, min(start, player.duration))
         player.currentTime = begin

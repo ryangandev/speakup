@@ -16,7 +16,7 @@ struct HomeView: View {
                 startButtons
                 if let session, !session.takes.isEmpty { TakesList(session: session) }
             }
-            .padding(Theme.Spacing.screen)
+            .screenContent()
         }
         .background(Theme.Colors.background)
         .navigationTitle("Practice")
@@ -45,8 +45,8 @@ struct HomeView: View {
         .task(id: processingTakeIDs) {
             // While a take of the open session is processing, keep its status current.
             while !processingTakeIDs.isEmpty, !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(4))
                 await app.sync.refreshOpenSessionTakes()
+                try? await Task.sleep(for: .seconds(4))
             }
         }
     }
@@ -106,6 +106,7 @@ private struct StartButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("start.\(title.lowercased())")
     }
 }
 

@@ -43,7 +43,7 @@ struct RecordingView: View {
                         Banner(tone: .error, systemImage: "xmark.octagon.fill", message: error)
                     }
                 }
-                .padding(Theme.Spacing.screen)
+                .screenContent()
             }
             BottomBar {
                 Button {
@@ -172,7 +172,7 @@ struct ProcessingView: View {
                             .foregroundStyle(Theme.Colors.caution)
                     }
                 }
-                .padding(Theme.Spacing.screen)
+                .screenContent()
             }
             BottomBar {
                 actions
@@ -233,7 +233,7 @@ struct ProcessingView: View {
             Button("Retry upload") { controller.retryUpload() }.buttonStyle(.primary)
         case .failed(let code, _) where code == .noSpeech:
             Button {
-                flow.recordAgain()
+                Task { await flow.recordAgain() }
             } label: {
                 Label("Record again", systemImage: "mic.fill")
             }

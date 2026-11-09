@@ -15,11 +15,14 @@ struct HistoryTab: View {
         NavigationStack(path: $app.historyPath) {
             SessionsView()
                 .navigationDestination(for: HistoryRoute.self) { route in
-                    switch route {
-                    case .session(let id): SessionDetailView(sessionID: id)
-                    case .report(let takeID): ReportView(takeID: takeID, context: .history)
-                    case .comparison(let takeID): ComparisonView(takeID: takeID, context: .history)
+                    Group {
+                        switch route {
+                        case .session(let id): SessionDetailView(sessionID: id)
+                        case .report(let takeID): ReportView(takeID: takeID, context: .history)
+                        case .comparison(let takeID): ComparisonView(takeID: takeID, context: .history)
+                        }
                     }
+                    .id(route)
                 }
         }
     }

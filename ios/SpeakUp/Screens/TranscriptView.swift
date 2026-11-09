@@ -135,6 +135,8 @@ private struct LegendItem: View {
                         .background(style.color.opacity(style.fillOpacity), in: RoundedRectangle(cornerRadius: Theme.Radius.mark))
                 }
             }
+            // The sample never truncates; only the label may wrap at large text sizes.
+            .fixedSize()
             Text(kind.label).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
         }
     }
@@ -157,11 +159,7 @@ private struct MarkDetail: View {
             PlayButton(
                 key: "mark-\(takeID)-\(mark.id)", takeID: takeID,
                 start: max(0, mark.event.start - 1.5), label: "Play from here")
-            Spacer(minLength: 0)
         }
-        .padding(Theme.Spacing.xl)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .fittedSheet()
     }
 }

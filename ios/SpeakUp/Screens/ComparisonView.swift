@@ -19,7 +19,7 @@ struct ComparisonView: View {
                         tone: .error, systemImage: "exclamationmark.triangle.fill", message: errorMessage,
                         actionTitle: "Try again", isWorking: isLoading
                     ) { Task { await load() } }
-                    .padding(Theme.Spacing.screen)
+                    .screenContent()
                 }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -70,7 +70,7 @@ struct ComparisonView: View {
                 if !comparison.dimensionChanges.isEmpty { dimensionsCard(comparison) }
                 metricsCard(comparison)
             }
-            .padding(Theme.Spacing.screen)
+            .screenContent()
         }
         .safeAreaInset(edge: .bottom) {
             if let promptID = retryPromptID {
@@ -168,30 +168,43 @@ struct ComparisonView: View {
     private func metricsCard(_ comparison: Comparison) -> some View {
         Card {
             SectionTitle("Metrics", detail: "Before → after")
-            ForEach(comparison.metricChanges, id: \.metric) { change in
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
-                        Text(change.label).font(Theme.Fonts.body)
-                        Spacer(minLength: Theme.Spacing.s)
-                        metricValues(change)
-                    }
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Text(change.label).font(Theme.Fonts.body)
-                        metricValues(change)
-                    }
-                }
-                .accessibilityElement(children: .combine)
+            let graded = comparison.metricChanges.filter { $0.change != .info }
+            let informational = comparison.metricChanges.filter { $0.change == .info }
+            ForEach(graded, id: \.metric) { metricRow($0, showsChange: true) }
+            if !informational.isEmpty {
+                // Like the Report: pace, length, pitch and volume are context, not a grade.
+                Divider()
+                Text("For information, not graded").font(Theme.Fonts.captionEmphasis)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                ForEach(informational, id: \.metric) { metricRow($0, showsChange: false) }
             }
         }
     }
 
-    private func metricValues(_ change: Comparison.MetricChange) -> some View {
+    private func metricRow(_ change: Comparison.MetricChange, showsChange: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
+                Text(change.label).font(Theme.Fonts.body)
+                Spacer(minLength: Theme.Spacing.s)
+                metricValues(change, showsChange: showsChange)
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(change.label).font(Theme.Fonts.body)
+                metricValues(change, showsChange: showsChange)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func metricValues(_ change: Comparison.MetricChange, showsChange: Bool) -> some View {
         HStack(spacing: Theme.Spacing.s) {
             Text("\(Format.metricValue(change.before, unit: change.unit)) → \(Format.metricValue(change.after, unit: change.unit))")
                 .font(Theme.Fonts.numeric)
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .fixedSize()
-            Badge(text: change.change.label, color: Theme.color(for: change.change))
+            if showsChange {
+                Badge(text: change.change.label, color: Theme.color(for: change.change))
+            }
         }
     }
 }
