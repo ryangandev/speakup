@@ -56,7 +56,53 @@ struct CommandSpotterTests {
     @Test func recognizerProgressBeyondSilenceConfirmsInOneUpdate() {
         var spotter = recording()
         let words = run("we chose postgres", from: 0) + [w("done", 2.0, 2.4)]
-        #expect(spotter.receive(volatileUpdate(words, progress: 3.7)) == [.done(cutAt: 2.0)])
+        #expect(spotter.receive(finalUpdate(words, progress: 3.7)) == [.done(cutAt: 2.0)])
+    }
+
+    @Test func aVolatileDoneNeverFiresButTheSameWordsOnceFinalDo() {
+        var spotter = recording()
+        let words = run("we chose postgres", from: 0) + [w("done", 2.5, 2.9)]
+        // The silence is long enough, but the recognizer may still change its mind.
+        #expect(spotter.receive(volatileUpdate(words, progress: 4.2)) == [])
+        #expect(spotter.advance(progress: 30) == [])
+        #expect(spotter.receive(finalUpdate(words, progress: 4.2)) == [.done(cutAt: 2.5)])
+    }
+
+    @Test func aVolatileImDoneNeverFires() {
+        var spotter = recording()
+        let head = run("we chose postgres", from: 0)
+        let spoken = [w("I'm", 2.5, 2.7), w("done", 2.75, 3.1)]
+        #expect(spotter.receive(volatileUpdate(head + spoken, progress: 5)) == [])
+        #expect(spotter.receive(finalUpdate(head + spoken, progress: 5)) == [.done(cutAt: 2.5)])
+    }
+
+    @Test func aVolatileWordAfterAFinalDoneStillCancelsIt() {
+        var spotter = recording()
+        let head = run("we chose postgres", from: 0) + [w("done", 2.5, 2.9)]
+        #expect(spotter.receive(finalUpdate(head, progress: 3.2)) == [])
+        #expect(spotter.receive(volatileUpdate([w("with", 3.3, 3.5)], progress: 3.6)) == [])
+        #expect(spotter.advance(progress: 30) == [])
+    }
+
+    @Test func repeatedDoneIsCutAtTheFirstOfTheRun() {
+        var spotter = recording()
+        let head = run("we chose postgres", from: 0)
+        let words = head + [w("done", 2.0, 2.4), w("done", 3.2, 3.6)]
+        #expect(spotter.receive(finalUpdate(words, progress: 5)) == [.done(cutAt: 2.0)])
+    }
+
+    @Test func repeatedImDoneIsCutAtTheFirstOfTheRun() {
+        var spotter = recording()
+        let head = run("we chose postgres", from: 0)
+        let words = head + [w("I'm", 2.0, 2.2), w("done", 2.25, 2.6), w("done", 3.4, 3.8)]
+        #expect(spotter.receive(finalUpdate(words, progress: 5.2)) == [.done(cutAt: 2.0)])
+    }
+
+    @Test func aDoneInsideTheSentenceBeforeTheCommandStaysInTheTake() {
+        var spotter = recording()
+        // "we got it done" in one breath is part of the answer; the spoken "done" follows.
+        let words = run("we got it done", from: 0) + [w("done", 2.5, 2.9)]
+        #expect(spotter.receive(finalUpdate(words, progress: 4.2)) == [.done(cutAt: 2.5)])
     }
 
     @Test func nothingFiresAfterTheFirstDone() {
@@ -233,10 +279,24 @@ struct CommandSpotterTests {
         #expect(!spotter.isListening)
     }
 
+    @Test func aVolatileCommandNeverFiresButTheSameWordsOnceFinalDo() {
+        for (phrase, command) in [("stop", CommandSpotter.Command.stop), ("next question", .next)] {
+            var spotter = betweenTakes()
+            let words = run(phrase, from: 1)
+            let last = words.last!.end
+            #expect(spotter.receive(volatileUpdate(words, progress: last + 3)) == [], "\(phrase)")
+            #expect(spotter.advance(progress: last + 30) == [], "\(phrase)")
+            #expect(spotter.isListening)
+            #expect(
+                spotter.receive(finalUpdate(words, progress: last + 3)) == [.command(command)],
+                "\(phrase)")
+        }
+    }
+
     @Test func aCommandWaitsForTheEndOfItsUtterance() {
         var spotter = betweenTakes()
         let words = run("repeat that", from: 1)  // ends 1.65
-        #expect(spotter.receive(volatileUpdate(words, progress: 2.0)) == [])
+        #expect(spotter.receive(finalUpdate(words, progress: 2.0)) == [])
         #expect(spotter.advance(progress: 2.4) == [])
         #expect(spotter.advance(progress: 2.5) == [.command(.repeatThat)])
     }
@@ -244,7 +304,7 @@ struct CommandSpotterTests {
     @Test func aFollowingUtteranceClosesTheCommandBeforeIt() {
         var spotter = betweenTakes()
         let words = [w("next", 1.0, 1.4), w("hello", 3.0, 3.3)]
-        #expect(spotter.receive(volatileUpdate(words)) == [.command(.next)])
+        #expect(spotter.receive(finalUpdate(words)) == [.command(.next)])
     }
 
     @Test func sayThatAgainIsRepeatNotAgain() {
@@ -270,7 +330,7 @@ struct CommandSpotterTests {
     @Test func unrecognizedSpeechIsReportedOncePerUtterance() {
         var spotter = betweenTakes()
         let words = run("what was that", from: 1)
-        #expect(spotter.receive(volatileUpdate(words, progress: 4)) == [.unrecognizedSpeech])
+        #expect(spotter.receive(finalUpdate(words, progress: 4)) == [.unrecognizedSpeech])
         #expect(spotter.advance(progress: 9) == [])
         #expect(spotter.receive(finalUpdate(words, progress: 10)) == [])
         // A later command still works.
@@ -288,9 +348,7 @@ struct CommandSpotterTests {
 
     @Test func aRevisedCommandIsPickedUp() {
         var spotter = betweenTakes()
-        #expect(
-            spotter.receive(volatileUpdate([w("nest", 1, 1.4)], progress: 3))
-                == [.unrecognizedSpeech])
+        #expect(spotter.receive(volatileUpdate([w("nest", 1, 1.4)], progress: 3)) == [])
         #expect(
             spotter.receive(finalUpdate([w("next", 1, 1.4)], progress: 3)) == [.command(.next)])
     }

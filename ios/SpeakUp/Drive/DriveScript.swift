@@ -44,7 +44,7 @@ enum DriveScript {
     static let stillWorking = "Still working."
 
     /// Waiting gave up (the take keeps processing and shows in History at home).
-    static let waitTimedOut = "Feedback on that one will come later. Say next, again, or stop."
+    static let waitTimedOut = "Feedback on that one will come later. Say: next, again, or stop."
 
     // MARK: - Feedback
 
@@ -87,12 +87,12 @@ enum DriveScript {
             if take.error?.code == .noSpeech {
                 return Feedback(
                     kind: .noSpeech, segments: ["I didn't catch an answer."],
-                    options: "Say again, next, or stop.")
+                    options: "Say: again, next, or stop.")
             }
             return Feedback(
                 kind: .failed,
                 segments: ["That one didn't process. Your answer is saved for when you're home."],
-                options: "Say again, next, or stop.")
+                options: "Say: again, next, or stop.")
         }
         guard take.status == .done else { return later }
 
@@ -116,57 +116,61 @@ enum DriveScript {
             segments: [
                 "I couldn't reach the server. Your answer is saved; feedback will come later."
             ],
-            options: "Say next, again, or stop.")
+            options: "Say: next, again, or stop.")
     }
 
     /// The take is saved, but feedback is not ready.
     private static var later: Feedback {
         Feedback(
             kind: .later, segments: ["Feedback on that one will come later."],
-            options: "Say next, again, or stop.")
+            options: "Say: next, again, or stop.")
     }
 
     private static let coachedOptions =
-        "Say again, next, repeat that, better version, or stop."
+        "Say: again, next, repeat that, better version, or stop."
 
     private static func coached(_ coaching: CoachingReport, comparison: Comparison?) -> Feedback {
         var segments: [String] = []
-        let retrySummary = comparison?.summary ?? coaching.comparison?.summary
-        if let retrySummary, !isBlank(retrySummary) {
+        let retrySummary = sentence(speakable(comparison?.summary ?? coaching.comparison?.summary ?? ""))
+        let verdict = sentence(speakable(coaching.verdict))
+        if !retrySummary.isEmpty {
             // A retry leads with what changed, then the verdict and the new focus. The
             // strength is left out: the comparison already says what got better.
-            segments.append(sentence(speakable(retrySummary)))
-            segments.append(sentence(speakable(coaching.verdict)))
+            segments += [retrySummary, verdict]
         } else {
-            segments.append(sentence(speakable(coaching.verdict)))
-            if !isBlank(coaching.strength.point) {
-                segments.append("What worked: \(sentence(speakable(coaching.strength.point)))")
-            }
+            let point = sentence(speakable(coaching.strength.point))
+            segments += [verdict, point.isEmpty ? "" : "What worked: \(point)"]
         }
         if let focus = coaching.focus.first {
             segments.append(nextTime(title: focus.title, instruction: focus.instruction))
         }
-        return Feedback(kind: .coached, segments: segments, options: coachedOptions)
+        return feedback(coachedSegments: segments)
     }
 
     /// Coaching exists but the report was not fetched: the take summary has the verdict and
     /// the focus titles.
     private static func coached(summary: TakeSummary, comparison: Comparison?) -> Feedback {
-        var segments: [String] = []
-        if let retrySummary = comparison?.summary, !isBlank(retrySummary) {
-            segments.append(sentence(speakable(retrySummary)))
+        var segments = [
+            sentence(speakable(comparison?.summary ?? "")),
+            sentence(speakable(summary.verdict ?? "")),
+        ]
+        if let title = summary.focusTitles.first {
+            segments.append(nextTime(title: title, instruction: ""))
         }
-        if let verdict = summary.verdict { segments.append(sentence(speakable(verdict))) }
-        if let title = summary.focusTitles.first, !isBlank(title) {
-            segments.append("Next time: \(sentence(speakable(title)))")
-        }
+        return feedback(coachedSegments: segments)
+    }
+
+    /// Drops empty segments; a report with nothing speakable in it is not feedback.
+    private static func feedback(coachedSegments: [String]) -> Feedback {
+        let segments = coachedSegments.filter { !isBlank($0) }
+        guard !segments.isEmpty else { return later }
         return Feedback(kind: .coached, segments: segments, options: coachedOptions)
     }
 
+    /// "Next time: title. instruction.", or "" when there is neither.
     private static func nextTime(title: String, instruction: String) -> String {
-        let title = sentence(speakable(title))
-        let instruction = isBlank(instruction) ? "" : " " + sentence(speakable(instruction))
-        return "Next time: \(title)\(instruction)"
+        let parts = [title, instruction].map { sentence(speakable($0)) }.filter { !$0.isEmpty }
+        return parts.isEmpty ? "" : "Next time: " + parts.joined(separator: " ")
     }
 
     /// No coaching: two or three metrics in plain words, from the take's summary.
@@ -197,22 +201,29 @@ enum DriveScript {
             segments += facts
         }
         return Feedback(
-            kind: .metricsOnly, segments: segments, options: "Say again, next, or stop.")
+            kind: .metricsOnly, segments: segments, options: "Say: again, next, or stop.")
     }
 
     private static func stallsSentence(blocks: Int?, restarts: Int?) -> String? {
-        guard blocks != nil || restarts != nil else { return nil }
-        let stuck = blocks ?? 0
-        let restarted = restarts ?? 0
-        switch (stuck > 0, restarted > 0) {
-        case (true, true):
-            return "You got stuck mid-phrase \(times(stuck)) and restarted \(times(restarted))."
-        case (true, false):
-            return "You got stuck mid-phrase \(times(stuck))."
-        case (false, true):
-            return "You restarted a sentence \(times(restarted))."
-        case (false, false):
-            return "No long stalls or restarts."
+        // Only claim what is known: a missing count is never read as zero.
+        switch (blocks, restarts) {
+        case (nil, nil):
+            return nil
+        case (let stuck?, nil):
+            return stuck > 0 ? "You got stuck mid-phrase \(times(stuck))." : "No long stalls."
+        case (nil, let restarted?):
+            return restarted > 0 ? "You restarted a sentence \(times(restarted))." : "No restarts."
+        case (let stuck?, let restarted?):
+            switch (stuck > 0, restarted > 0) {
+            case (true, true):
+                return "You got stuck mid-phrase \(times(stuck)) and restarted \(times(restarted))."
+            case (true, false):
+                return "You got stuck mid-phrase \(times(stuck))."
+            case (false, true):
+                return "You restarted a sentence \(times(restarted))."
+            case (false, false):
+                return "No long stalls or restarts."
+            }
         }
     }
 
@@ -229,7 +240,7 @@ enum DriveScript {
 
     /// The reference version on request, or a short answer when there is none.
     static func referenceVersion(report: TakeReport?) -> ReferenceReading {
-        let options = "Say again, next, or stop."
+        let options = "Say: again, next, or stop."
         guard let reference = report?.coaching?.referenceVersion, !isBlank(reference.text) else {
             return ReferenceReading(
                 segments: ["There is no better version without coaching."], options: options)
@@ -245,9 +256,9 @@ enum DriveScript {
     // MARK: - Commands, errors and the end
 
     /// What can be said between takes, for unrecognized speech.
-    static let commandHelp = "You can say again, next, repeat that, better version, or stop."
+    static let commandHelp = "You can say: again, next, repeat that, better version, or stop."
     static let nothingToRepeat = "There is nothing to repeat yet."
-    static let cutOff = "Your answer was cut off and saved. Say again, next, or stop."
+    static let cutOff = "Your answer was cut off and saved. Say: again, next, or stop."
     static let idleEnd = "I haven't heard anything, so I'm ending the drive."
     static let microphoneUnavailable = "I can't use the microphone, so I'm ending the drive."
     static let commandsUnavailable =

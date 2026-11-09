@@ -58,7 +58,7 @@ struct DriveScriptTests {
             feedback.segments[2]
                 == "Next time: Number your reasons. Say how many reasons there are, then give them in order of weight: Two reasons. First, reporting needs joins. Second."
         )
-        #expect(feedback.options == "Say again, next, repeat that, better version, or stop.")
+        #expect(feedback.options == "Say: again, next, repeat that, better version, or stop.")
         #expect(feedback.spoken.hasSuffix(feedback.options))
     }
 
@@ -123,7 +123,7 @@ struct DriveScriptTests {
                 "You got stuck mid-phrase once and restarted twice.",
                 "You spoke at about 170 words per minute.",
             ])
-        #expect(feedback.options == "Say again, next, or stop.")
+        #expect(feedback.options == "Say: again, next, or stop.")
         // No offer of a better version: there is none.
         #expect(!feedback.spoken.contains("better version"))
     }
@@ -153,6 +153,43 @@ struct DriveScriptTests {
                 == ["No coaching right now.", "Your answer is saved for when you're home."])
     }
 
+    @Test func stallsAreOnlyClaimedWhenKnown() throws {
+        func spoken(blocks: Int?, restarts: Int?) throws -> [String] {
+            let summary = summaryObject(fillers: nil, blocks: blocks, restarts: restarts, wpm: nil)
+            let take = try makeTake(coaching: "unavailable", summary: .some(summary))
+            return DriveScript.feedback(for: take, report: nil).segments
+        }
+        #expect(try spoken(blocks: nil, restarts: 0) == ["No coaching right now.", "No restarts."])
+        #expect(try spoken(blocks: 0, restarts: nil) == ["No coaching right now.", "No long stalls."])
+        #expect(
+            try spoken(blocks: 2, restarts: nil)
+                == ["No coaching right now.", "You got stuck mid-phrase twice."])
+    }
+
+    @Test func blankPartsOfAReportAreNotSpoken() throws {
+        var object = Fixture.fullReportObject()
+        var coaching = object["coaching"] as! [String: Any]
+        coaching["verdict"] = "  "
+        var strength = coaching["strength"] as! [String: Any]
+        strength["point"] = "\"\""
+        coaching["strength"] = strength
+        var focus = (coaching["focus"] as! [[String: Any]])
+        focus[0]["title"] = ""
+        focus[0]["instruction"] = "Pause in silence."
+        coaching["focus"] = focus
+        object["coaching"] = coaching
+        let blank = try Fixture.decode(TakeReport.self, object: object)
+        let feedback = DriveScript.feedback(for: try makeTake(), report: blank)
+        #expect(feedback.segments == ["Next time: Pause in silence."])
+        #expect(!feedback.segments.contains(where: { $0.isEmpty }))
+
+        focus[0]["instruction"] = " "
+        coaching["focus"] = focus
+        object["coaching"] = coaching
+        let nothing = try Fixture.decode(TakeReport.self, object: object)
+        #expect(DriveScript.feedback(for: try makeTake(), report: nothing).kind == .later)
+    }
+
     @Test func unavailableCoachingWithNoSummaryStillSaysSo() throws {
         let take = try makeTake(coaching: "unavailable", summary: .some(nil))
         let feedback = DriveScript.feedback(for: take, report: nil)
@@ -167,7 +204,7 @@ struct DriveScriptTests {
         let feedback = DriveScript.feedback(
             for: try makeTake(status: "failed", coaching: "pending", error: error), report: nil)
         #expect(feedback.kind == .noSpeech)
-        #expect(feedback.spoken == "I didn't catch an answer. Say again, next, or stop.")
+        #expect(feedback.spoken == "I didn't catch an answer. Say: again, next, or stop.")
     }
 
     @Test func otherFailuresSayTheTakeIsSaved() throws {
@@ -177,7 +214,7 @@ struct DriveScriptTests {
         #expect(feedback.kind == .failed)
         #expect(
             feedback.spoken
-                == "That one didn't process. Your answer is saved for when you're home. Say again, next, or stop."
+                == "That one didn't process. Your answer is saved for when you're home. Say: again, next, or stop."
         )
     }
 
@@ -198,7 +235,7 @@ struct DriveScriptTests {
         #expect(feedback.kind == .later)
         #expect(
             feedback.spoken
-                == "I couldn't reach the server. Your answer is saved; feedback will come later. Say next, again, or stop."
+                == "I couldn't reach the server. Your answer is saved; feedback will come later. Say: next, again, or stop."
         )
     }
 
@@ -206,7 +243,7 @@ struct DriveScriptTests {
         #expect(DriveScript.stillWorking == "Still working.")
         #expect(
             DriveScript.waitTimedOut
-                == "Feedback on that one will come later. Say next, again, or stop.")
+                == "Feedback on that one will come later. Say: next, again, or stop.")
     }
 
     // MARK: - Better version
@@ -226,7 +263,7 @@ struct DriveScriptTests {
                 "Here is a better version.", "We chose Postgres. Two reasons.", "First, joins.",
                 "Second, transactions.",
             ])
-        #expect(reading.options == "Say again, next, or stop.")
+        #expect(reading.options == "Say: again, next, or stop.")
     }
 
     @Test func theContractExampleReferenceVersionIsSpoken() throws {
@@ -273,10 +310,10 @@ struct DriveScriptTests {
     @Test func fixedLines() {
         #expect(DriveScript.takeEnded == "Got it.")
         #expect(DriveScript.timeLimit == "That's the time limit.")
-        #expect(DriveScript.cutOff == "Your answer was cut off and saved. Say again, next, or stop.")
+        #expect(DriveScript.cutOff == "Your answer was cut off and saved. Say: again, next, or stop.")
         #expect(
             DriveScript.commandHelp
-                == "You can say again, next, repeat that, better version, or stop.")
+                == "You can say: again, next, repeat that, better version, or stop.")
         #expect(DriveScript.driveEnded(takes: 0) == "Drive ended.")
         #expect(DriveScript.driveEnded(takes: 1) == "Drive ended. One answer saved.")
         #expect(DriveScript.driveEnded(takes: 4) == "Drive ended. 4 answers saved.")

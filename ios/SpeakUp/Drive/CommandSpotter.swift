@@ -12,6 +12,10 @@ import Foundation
 /// - `.betweenTakes`: an utterance of a few words between pauses that is exactly a command
 ///   phrase ("again", "next", "repeat that", "read the better version", "stop").
 ///
+/// Only final (committed) words can make a command; volatile words are guesses that the
+/// recognizer revises. They still count as context: a volatile word right before or after
+/// a "done" is enough to reject it.
+///
 /// A listening window ends at its first command, so each call to `listen` yields at most
 /// one command. Times are seconds on the drive's single audio clock, the same one the
 /// take gate counts frames on.
@@ -81,10 +85,12 @@ struct CommandSpotter: Sendable {
         /// How far the recognizer has got: every word that starts before this time has
         /// been reported at least as volatile. Silence is only believed up to here.
         ///
-        /// This is the recognizer's clock, not the tap's: the recognizer runs about 1.5 s
-        /// behind the audio, and a "done" that looks followed by silence on the tap clock
-        /// may be followed by words the recognizer has not reported yet. The adapter takes
-        /// it from the results' finalization time, or the tap time minus its measured lag.
+        /// Contract for the recognizer adapter: take it only from recognizer results, that
+        /// is the results' finalization time or the end of the latest result's range. Never
+        /// derive it from the microphone tap's clock, with or without a lag estimate. The
+        /// recognizer runs about 1.5 s behind the audio, and a "done" that looks followed
+        /// by silence on the tap clock may be followed by words the recognizer has not
+        /// reported yet, which would make a mid-sentence "done" look like a command.
         var progress: TimeInterval?
 
         init(
@@ -136,7 +142,8 @@ struct CommandSpotter: Sendable {
     /// Takes one recognizer result.
     mutating func receive(_ update: Update) -> [Event] {
         guard isListening else { return [] }
-        let tokens = Self.tokens(in: update.words).filter { $0.start >= listenFrom }
+        let tokens = Self.tokens(in: update.words, isFinal: update.isFinal)
+            .filter { $0.start >= listenFrom }
         let coverStart = update.covering?.lowerBound ?? update.words.map(\.start).min()
         let coverEnd = update.covering?.upperBound ?? update.words.map(\.end).max()
         if let coverStart, let coverEnd {
@@ -155,7 +162,8 @@ struct CommandSpotter: Sendable {
         return evaluate()
     }
 
-    /// Moves the recognizer's clock forward with no new words: silence has been heard.
+    /// Moves the recognizer's clock forward with no new words: silence has been heard. Same
+    /// contract as `Update.progress`: recognizer results only, never the tap clock.
     mutating func advance(progress reported: TimeInterval) -> [Event] {
         guard isListening else { return [] }
         progress = max(progress, reported)
@@ -180,30 +188,47 @@ struct CommandSpotter: Sendable {
     private func doneCut(in words: [Token]) -> TimeInterval? {
         let slack = 1e-9
         for i in words.indices where words[i].norm == "done" {
-            // "I'm done" and "I am done" are the same command, cut at the "I".
-            for length in [3, 2, 1] {
-                let first = i - (length - 1)
-                guard first >= 0, Self.leads(words, endingAt: i, length: length) else { continue }
-                // The phrase must be said as one: "I'm ... done" is "done" alone.
-                let phrase = words[first...i]
-                let contiguous = zip(phrase, phrase.dropFirst()).allSatisfy {
-                    $1.start - $0.end < config.silenceBeforeDone
-                }
-                guard contiguous else { continue }
+            guard var first = commandStart(in: words, endingAt: i) else { continue }
 
-                let before = words[first].start - (first > 0 ? words[first - 1].end : listenFrom)
-                guard before >= config.silenceBeforeDone - slack else { continue }
-
-                let end = words[i].end
-                if i + 1 < words.count {
-                    // Words after it: a command only if the next one is far enough away.
-                    guard words[i + 1].start - end >= config.silenceAfterDone - slack else { continue }
-                    return words[first].start
-                }
+            let end = words[i].end
+            if i + 1 < words.count {
+                // Words after it, final or not: a command only if the next is far enough away.
+                guard words[i + 1].start - end >= config.silenceAfterDone - slack else { continue }
+            } else {
                 // Nothing after it yet: believe the silence only as far as the recognizer got.
                 guard progress - end >= config.silenceAfterDone - slack else { continue }
-                return words[first].start
             }
+
+            // "done ... done": the speaker repeated it. Cut at the first of the run, so the
+            // first one is not left in the take.
+            while first > 0, words[first - 1].norm == "done",
+                words[first].start - words[first - 1].end < config.silenceAfterDone - slack,
+                let earlier = commandStart(in: words, endingAt: first - 1)
+            {
+                first = earlier
+            }
+            return words[first].start
+        }
+        return nil
+    }
+
+    /// The index where a "done" command ending at `i` starts: "done", "I'm done" or "I am
+    /// done" (the longest that fits), all final, with enough silence before it.
+    private func commandStart(in words: [Token], endingAt i: Int) -> Int? {
+        for length in [3, 2, 1] {
+            let first = i - (length - 1)
+            guard first >= 0, Self.leads(words, endingAt: i, length: length) else { continue }
+            let phrase = words[first...i]
+            // Volatile words are guesses: only committed ones make a command.
+            guard phrase.allSatisfy({ $0.isFinal }) else { continue }
+            // The phrase must be said as one: "I'm ... done" is "done" alone.
+            let contiguous = zip(phrase, phrase.dropFirst()).allSatisfy {
+                $1.start - $0.end < config.silenceBeforeDone
+            }
+            guard contiguous else { continue }
+            let before = words[first].start - (first > 0 ? words[first - 1].end : listenFrom)
+            guard before >= config.silenceBeforeDone - 1e-9 else { continue }
+            return first
         }
         return nil
     }
@@ -240,6 +265,8 @@ struct CommandSpotter: Sendable {
         for (index, utterance) in utterances.enumerated() {
             let next = index + 1 < utterances.count ? utterances[index + 1].first : nil
             guard closed(utterance, next: next) else { break }
+            // A closed utterance still being revised is not acted on, nor are later ones.
+            guard utterance.allSatisfy({ $0.isFinal }) else { break }
             let text = utterance.map(\.norm).joined(separator: " ")
             if utterance.count <= config.maxCommandWords, let command = Self.phrases[text] {
                 events.append(.command(command))
@@ -258,6 +285,13 @@ struct CommandSpotter: Sendable {
 
     /// What may be said between takes. Only the synonyms the plan lists; the whole
     /// utterance must match, so "stop the car" is not "stop".
+    ///
+    /// "say that again" means repeat that, not again. Known risk: a pause of 0.8 s or more
+    /// after "say that" splits it into "say that" (unrecognized) and "again" (retry).
+    ///
+    /// The 0.6 s silence before "done" (`Config.silenceBeforeDone`) is a risk to tune on a
+    /// device: a block just before "done" followed by a short pause can end the take, and a
+    /// speaker who says "done" right after the last word, with no pause, is not heard.
     static let phrases: [String: Command] = [
         "again": .again,
         "try again": .again,
@@ -274,11 +308,12 @@ struct CommandSpotter: Sendable {
         var norm: String
         var start: TimeInterval
         var end: TimeInterval
+        var isFinal: Bool
     }
 
     /// Normalized tokens: lower case, no punctuation, no apostrophes ("I'm" is "im"). A
     /// recognizer word that holds several tokens spreads its time evenly over them.
-    private static func tokens(in words: [TimedWord]) -> [Token] {
+    private static func tokens(in words: [TimedWord], isFinal: Bool) -> [Token] {
         words.flatMap { word -> [Token] in
             let parts = normalize(word.text)
             guard !parts.isEmpty else { return [] }
@@ -286,7 +321,7 @@ struct CommandSpotter: Sendable {
             return parts.enumerated().map {
                 Token(
                     norm: $1, start: word.start + span * Double($0),
-                    end: word.start + span * Double($0 + 1))
+                    end: word.start + span * Double($0 + 1), isFinal: isFinal)
             }
         }
     }
