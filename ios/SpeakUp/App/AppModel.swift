@@ -120,16 +120,6 @@ final class AppModel {
         }
     }
 
-    /// Ends Home's open session with its after-rating and sends it when possible.
-    func endOpenSession(nervousnessAfter: Int?) {
-        guard let session = store.openHomeSession else { return }
-        store.endSession(session.id, endedAt: Date(), nervousnessAfter: nervousnessAfter)
-        Task {
-            try? await sync.sendEnd(sessionID: session.id)
-            store.pruneFinishedSessions()
-        }
-    }
-
     /// Retry upload from Home: uploads in place, without the Processing screen. A failure
     /// is recorded on the take, and Home shows it under the row.
     func retryUpload(takeID: String) {

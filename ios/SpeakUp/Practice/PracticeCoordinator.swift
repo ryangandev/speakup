@@ -2,8 +2,6 @@ import Foundation
 import Observation
 
 enum PracticeRoute: Hashable {
-    case prepared
-    case impromptu
     case report(takeID: String)
     case comparison(takeID: String)
 }
@@ -162,7 +160,7 @@ final class TakeFlowModel: Identifiable {
         let sync = app.sync
         let takeID = takeID
         let controller = ProcessingController(
-            takeID: takeID, api: app.api, needsUpload: true,
+            takeID: takeID, api: app.api, needsUpload: true, opensReportAtAnalysis: true,
             upload: { progress in try await sync.upload(takeID: takeID, progress: progress) })
         let store = app.store
         controller.onUpdate = { take in store.update(remote: take) }

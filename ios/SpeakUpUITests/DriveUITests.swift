@@ -107,8 +107,8 @@ final class DriveUITests: XCTestCase {
     func testADriveStartedOverASheet() throws {
         launch(scenario: "normal", betweenTakes: ["three@0.5"], recording: [], extra: ["-debug.startDrive", "6"])
 
-        app.buttons["start.prepared"].tap()
-        let sheet = app.buttons["3 of 5"]
+        app.buttons["Settings"].tap()
+        let sheet = app.navigationBars["Settings"]
         XCTAssertTrue(sheet.waitForExistence(timeout: 5))
 
         let status = app.descendants(matching: .any)["drive.status"]
@@ -132,7 +132,7 @@ final class DriveUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments =
             [
-                "-debug.useMockServer", "YES", "-debug.mockScenario", scenario, "-resetState",
+                "-debug.useMockServer", "YES", "-debug.mockScenario", scenario, "-resetState", "-showsDriving", "YES",
                 "-debug.syntheticMicrophone", "-debug.instantSpeech", "-debug.speechLog",
                 "-debug.recognizerScript", Self.script(betweenTakes: betweenTakes, recording: recording),
             ] + extra

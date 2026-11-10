@@ -29,4 +29,21 @@ struct KeychainTests {
         #expect(AppSettings(defaults: defaults, keychain: keychain).token == "a-token-of-thirty-two-characters")
         try keychain.write(nil, for: account)
     }
+
+    /// The build's server fills in what Settings has not saved, and never replaces what it has.
+    @MainActor
+    @Test func theBundledServerIsUsedUntilSettingsSavesOne() throws {
+        let defaults = try #require(UserDefaults(suiteName: "keychain-tests-\(UUID().uuidString)"))
+        let bundled = BundledServer(address: "https://built-in.ts.net", token: "a-bundled-token-of-32-characters")
+        let fresh = AppSettings(defaults: defaults, keychain: keychain, bundled: bundled)
+        #expect(fresh.serverAddress == "https://built-in.ts.net")
+        #expect(fresh.token == "a-bundled-token-of-32-characters")
+        #expect(fresh.isConfigured)
+
+        try fresh.saveServer(address: "https://typed.ts.net", token: "a-typed-token-of-thirty-two-chars")
+        let later = AppSettings(defaults: defaults, keychain: keychain, bundled: bundled)
+        #expect(later.serverAddress == "https://typed.ts.net")
+        #expect(later.token == "a-typed-token-of-thirty-two-chars")
+        try keychain.write(nil, for: account)
+    }
 }

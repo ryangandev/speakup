@@ -22,6 +22,7 @@ Use one simulator and one `xcodebuild` at a time.
   For a throwaway server, run `uv run speakup-server` from `server/` with `SPEAKUP_API_TOKEN`, a scratch `SPEAKUP_DATA_DIR` and a free `SPEAKUP_PORT` in the environment; the environment wins over `server/.env`.
 - Both real-server tests type the token into Settings, so the test log holds it: keep the log private and delete it after.
 - `xcodebuild test` can sit idle after the UI tests report; once the log says "Executed N tests", it is safe to stop it.
+- Server address and token for a new install: run `scripts/write-local-server.sh [address]` once on the Mac; it writes the ignored `SpeakUp/Settings/LocalServer.json` (the address defaults to the Mac's tailnet name), and every build after it starts configured.
 - Install and launch on a booted simulator: `xcrun simctl install <udid> build/DerivedData/Build/Products/Debug-iphonesimulator/SpeakUp.app`, then `xcrun simctl launch <udid> com.rystudio.speakup <arguments>`.
 
 `build/` is ignored.
@@ -36,6 +37,8 @@ Debug builds only; none of this exists in Release.
 - `-debug.mockScenario <name>` picks a scenario: `normal`, `coachingUnavailable`, `coachingFailed`, `noSpeech`, `processingFails`, `uploadFails`, `slowProcessing`, `unreachable`.
 - `-resetState` clears the phone's practice state at launch. The mock server keeps its data in memory, so it starts fresh on every launch anyway; pass `-resetState` with it so the phone does not point at takes the mock no longer has.
 - `-slowAfter <seconds>` shortens the "Taking longer than usual" threshold.
+- `-showsDriving YES` shows Home's "Start a drive" card, which is hidden while driving mode is set aside. The drive UI tests pass it.
+- `-debug.recognizerCapture` records a drive's recognizer input and results to the app's temporary directory, for `tools/drive-commands --replay` on a Mac (see its README).
 - `-debug.syntheticMicrophone` records a generated tone instead of the microphone. Simulators usually have no audio input, so recording fails there without it.
 - `-debug.microphoneFile <path>` records an audio file on the Mac instead, played in real time and looped, so the server gets real speech to transcribe.
   Simulated input of either kind skips the microphone permission prompt.
@@ -72,7 +75,7 @@ Settings shows the same mock toggle and scenario picker in Debug builds.
 - `Drive/`: driving mode: the start from Siri (`DriveIntents.swift`: `StartDriveIntent`, which opens the app and calls `AppModel.startDrive()`, and the `SpeakUpShortcuts` phrases), the voice loop (`DriveLoop`: the drive's state machine over protocols for audio, recognizer, speech and clock, tested with fakes in `SpeakUpTests/Support/DriveFakes.swift`), impromptu questions for the car (`DriveQuestions`: prefetched, cached in `drive-questions.json`, built-in bank behind them), the drive audio core (`DriveAudio`: one engine for the whole drive, the take gate and trim, the driving audio session), command recognition (`SpeechCommandRecognizer` on `SpeechAnalyzer`, its pure decisions in `CommandRecognition.swift`, the Debug `ScriptedRecognizer`), command spotting, the spoken script, and speech output (`SpeechOutput`: text rendered with `AVSpeechSynthesizer.write` and played with the tones on the drive engine's player).
   `tools/drive-commands` runs the recognition files on the Mac against real speech; keep them free of iOS-only APIs.
 - `Practice/`: the phone's local store, upload sync, the polling state machine and transcript layout.
-- `Screens/`: one file per screen group; `DriveView` is the drive's screen (state in large text, Stop, the end summary). `Settings/`: settings and the Keychain.
+- `Screens/`: one file per screen group; `HomeView` with `PromptViews` (`TopicPicker`, `TopicModel`) is the whole start of a take; `DriveView` is the drive's screen (state in large text, Stop, the end summary). `Settings/`: settings and the Keychain.
 - `Theme/`: every color, font, spacing value and transcript mark, plus reusable components.
 - `Mock/`: the Debug-only mock server.
 - `SpeakUpTests/Fixtures/`: the JSON examples from the contract, copied verbatim.
@@ -87,7 +90,7 @@ The project uses synchronized folders: a new file under `SpeakUp/`, `SpeakUpTest
 - Ids the app creates are lowercase UUIDs from `IDs.make()`, and every create is an idempotent `PUT`, so retries are always safe. Never retry with a new id.
 - A take is written to the phone before it is uploaded and is only dropped once the server has it. Do not delete take audio anywhere except `PracticeStore.pruneFinishedSessions`.
   The exceptions are files the store never received: a recording discarded before it is kept (home Cancel), and a drive take that `DriveAudio` reports as `.empty` (no input reached it, or the cut left no audio), which it deletes itself.
-- The server token lives in the Keychain only. Never log it, put it in `UserDefaults` or show it unmasked.
+- The server token lives in the Keychain, or in the ignored bundled `LocalServer.json`. Never log it, put it in `UserDefaults`, commit it or show it unmasked.
 - Mock code is wrapped in `#if DEBUG`. Anything that references it must be too, or Release will not build.
 - When a contract example changes, update its fixture in `SpeakUpTests/Fixtures/` verbatim; the decoding tests are only as good as the fixtures.
 - Check new screens in light and dark mode and at a large Dynamic Type size.

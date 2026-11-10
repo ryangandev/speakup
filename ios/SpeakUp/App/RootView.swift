@@ -100,10 +100,6 @@ struct PracticeTab: View {
                 .navigationDestination(for: PracticeRoute.self) { route in
                     Group {
                         switch route {
-                        case .prepared:
-                            PreparedPromptView()
-                        case .impromptu:
-                            ImpromptuPromptView()
                         case .report(let takeID):
                             ReportView(takeID: takeID, context: .practice)
                         case .comparison(let takeID):
@@ -114,7 +110,7 @@ struct PracticeTab: View {
                     // the id makes that a new screen rather than the old one's state.
                     .id(route)
                     // Past Home the practice loop has its own pinned actions (Record, Retry,
-                    // Next prompt), so the tab bar steps aside to leave room for content.
+                    // New topic), so the tab bar steps aside to leave room for content.
                     .toolbar(.hidden, for: .tabBar)
                 }
         }

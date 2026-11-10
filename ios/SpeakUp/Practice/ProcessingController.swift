@@ -2,7 +2,9 @@ import Foundation
 import Observation
 
 /// The take's journey after Done: upload, then poll `GET /v1/takes/{id}` every 1.5 seconds
-/// until the take is `done` or `failed` (architecture.md#why-the-app-polls).
+/// until the take is `done` or `failed` (architecture.md#why-the-app-polls). With
+/// `opensReportAtAnalysis`, a take that reaches `coaching` is done too: its report already holds
+/// the transcript and metrics, and the report screen waits for coaching.
 ///
 /// The phases map one to one to what the Processing screen shows (product.md#processing).
 /// Polling errors do not end the loop: the server may be restarting or the phone may have
@@ -15,6 +17,7 @@ final class ProcessingController {
         /// The take is saved on this phone; the user can retry the upload.
         case uploadFailed(message: String)
         case processing(TakeStatus)
+        /// The report can open: the take is `done`, or with `opensReportAtAnalysis`, `coaching`.
         case done(Take)
         case failed(code: TakeErrorCode, message: String)
 
@@ -34,6 +37,7 @@ final class ProcessingController {
     static var slowAfter: TimeInterval = 3 * 60
 
     let takeID: String
+    let opensReportAtAnalysis: Bool
     private(set) var phase: Phase
     /// When server processing started, for the elapsed time on screen.
     private(set) var processingStartedAt: Date?
@@ -51,10 +55,12 @@ final class ProcessingController {
     private var isDetached = false
 
     init(
-        takeID: String, api: any SpeakUpAPI, needsUpload: Bool, upload: @escaping Upload,
-        sleep: @escaping Sleep = { try await Task.sleep(for: $0) }, now: @escaping () -> Date = Date.init
+        takeID: String, api: any SpeakUpAPI, needsUpload: Bool, opensReportAtAnalysis: Bool = false,
+        upload: @escaping Upload, sleep: @escaping Sleep = { try await Task.sleep(for: $0) },
+        now: @escaping () -> Date = Date.init
     ) {
         self.takeID = takeID
+        self.opensReportAtAnalysis = opensReportAtAnalysis
         self.api = api
         self.upload = upload
         self.sleep = sleep
@@ -64,9 +70,11 @@ final class ProcessingController {
     }
 
     /// Maps a Take resource to the phase the screen shows.
-    static func phase(for take: Take) -> Phase {
+    static func phase(for take: Take, opensReportAtAnalysis: Bool = false) -> Phase {
         switch take.status {
         case .done:
+            return .done(take)
+        case .coaching where opensReportAtAnalysis:
             return .done(take)
         case .failed:
             return .failed(
@@ -167,7 +175,7 @@ final class ProcessingController {
 
     private func apply(_ take: Take) {
         onUpdate?(take)
-        phase = Self.phase(for: take)
+        phase = Self.phase(for: take, opensReportAtAnalysis: opensReportAtAnalysis)
     }
 
     private func setUploadProgress(_ fraction: Double) {

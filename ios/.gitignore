@@ -6,3 +6,6 @@ build/
 
 # The workspace inside the project holds only per-user state; there are no Swift packages yet.
 SpeakUp.xcodeproj/project.xcworkspace/
+
+# The server address and token that builds bundle (ios/scripts/write-local-server.sh).
+SpeakUp/Settings/LocalServer.json

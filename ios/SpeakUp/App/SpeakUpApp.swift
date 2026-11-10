@@ -15,7 +15,7 @@ struct SpeakUpApp: App {
         #if DEBUG
         DebugLaunch.apply(store: store)
         #endif
-        let app = AppModel(settings: AppSettings(), store: store)
+        let app = AppModel(settings: AppSettings(bundled: .load()), store: store)
         // `StartDriveIntent` starts its drive through the same model as the screens.
         AppDependencyManager.shared.add(dependency: app)
         _app = State(initialValue: app)

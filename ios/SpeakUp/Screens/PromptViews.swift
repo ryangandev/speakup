@@ -1,154 +1,54 @@
 import SwiftUI
 
-/// Prepared prompt (product.md#prepared-prompt).
-struct PreparedPromptView: View {
+/// The topic on Home (product.md#home): a question from the bank, by category, or Ryan's own.
+struct TopicPicker: View {
     @Environment(AppModel.self) private var app
-    @State private var title = ""
-    @State private var notes = ""
-    @State private var targetSeconds: Int?
-    @State private var isStarting = false
-    @FocusState private var focusedField: Field?
-
-    private enum Field { case title, notes }
-
-    private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
+    @Bindable var model: TopicModel
+    var focusedField: FocusState<TopicModel.Field?>.Binding
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    FieldLabel("Title")
-                    TextField("Today's stand-up", text: $title)
-                        .font(Theme.Fonts.body)
-                        .submitLabel(.next)
-                        .focused($focusedField, equals: .title)
-                        .onSubmit { focusedField = .notes }
-                        .padding(Theme.Spacing.m)
-                        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
-                }
-                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    FieldLabel("Notes", detail: "Optional. Type or dictate the points you want to make.")
-                    TextEditor(text: $notes)
-                        .font(Theme.Fonts.body)
-                        .focused($focusedField, equals: .notes)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 160)
-                        .padding(Theme.Spacing.s)
-                        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
-                        .accessibilityLabel("Notes")
-                }
-                LengthPicker(
-                    options: AppSettings.preparedLengths,
-                    selection: Binding(
-                        get: { targetSeconds ?? app.settings.defaultPreparedSeconds },
-                        set: { targetSeconds = $0 }))
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            Picker("Topic", selection: source) {
+                Text("Question").tag(TopicModel.Source.question)
+                Text("Your own").tag(TopicModel.Source.own)
             }
-            .screenContent()
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .toolbar {
-            // The notes editor takes returns, so the keyboard needs its own way out to reach
-            // the length picker underneath. It is in the navigation bar, not a keyboard
-            // toolbar: SwiftUI logs "Invalid frame dimension" whenever a keyboard toolbar shows.
-            if focusedField != nil {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { focusedField = nil }
-                        .accessibilityIdentifier("hideKeyboard")
-                }
-            }
-        }
-        .background(Theme.Colors.background)
-        .navigationTitle("Prepared")
-        .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            BottomBar {
-                Button {
-                    record()
-                } label: {
-                    Label("Record", systemImage: "mic.fill")
-                }
-                .buttonStyle(.primary(tint: Theme.Colors.recording))
-                .disabled(trimmedTitle.isEmpty || isStarting)
-            }
-        }
-        .onAppear { if title.isEmpty { focusedField = .title } }
-    }
+            .pickerStyle(.segmented)
 
-    private func record() {
-        focusedField = nil
-        isStarting = true
-        Task {
-            defer { isStarting = false }
-            guard await MicrophonePermission.request() else {
-                app.practice.isMicrophoneDeniedAlertPresented = true
-                return
-            }
-            // A drive may have started while the permission prompt was up; opening a home
-            // session now would close the drive's.
-            guard !app.isDriving else { return }
-            let sessionID = app.store.openHomeSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
-            let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard
-                let prompt = app.store.addPrompt(
-                    sessionID: sessionID, kind: .prepared, text: trimmedTitle,
-                    notes: trimmedNotes.isEmpty ? nil : trimmedNotes, category: nil,
-                    targetSeconds: targetSeconds ?? app.settings.defaultPreparedSeconds,
-                    questionSource: .typed)
-            else { return }
-            await app.practice.record(prompt)
-        }
-    }
-}
-
-/// Impromptu prompt (product.md#impromptu-prompt).
-struct ImpromptuPromptView: View {
-    @Environment(AppModel.self) private var app
-    @State private var model = ImpromptuModel()
-    @State private var isStarting = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Theme.Spacing.s) {
-                        ForEach(ImpromptuModel.categories, id: \.title) { option in
-                            Chip(title: option.title, isSelected: model.category == option.category) {
-                                model.select(category: option.category, api: app.api)
-                            }
+            switch model.choice {
+            case .question:
+                FlowLayout(spacing: Theme.Spacing.s, lineSpacing: Theme.Spacing.s) {
+                    ForEach(TopicModel.categories, id: \.title) { option in
+                        Chip(title: option.title, isSelected: model.choice == .question(option.category)) {
+                            select(.question(option.category))
                         }
+                        .accessibilityIdentifier("topic.\(option.title.lowercased())")
                     }
-                    .padding(.horizontal, Theme.Spacing.screen)
                 }
-                .padding(.horizontal, -Theme.Spacing.screen)
-
                 questionArea
+            case .own:
+                ownTopic
+            }
 
-                if model.current != nil {
-                    LengthPicker(options: AppSettings.impromptuLengths, selection: $model.targetSeconds)
-                }
-            }
-            .screenContent()
-        }
-        .background(Theme.Colors.background)
-        .navigationTitle("Impromptu")
-        .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            if model.current != nil {
-                BottomBar {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: Theme.Spacing.m) { anotherButton; recordButton }
-                        VStack(spacing: Theme.Spacing.s) { recordButton; anotherButton }
-                    }
-                }
+            if model.canPickLength {
+                LengthPicker(options: AppSettings.impromptuLengths, selection: $model.targetSeconds)
             }
         }
-        .task { if model.current == nil { model.load(api: app.api) } }
+    }
+
+    private var source: Binding<TopicModel.Source> {
+        Binding(
+            get: { model.choice == .own ? .own : .question },
+            set: { select($0 == .own ? .own : .question(model.questionCategory)) })
+    }
+
+    private func select(_ choice: TopicModel.Choice) {
+        model.select(choice, api: app.api, ownSeconds: app.settings.defaultPreparedSeconds)
     }
 
     @ViewBuilder private var questionArea: some View {
         if let question = model.current {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                if model.category == nil {
+                if case .question(nil) = model.choice {
                     Text(question.category.label.uppercased())
                         .font(Theme.Fonts.captionEmphasis)
                         .foregroundStyle(Theme.Colors.textSecondary)
@@ -163,12 +63,23 @@ struct ImpromptuPromptView: View {
                         .font(Theme.Fonts.caption)
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
+                Button {
+                    model.next(api: app.api)
+                } label: {
+                    HStack(spacing: Theme.Spacing.s) {
+                        if model.isLoading { ProgressView() } else { Image(systemName: "arrow.triangle.2.circlepath") }
+                        Text("Another question")
+                    }
+                    .font(Theme.Fonts.bodyEmphasis)
+                }
+                .buttonStyle(.borderless)
+                .disabled(model.isLoading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else if let error = model.errorMessage {
             Banner(
                 tone: .error, systemImage: "wifi.exclamationmark",
-                message: "\(error) Impromptu practice needs the server.",
+                message: "\(error) Questions come from the server; you can still write your own topic.",
                 actionTitle: "Retry", isWorking: model.isLoading
             ) {
                 model.load(api: app.api)
@@ -183,67 +94,61 @@ struct ImpromptuPromptView: View {
         }
     }
 
-    private var recordButton: some View {
-        Button {
-            record()
-        } label: {
-            Label("Record", systemImage: "mic.fill")
-        }
-        .buttonStyle(.primary(tint: Theme.Colors.recording))
-        .disabled(isStarting)
-    }
-
-    private var anotherButton: some View {
-        Button {
-            model.next(api: app.api)
-        } label: {
-            HStack(spacing: Theme.Spacing.s) {
-                if model.isLoading { ProgressView() }
-                Text("Another question")
+    private var ownTopic: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                FieldLabel("Topic")
+                TextField("Today's stand-up", text: $model.ownTitle)
+                    .font(Theme.Fonts.body)
+                    .submitLabel(.next)
+                    .focused(focusedField, equals: .title)
+                    .onSubmit { focusedField.wrappedValue = .notes }
+                    .padding(Theme.Spacing.m)
+                    .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
+                    .accessibilityIdentifier("topic.ownTitle")
             }
-        }
-        .buttonStyle(.secondary)
-        .disabled(model.isLoading)
-    }
-
-    private func record() {
-        guard let question = model.current else { return }
-        isStarting = true
-        Task {
-            defer { isStarting = false }
-            guard await MicrophonePermission.request() else {
-                app.practice.isMicrophoneDeniedAlertPresented = true
-                return
+            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                FieldLabel("Notes", detail: "Optional. The points you want to make.")
+                TextEditor(text: $model.ownNotes)
+                    .font(Theme.Fonts.body)
+                    .focused(focusedField, equals: .notes)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 120)
+                    .padding(Theme.Spacing.s)
+                    .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
+                    .accessibilityLabel("Notes")
             }
-            // A drive may have started while the permission prompt was up; opening a home
-            // session now would close the drive's.
-            guard !app.isDriving else { return }
-            let sessionID = app.store.openHomeSession?.id ?? app.store.openNewSession(nervousnessBefore: nil).id
-            guard
-                let prompt = app.store.addPrompt(
-                    sessionID: sessionID, kind: .impromptu, text: question.text, notes: nil,
-                    category: question.category, targetSeconds: model.targetSeconds,
-                    questionSource: model.source)
-            else { return }
-            await app.practice.record(prompt)
         }
     }
 }
 
-/// Questions fetched three at a time for the chosen category.
+/// The topic Home records next: questions fetched three at a time for the chosen category,
+/// or a topic Ryan types.
 @MainActor
 @Observable
-final class ImpromptuModel {
+final class TopicModel {
+    enum Choice: Hashable {
+        case question(PromptCategory?)
+        case own
+    }
+
+    enum Source: Hashable { case question, own }
+
+    enum Field: Hashable { case title, notes }
+
     static let categories: [(title: String, category: PromptCategory?)] = [
-        ("Any", nil), ("Decision", .decision), ("Status", .status), ("Explain", .explain),
-        ("Push back", .pushback),
+        ("Any", nil), ("Decision", .decision), ("Status", .status), ("Explain", .explain), ("Push back", .pushback),
     ]
 
-    private(set) var category: PromptCategory?
+    private(set) var choice: Choice = .question(nil)
+    /// The category of the questions in `queue`, kept while Ryan writes his own topic.
+    private(set) var questionCategory: PromptCategory?
     private(set) var queue: [Question] = []
     private(set) var source: QuestionSource = .claude
     private(set) var isLoading = false
     private(set) var errorMessage: String?
+    var ownTitle = ""
+    var ownNotes = ""
     var targetSeconds = AppSettings.defaultImpromptuSeconds
     /// Questions already shown, sent as `exclude` so the server does not repeat them.
     private var shown: [String] = []
@@ -251,14 +156,44 @@ final class ImpromptuModel {
 
     var current: Question? { queue.first }
 
-    func select(category: PromptCategory?, api: any SpeakUpAPI) {
-        guard category != self.category || current == nil else { return }
-        self.category = category
-        queue = []
-        load(api: api)
+    private var trimmedTitle: String { ownTitle.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var canPickLength: Bool {
+        switch choice {
+        case .question: return current != nil
+        case .own: return true
+        }
+    }
+
+    var canRecord: Bool {
+        switch choice {
+        case .question: return current != nil
+        case .own: return !trimmedTitle.isEmpty
+        }
+    }
+
+    func select(_ choice: Choice, api: any SpeakUpAPI, ownSeconds: Int) {
+        guard choice != self.choice || (choice != .own && current == nil) else { return }
+        self.choice = choice
+        switch choice {
+        case .question(let category):
+            // Back from Your own to the same category: the question shown before is still there.
+            if category == questionCategory, let question = current {
+                targetSeconds = Self.suggestedSeconds(question)
+                return
+            }
+            questionCategory = category
+            queue = []
+            load(api: api)
+        case .own:
+            loadTask?.cancel()
+            isLoading = false
+            targetSeconds = ownSeconds
+        }
     }
 
     func next(api: any SpeakUpAPI) {
+        guard case .question = choice else { return }
         if !queue.isEmpty { queue.removeFirst() }
         if let question = current {
             show(question)
@@ -268,6 +203,7 @@ final class ImpromptuModel {
     }
 
     func load(api: any SpeakUpAPI) {
+        guard case .question(let category) = choice else { return }
         loadTask?.cancel()
         isLoading = true
         errorMessage = nil
@@ -288,10 +224,44 @@ final class ImpromptuModel {
         }
     }
 
+    /// Adds the chosen topic as a prompt of the open home session, opening one when none is.
+    func makePrompt(store: PracticeStore) -> LocalPrompt? {
+        let sessionID = store.openHomeSession?.id ?? store.openNewSession(nervousnessBefore: nil).id
+        switch choice {
+        case .question:
+            guard let question = current else { return nil }
+            return store.addPrompt(
+                sessionID: sessionID, kind: .impromptu, text: question.text, notes: nil,
+                category: question.category, targetSeconds: targetSeconds, questionSource: source)
+        case .own:
+            guard !trimmedTitle.isEmpty else { return nil }
+            let notes = ownNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+            return store.addPrompt(
+                sessionID: sessionID, kind: .prepared, text: trimmedTitle, notes: notes.isEmpty ? nil : notes,
+                category: nil, targetSeconds: targetSeconds, questionSource: .typed)
+        }
+    }
+
+    /// After a take starts: the next question is ready for the next take, and a typed topic
+    /// is cleared.
+    func recorded(api: any SpeakUpAPI) {
+        switch choice {
+        case .question: next(api: api)
+        case .own:
+            ownTitle = ""
+            ownNotes = ""
+        }
+    }
+
     private func show(_ question: Question) {
         shown.append(question.text)
+        targetSeconds = Self.suggestedSeconds(question)
+    }
+
+    /// The question's suggested length, or the nearest one the picker offers.
+    private static func suggestedSeconds(_ question: Question) -> Int {
         let suggested = question.targetSeconds
-        targetSeconds = AppSettings.impromptuLengths.contains(suggested)
+        return AppSettings.impromptuLengths.contains(suggested)
             ? suggested
             : AppSettings.impromptuLengths.min { abs($0 - suggested) < abs($1 - suggested) }
                 ?? AppSettings.defaultImpromptuSeconds
@@ -306,21 +276,12 @@ struct LengthPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             FieldLabel("Target length", detail: "A guide only; recording never stops at it.")
-            // Segments while they fit; a menu at large text sizes, where segments would truncate.
-            ViewThatFits(in: .horizontal) {
-                picker.pickerStyle(.segmented).fixedSize()
-                picker.pickerStyle(.menu)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-extension LengthPicker {
-    fileprivate var picker: some View {
-        Picker("Target length", selection: $selection) {
-            ForEach(options, id: \.self) { seconds in
-                Text(Format.target(seconds)).tag(seconds)
+            // Chips wrap onto a second line rather than truncate, at any text size.
+            FlowLayout(spacing: Theme.Spacing.s, lineSpacing: Theme.Spacing.s) {
+                ForEach(options, id: \.self) { seconds in
+                    Chip(title: Format.target(seconds), isSelected: selection == seconds) { selection = seconds }
+                        .accessibilityLabel("Target length \(Format.target(seconds))")
+                }
             }
         }
     }

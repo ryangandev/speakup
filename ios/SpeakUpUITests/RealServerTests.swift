@@ -37,9 +37,7 @@ final class RealServerTests: XCTestCase {
         shot("real-01-home")
 
         // Take 1.
-        app.buttons["start.prepared"].tap()
-        XCTAssertTrue(app.buttons["Skip"].waitForExistence(timeout: 5))
-        app.buttons["Skip"].tap()
+        app.buttons["Your own"].tap()
         let title = app.textFields.firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
@@ -55,8 +53,9 @@ final class RealServerTests: XCTestCase {
         record(seconds: seconds)
         waitForReport(attempt: 2)
         shot("real-03-report-take2")
+        // The comparison appears once Claude has coached take 2.
         let card = app.buttons["report.comparison"]
-        XCTAssertTrue(card.waitForExistence(timeout: 30))
+        XCTAssertTrue(card.waitForExistence(timeout: 180))
         card.tap()
         XCTAssertTrue(app.navigationBars["Comparison"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Take 2 against take 1"].waitForExistence(timeout: 30))

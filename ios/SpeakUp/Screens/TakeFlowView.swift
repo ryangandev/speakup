@@ -267,12 +267,13 @@ struct ProcessingView: View {
     }
 }
 
-/// Transcribing, Analyzing, Coaching, with the current one spinning and the elapsed time.
+/// Transcribing and Analyzing, with the current one spinning and the elapsed time. The report
+/// opens once analysis is done, and shows coaching while it runs.
 private struct StageList: View {
     let status: TakeStatus
     let controller: ProcessingController
 
-    private static let stages: [TakeStatus] = [.transcribing, .analyzing, .coaching]
+    private static let stages: [TakeStatus] = [.transcribing, .analyzing]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {

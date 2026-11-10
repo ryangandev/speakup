@@ -1,49 +1,64 @@
 import SwiftUI
 
-/// Home, the practice picker (product.md#home-practice-picker).
+/// Home (product.md#home): pick a topic and a length, then record. The open session's takes
+/// are listed underneath.
 struct HomeView: View {
     @Environment(AppModel.self) private var app
-    @State private var pendingRoute: PracticeRoute?
-    @State private var isEndingSession = false
+    @State private var topic = TopicModel()
+    @State private var isStarting = false
+    @FocusState private var focusedField: TopicModel.Field?
 
     private var session: LocalSession? { app.store.openHomeSession }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 ServerStatusRow(status: app.serverStatus)
-                if let session { OpenSessionCard(session: session, onEnd: { isEndingSession = true }) }
-                startButtons
-                DriveCard { Task { await app.startDrive() } }
+                TopicPicker(model: topic, focusedField: $focusedField)
+                if app.settings.showsDriving {
+                    DriveCard { Task { await app.startDrive() } }
+                }
                 if let session, !session.takes.isEmpty { TakesList(session: session) }
                 if !stuckTakes.isEmpty { StuckTakesList(takes: stuckTakes) }
             }
             .screenContent()
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
         .navigationTitle("Practice")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    app.isSettingsPresented = true
-                } label: {
-                    Image(systemName: "gearshape")
+            // The notes editor takes returns, so the keyboard needs its own way out. It is in
+            // the navigation bar, not a keyboard toolbar: SwiftUI logs "Invalid frame
+            // dimension" whenever a keyboard toolbar shows.
+            if focusedField != nil {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { focusedField = nil }
+                        .accessibilityIdentifier("hideKeyboard")
                 }
-                .accessibilityLabel("Settings")
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        app.isSettingsPresented = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            BottomBar {
+                Button {
+                    record()
+                } label: {
+                    Label("Record", systemImage: "mic.fill")
+                }
+                .buttonStyle(.primary(tint: Theme.Colors.recording))
+                .disabled(!topic.canRecord || isStarting)
             }
         }
         .refreshable { await app.refresh() }
-        .sheet(item: $pendingRoute) { route in
-            NervousnessSheet(title: "Before you start: how nervous do you feel?") { rating in
-                app.store.openNewSession(nervousnessBefore: rating)
-                app.practice.path.append(route)
-            }
-        }
-        .sheet(isPresented: $isEndingSession) {
-            NervousnessSheet(title: "Ending the session: how nervous do you feel now?") { rating in
-                app.endOpenSession(nervousnessAfter: rating)
-            }
-        }
+        .task { if topic.current == nil { topic.load(api: app.api) } }
         .task(id: processingTakeIDs) {
             // While a take of the open session is processing, keep its status current.
             while !processingTakeIDs.isEmpty, !Task.isCancelled {
@@ -63,58 +78,21 @@ struct HomeView: View {
         session?.takes.filter { $0.isUploaded && !($0.remote?.status.isFinal ?? false) }.map(\.id) ?? []
     }
 
-    private var startButtons: some View {
-        VStack(spacing: Theme.Spacing.m) {
-            StartButton(
-                title: "Prepared", systemImage: "list.bullet.rectangle",
-                detail: "Rehearse what you plan to say") { start(.prepared) }
-            StartButton(
-                title: "Impromptu", systemImage: "questionmark.bubble",
-                detail: "Answer a question right away") { start(.impromptu) }
-        }
-    }
-
-    private func start(_ route: PracticeRoute) {
-        if session == nil {
-            pendingRoute = route
-        } else {
-            app.practice.path.append(route)
-        }
-    }
-}
-
-extension PracticeRoute: Identifiable {
-    var id: Self { self }
-}
-
-private struct StartButton: View {
-    let title: String
-    let systemImage: String
-    let detail: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: Theme.Spacing.m) {
-                Image(systemName: systemImage)
-                    .font(Theme.Fonts.title)
-                    .frame(minWidth: 32)
-                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text(title).font(Theme.Fonts.title)
-                    Text(detail).font(Theme.Fonts.secondary).opacity(0.85)
-                }
-                .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(Theme.Fonts.bodyEmphasis)
+    private func record() {
+        focusedField = nil
+        isStarting = true
+        Task {
+            defer { isStarting = false }
+            guard await MicrophonePermission.request() else {
+                app.practice.isMicrophoneDeniedAlertPresented = true
+                return
             }
-            .foregroundStyle(Theme.Colors.onAccent)
-            .padding(Theme.Spacing.l)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.Colors.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
-            .contentShape(Rectangle())
+            // A drive may have started while the permission prompt was up; opening a home
+            // session now would close the drive's.
+            guard !app.isDriving, let prompt = topic.makePrompt(store: app.store) else { return }
+            await app.practice.record(prompt)
+            if app.practice.takeFlow != nil { topic.recorded(api: app.api) }
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("start.\(title.lowercased())")
     }
 }
 
@@ -221,45 +199,6 @@ struct ServerStatusRow: View {
         case .notConfigured: return "Add the server address and token."
         case .checking: return nil
         }
-    }
-}
-
-private struct OpenSessionCard: View {
-    let session: LocalSession
-    let onEnd: () -> Void
-
-    var body: some View {
-        Card {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center) {
-                    summary
-                    Spacer(minLength: Theme.Spacing.s)
-                    endButton.fixedSize()
-                }
-                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                    summary
-                    endButton
-                }
-            }
-        }
-    }
-
-    private var summary: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-            Text("Session open").font(Theme.Fonts.sectionTitle)
-            Text("Started \(Format.time(session.startedAt)), \(takeCount)")
-                .font(Theme.Fonts.secondary).foregroundStyle(Theme.Colors.textSecondary)
-        }
-    }
-
-    private var takeCount: String {
-        session.takes.count == 1 ? "1 take" : "\(session.takes.count) takes"
-    }
-
-    private var endButton: some View {
-        Button("End session", action: onEnd)
-            .font(Theme.Fonts.bodyEmphasis)
-            .buttonStyle(.bordered)
     }
 }
 

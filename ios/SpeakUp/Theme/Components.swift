@@ -364,37 +364,6 @@ struct FlowLayout: Layout {
     }
 }
 
-/// Picks a nervousness rating from 1 to 5, or skips.
-struct NervousnessSheet: View {
-    let title: String
-    let onFinish: (Int?) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            Text(title).font(Theme.Fonts.title).fixedSize(horizontal: false, vertical: true)
-            Text("1 is calm, 5 is very nervous.")
-                .font(Theme.Fonts.secondary).foregroundStyle(Theme.Colors.textSecondary)
-            HStack(spacing: Theme.Spacing.s) {
-                ForEach(1...5, id: \.self) { value in
-                    Button("\(value)") { finish(value) }
-                        .buttonStyle(.secondary)
-                        .accessibilityLabel("\(value) of 5")
-                }
-            }
-            Button("Skip") { finish(nil) }
-                .font(Theme.Fonts.body)
-                .frame(maxWidth: .infinity)
-        }
-        .fittedSheet()
-    }
-
-    private func finish(_ value: Int?) {
-        dismiss()
-        onFinish(value)
-    }
-}
-
 /// A sheet exactly as tall as its content at any text size, up to the full screen.
 private struct FittedSheet: ViewModifier {
     @State private var contentHeight: CGFloat = 300

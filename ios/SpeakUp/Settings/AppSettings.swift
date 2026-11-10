@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import Security
 
-/// The server token lives in the Keychain, never in UserDefaults or a file.
+/// A token entered in Settings lives in the Keychain, never in UserDefaults or a file.
 struct Keychain: Sendable {
     let service: String
 
@@ -73,6 +73,9 @@ final class AppSettings {
     var defaultPreparedSeconds: Int {
         didSet { defaults.set(defaultPreparedSeconds, forKey: Keys.preparedSeconds) }
     }
+    /// Whether Home offers driving mode. It is set aside for now (product.md#driving-mode), so
+    /// only the `-showsDriving YES` launch argument turns it on, for its UI tests and device checks.
+    let showsDriving: Bool
 
     #if DEBUG
     var useMockServer: Bool {
@@ -86,21 +89,25 @@ final class AppSettings {
     private enum Keys {
         static let serverAddress = "serverAddress"
         static let preparedSeconds = "defaultPreparedSeconds"
+        static let showsDriving = "showsDriving"
         static let token = "server-token"
         static let useMock = "debug.useMockServer"
         static let mockScenario = "debug.mockScenario"
     }
 
+    /// `bundled` fills in the address and token that Settings has not saved.
     init(
         defaults: UserDefaults = .standard,
-        keychain: Keychain = Keychain(service: "dev.ryangan.speakup")
+        keychain: Keychain = Keychain(service: "dev.ryangan.speakup"),
+        bundled: BundledServer? = nil
     ) {
         self.defaults = defaults
         self.keychain = keychain
-        serverAddress = defaults.string(forKey: Keys.serverAddress) ?? ""
-        token = keychain.read(Keys.token) ?? ""
+        serverAddress = defaults.string(forKey: Keys.serverAddress) ?? bundled?.address ?? ""
+        token = keychain.read(Keys.token) ?? bundled?.token ?? ""
         let seconds = defaults.integer(forKey: Keys.preparedSeconds)
         defaultPreparedSeconds = Self.preparedLengths.contains(seconds) ? seconds : Self.defaultPreparedSeconds
+        showsDriving = defaults.bool(forKey: Keys.showsDriving)
         #if DEBUG
         useMockServer = defaults.bool(forKey: Keys.useMock)
         mockScenario = MockScenario(rawValue: defaults.string(forKey: Keys.mockScenario) ?? "") ?? .normal
@@ -135,5 +142,23 @@ final class AppSettings {
             scheme == "https" || scheme == "http", url.host() != nil
         else { return nil }
         return url
+    }
+}
+
+/// The server this build was made for: `LocalServer.json`, which `ios/scripts/write-local-server.sh`
+/// writes from `server/.env` and Tailscale. The file is ignored by git, and Xcode bundles it when
+/// it exists, so a fresh install or a new simulator needs no typing in Settings.
+struct BundledServer: Decodable, Equatable, Sendable {
+    let address: String
+    let token: String
+
+    static let fileName = "LocalServer"
+
+    /// The bundle's server, or nil when the build has none or it cannot be read.
+    static func load(from bundle: Bundle = .main) -> BundledServer? {
+        guard let url = bundle.url(forResource: fileName, withExtension: "json"),
+            let data = try? Data(contentsOf: url)
+        else { return nil }
+        return try? JSONDecoder().decode(BundledServer.self, from: data)
     }
 }

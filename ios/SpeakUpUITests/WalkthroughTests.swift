@@ -24,8 +24,8 @@ final class WalkthroughTests: XCTestCase {
 
     // MARK: Flows
 
-    /// Prepared and impromptu, end to end: record, process, report, retry, comparison,
-    /// history and settings.
+    /// Your own topic and a question, end to end: record, process, report while coaching runs,
+    /// retry, comparison, history and settings.
     func testPracticeLoop() throws {
         launch("normal")
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 10))
@@ -44,13 +44,8 @@ final class WalkthroughTests: XCTestCase {
         shot("02-settings-bottom")
         app.navigationBars["Settings"].buttons["Done"].tap()
 
-        // Prepared.
-        app.buttons["start.prepared"].tap()
-        XCTAssertTrue(app.buttons["3 of 5"].waitForExistence(timeout: 5))
-        shot("03-nervousness-before")
-        app.buttons["3 of 5"].tap()
-
-        XCTAssertTrue(app.navigationBars["Prepared"].waitForExistence(timeout: 5))
+        // Your own topic.
+        app.buttons["Your own"].tap()
         let title = app.textFields.firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
@@ -60,14 +55,20 @@ final class WalkthroughTests: XCTestCase {
             notes.tap()
             notes.typeText("Joins for reporting. Team knows it. Cost.")
         }
-        shot("04-prepared-keyboard")
+        shot("04-own-topic-keyboard")
         dismissKeyboard()
-        shot("04-prepared")
+        shot("04-own-topic")
         app.buttons["Record"].tap()
 
         record(shotName: "05-recording", showNotes: true)
         waitForProcessing(shotName: "06-processing")
+        // The report opens once analysis is done, with the transcript and metrics, while
+        // Claude still runs.
         waitForReport(attempt: 1)
+        XCTAssertTrue(app.staticTexts["Claude is reviewing this take. Its feedback appears here when it is done."]
+            .waitForExistence(timeout: 5))
+        shot("07-report-coaching")
+        XCTAssertTrue(app.staticTexts["Verdict"].waitForExistence(timeout: 20))
         shootScrolling("07-report-take1")
         openTranscriptMark()
 
@@ -83,39 +84,27 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Take 2 against take 1"].waitForExistence(timeout: 10))
         shootScrolling("10-comparison")
 
-        // Next prompt, then impromptu.
+        // New topic: a question this time.
         app.navigationBars["Comparison"].buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Next prompt"].waitForExistence(timeout: 5))
-        app.buttons["Next prompt"].tap()
+        XCTAssertTrue(app.buttons["New topic"].waitForExistence(timeout: 5))
+        app.buttons["New topic"].tap()
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 5))
-        shootScrolling("11-home-session")
-
-        app.buttons["start.impromptu"].tap()
-        XCTAssertTrue(app.navigationBars["Impromptu"].waitForExistence(timeout: 5))
+        app.buttons["Question"].tap()
         XCTAssertTrue(app.buttons["Another question"].waitForExistence(timeout: 10))
-        shot("12-impromptu")
+        shootScrolling("11-home-session")
         app.buttons["Another question"].tap()
         sleep(1)
-        let decision = app.buttons["Decision"]
-        if decision.exists {
-            decision.tap()
-            XCTAssertTrue(app.buttons["Another question"].waitForExistence(timeout: 10))
-        }
-        shot("12-impromptu-category")
+        app.buttons["topic.decision"].tap()
+        XCTAssertTrue(app.buttons["Another question"].waitForExistence(timeout: 10))
+        shot("12-question-category")
         app.buttons["Record"].tap()
-        record(shotName: "13-recording-impromptu")
+        record(shotName: "13-recording-question")
         waitForReport(attempt: 1)
-        shot("14-report-impromptu")
+        shot("14-report-question")
 
-        // End the session from the report.
-        app.buttons["End session"].tap()
-        XCTAssertTrue(app.buttons["2 of 5"].waitForExistence(timeout: 5))
-        shot("15-nervousness-after")
-        app.buttons["2 of 5"].tap()
+        // History, from Home: the tab bar is hidden on the report.
+        app.buttons["New topic"].tap()
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 5))
-        shot("16-home-after-session")
-
-        // History.
         app.tabBars.buttons["History"].tap()
         XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 5))
         sleep(1)
@@ -224,12 +213,6 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 5))
         shootScrolling("28-home-not-uploaded")
 
-        // Ending the session keeps the take on Home, with why it is stuck.
-        app.buttons["End session"].tap()
-        XCTAssertTrue(app.buttons["Skip"].waitForExistence(timeout: 5))
-        app.buttons["Skip"].tap()
-        XCTAssertTrue(app.staticTexts["Waiting to upload"].waitForExistence(timeout: 5))
-        shot("28-home-stuck-take")
     }
 
     func testSlowProcessing() throws {
@@ -250,12 +233,7 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 10))
         sleep(2)
         shot("31-home-unreachable")
-        app.buttons["start.impromptu"].tap()
-        app.buttons["Skip"].tap()
-        XCTAssertTrue(app.navigationBars["Impromptu"].waitForExistence(timeout: 5))
-        sleep(2)
-        shot("32-impromptu-unreachable")
-        app.navigationBars["Impromptu"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Retry"].waitForExistence(timeout: 10), "Home offers to retry the questions")
         XCTAssertTrue(app.tabBars.buttons["History"].waitForExistence(timeout: 5))
         app.tabBars.buttons["History"].tap()
         sleep(2)
@@ -271,9 +249,7 @@ final class WalkthroughTests: XCTestCase {
     }
 
     private func startPrepared(title text: String) {
-        app.buttons["start.prepared"].tap()
-        XCTAssertTrue(app.buttons["Skip"].waitForExistence(timeout: 5))
-        app.buttons["Skip"].tap()
+        app.buttons["Your own"].tap()
         let title = app.textFields.firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()

@@ -39,7 +39,7 @@ final class DriveRealServerTests: XCTestCase {
             options: [.sortedKeys])
         app = XCUIApplication()
         app.launchArguments = [
-            "-resetState", "-debug.useMockServer", "NO", "-debug.microphoneFile", server.micFile,
+            "-resetState", "-showsDriving", "YES", "-debug.useMockServer", "NO", "-debug.microphoneFile", server.micFile,
             "-serverAddress", server.address, "-debug.instantSpeech", "-debug.speechLog",
             "-debug.recognizerScript", String(decoding: script, as: UTF8.self),
         ]

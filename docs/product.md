@@ -49,9 +49,9 @@ It holds one or more **prompts**, and each prompt holds one or more **takes** (r
 3. **Get feedback** on the take. See [Feedback](#feedback).
 4. **Retry the same prompt** and get a comparison with the previous take: what improved, what still slipped.
    This is the core of the product.
-5. Move to the next prompt or end the session.
+5. Move to the next prompt.
 
-Before and after a session, Ryan rates his nervousness from 1 to 5.
+Nervousness self-ratings from 1 to 5, before and after a session, are set aside for now (2026-11-09): only driving mode still asks for them.
 
 ## Feedback
 
@@ -105,9 +105,13 @@ Their sources are in [research.md#practice-methods](research.md#practice-methods
   Shown for information; not graded in v1.
 - **Pitch and volume variation:** shown for information; not graded in v1.
 - **Nervousness signs:** pace rising sharply, blocks clustering, pitch rising.
-  Shown next to the self-rating, never as a "nervousness score".
+  Shown next to the self-rating when there is one, never as a "nervousness score".
 
 ## Driving mode
+
+**Set aside (2026-11-09).** Ryan decided to focus on the core practice loop first; driving mode comes back later.
+Its code and tests stay, but Home no longer offers it: only the `-showsDriving YES` launch argument shows the "Start a drive" card, and Siri can still start a drive.
+On Ryan's iPhone it did not yet hear short answers such as "three"; [status.md](status.md) has what was found.
 
 Ryan's commute is by car, so practice there must be completely hands-free and eyes-free.
 
@@ -165,9 +169,9 @@ Data shapes and endpoints are in [architecture.md#server-api](architecture.md#se
 
 ```text
 Practice tab
-  Home ─┬─▶ Prepared prompt ──┬─▶ Recording ──▶ Processing ──▶ Report ──▶ Comparison
-        └─▶ Impromptu prompt ─┘       ▲                          │
-                                      └──── Retry (same prompt) ─┘
+  Home ──▶ Recording ──▶ Processing ──▶ Report ──▶ Comparison
+              ▲                           │
+              └──── Retry (same prompt) ──┘
   Home ──▶ Settings (sheet)
 
 History tab
@@ -180,41 +184,33 @@ On first launch, with no server address or token, Settings opens first.
 
 ### Sessions in the app
 
-- A session opens when Ryan starts his first prompt from Home with no session open.
-  The app first asks his nervousness from 1 to 5, with Skip.
-- It stays open across prompts and retries.
-- **End session**, on Home and on the Report, asks his nervousness again (Skip allowed) and closes it.
-- If the app is opened more than 2 hours after the last take of an open session, it closes that session without an after-rating, with `ended_at` set to the end of its last take.
+Sessions group takes for History; Ryan never manages them.
 
-### Home (practice picker)
+- A session opens when Ryan records his first take with no session open.
+- It stays open across topics and retries.
+- If the app is opened more than 2 hours after the last take of an open session, it closes that session, with `ended_at` set to the end of its last take.
+- The app no longer asks for nervousness self-ratings (2026-11-09, to keep the loop simple); a session's ratings stay empty, and the report shows the nervousness signs alone.
+
+### Home
+
+One screen: pick a topic, pick a length, record.
 
 Shows:
 
-- The open session, if any: start time, number of takes, and End session.
-- Two primary actions: **Prepared** and **Impromptu**.
-- A **Start a drive** card, which starts a drive ([Driving mode](#driving-mode)).
-  The drive's screen replaces the tabs until Ryan taps Done on its summary, then the tabs come back as they were.
+- Server state: reachable, unreachable, or reachable without coaching; a gear opens Settings.
+- Topic chips: Any, Decision, Status, Explain, Push back, and **Your own**.
+  - A category shows one question in large text, with **Another question**.
+    Questions are fetched three at a time; a small note says when they came from the built-in bank instead of Claude.
+    If the server cannot be reached, it says so and offers Retry; Your own still works.
+  - Your own shows a topic field (placeholder "Today's stand-up") and optional notes for the points Ryan wants to make (typed, or dictated with the keyboard's dictation key).
+- A target length picker: 30 seconds, 1, 1.5, 2, 3 or 5 minutes.
+  A question brings its suggested length; Your own starts at the default from Settings (2 minutes).
 - The open session's takes, newest first: prompt text, attempt number, and status or verdict.
   A take still on the phone shows "Not uploaded" with Retry upload.
 - Takes of ended sessions still on the phone, such as a drive's offline takes, under "Waiting to upload".
-- Server state: reachable, unreachable, or reachable without coaching; a gear opens Settings.
 
-Actions: Prepared, Impromptu, Start a drive, open a take's Report, End session, Settings.
-
-### Prepared prompt
-
-Shows a title field (placeholder "Today's stand-up"), a notes editor for the points Ryan wants to make (typed, or dictated with the keyboard's dictation key), and a target length picker: 30 seconds, 1, 2, 3 or 5 minutes, default 2 minutes.
-Notes are optional.
-
-Actions: **Record** (primary; needs a title).
-
-### Impromptu prompt
-
-Shows category chips (Any, Decision, Status, Explain, Push back), one question in large text, and its suggested length, which Ryan can change.
-Questions are fetched three at a time; a small note says when they came from the built-in bank instead of Claude.
-If the server cannot be reached, the screen says so and offers Retry; impromptu practice needs the server in M1.
-
-Actions: **Record** (primary), Another question, change category.
+Actions: **Record** (primary, pinned at the bottom; Your own needs a topic), Another question, change topic, open a take's Report, Settings.
+After a take starts, Home moves on to the next question, or clears a typed topic, for the next take.
 
 ### Recording
 
@@ -231,9 +227,9 @@ If a phone call or another app interrupts recording, the take stops and is kept 
 
 ### Processing
 
-Shows upload progress, then the stage from the take's status (Transcribing, Analyzing, Coaching) and the elapsed time.
+Shows upload progress, then the stage from the take's status (Transcribing, Analyzing) and the elapsed time.
 After 3 minutes it adds "Taking longer than usual".
-When the take is done, the app moves to the Report by itself.
+As soon as analysis is done (the take's status is `coaching` or `done`), the app moves to the Report by itself: the transcript and metrics show at once, and Claude's feedback fills in when coaching finishes.
 
 Actions: Back to Home (processing continues on the server and the take appears on Home), and on errors:
 
@@ -250,7 +246,7 @@ Top to bottom:
 3. **Verdict.**
 4. **Strength**, with its quote; tapping the quote plays that audio.
 5. **Focus**: one or two items, each with title, problem, quotes to play, and the instruction for the next take.
-6. **Retry** as the primary action, pinned at the bottom of the screen, with Next prompt and End session beside it.
+6. **Retry** as the primary action, pinned at the bottom of the screen, with New topic below it.
 7. **Dimensions**: six rows, each with its level and evidence.
 8. **Structure outline**: the points in order with their roles, and whether the main point came first.
 9. **Annotated transcript**: fillers, blocks, repetitions, restarts and off-topic stretches marked inline, boundary pauses shown faintly, with a legend.
@@ -258,14 +254,16 @@ Top to bottom:
 10. **Reference version**, collapsed until tapped.
 11. **Metrics**: fillers per 100 words with the normal range (about 2 to 6), blocks, restarts and repetitions; pace, pitch variation and volume variation marked "for information".
     The fillers row expands to every filler with its timestamp and a play button.
-12. **Nervousness**: the session's self-ratings next to the signs found in this take, never as a score.
+12. **Nervousness**: the signs found in this take, never as a score, next to the session's self-ratings when it has any.
 
-Without coaching, sections 3 to 5, 7, 8 and 10 are replaced by one banner; the transcript, metrics and nervousness remain, and the comparison card shows metric changes only:
+Until coaching is done, and without coaching, sections 3 to 5, 7, 8 and 10 are replaced by one banner; the transcript, metrics and nervousness remain, and the comparison card shows metric changes only:
+
+- Coaching running: "Claude is reviewing this take. Its feedback appears here when it is done." The report fills in by itself when it is done.
 
 - Coaching unavailable: "Coaching is off because the server has no Anthropic API key." When the server later reports coaching as available, the banner offers **Get coaching**, which reprocesses the take from coaching.
 - Coaching failed: "Coaching failed for this take." with **Try coaching again**.
 
-Actions: **Retry**, Next prompt (back to Home with the session still open), End session, play audio.
+Actions: **Retry**, New topic (back to Home with the session still open), play audio.
 
 ### Comparison
 

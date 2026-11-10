@@ -7,12 +7,14 @@ The analysis server is built and runs end to end on synthesized takes: upload, t
 Coaching runs against Claude: the key is in `server/.env`, and a synthesized take and its retry got a full report and a comparison on 2026-11-09, about 30 s for coaching.
 It has not yet seen Ryan's real recordings, so the prompt and rubric are still v1.
 The analysis rules have only seen synthesized speech; their block thresholds (0.5 s inside a phrase, 1.0 s for a pause plus a filler between ideas) are starting values to calibrate on Ryan's recordings.
-The iPhone app's home mode is built and runs end to end against the real server in the simulator: settings, a prepared take, its report, a retry and the comparison.
-It still uses system colors; the visual direction below is not applied yet, and it has not run on a real iPhone.
-Driving mode (M2) is built and runs end to end in the simulator, against the mock server and the real server, with a scripted recognizer standing in for speech recognition, which the simulator lacks.
-The real recognizer is checked on the Mac with `tools/drive-commands` against spoken clips.
-No drive has run on a device yet: car Bluetooth, AirPods, a locked phone, a call mid-take and a navigation prompt are all unchecked.
-Starting with the phone locked, and going on after a call, wait on a decision under Waiting on Ryan.
+The iPhone app is one simple loop (2026-11-09): Home picks a topic (a question by category, or Ryan's own) and a length, Record, and the report opens as soon as analysis is done, showing the transcript and metrics while Claude's feedback fills in.
+It runs end to end against the real server in the simulator: settings, a take, its report, a retry and the comparison.
+It still uses system colors; the visual direction below is not applied yet, and it has not run a take on a real iPhone.
+Driving mode (M2) is set aside: its code and tests stay, but Home hides it (see [product.md#driving-mode](product.md#driving-mode)).
+It runs end to end in the simulator with a scripted recognizer, and the real recognizer passes all spoken clips on the Mac with `tools/drive-commands`.
+On Ryan's iPhone (2026-11-09) it read the questions aloud but missed short answers: a lone "three" came back from the recognizer as an empty result, while a full answer and "done" were heard.
+The `.measurement` audio mode left speech at about -45 dBFS, but the Mac clips pass at that level too, so the level alone does not explain it.
+A Debug build launched with `-debug.recognizerCapture` records the recognizer's input and results for `drive-commands --replay`, which is the next step when the drive comes back.
 The visual direction is in [design/README.md](design/README.md), with a clickable prototype.
 The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bakeoff.md](bakeoff.md).
 
@@ -26,6 +28,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - iPhone only, SwiftUI.
 - Analysis runs on the home Mac mini as a server; coaching uses Claude.
 - Working codename: SpeakUp.
+- 2026-11-09: build the core loop first, simply: open the app, pick a topic and a length, record, see the transcript and metrics right away, then Claude's report. Driving mode and the prepared/impromptu split come later; no nervousness self-ratings for now.
 
 ## Waiting on Ryan
 
@@ -33,10 +36,11 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
    Then correct three or four gold transcripts; the tool drafts them.
 2. Write a short work-context profile for impromptu questions: role, team, current projects, kinds of conversations that are hard.
    Leave out anything your employer would not want sent to Anthropic.
-3. Run the app on the iPhone: connect it and pick it as the run destination in Xcode (the SpeakUp target is signed with your team), then enter the tailnet address and token in Settings.
+3. Run a take on the iPhone: connect it and pick it as the run destination in Xcode (the SpeakUp target is signed with your team).
+   The build bundles the tailnet address and token (`ios/scripts/write-local-server.sh`), so Settings needs nothing.
    Tailscale is set up on the Mac mini and the iPhone and the server is published to the tailnet (2026-11-09), but it still runs from a terminal: keep the Mac mini awake, and move it to launchd as [server.md](server.md) describes.
 4. Put an ElevenLabs API key in `server/.env` for the bake-off (`server/.env.example` shows the names), and an AssemblyAI key if you want it compared too.
-5. Driving mode decisions:
+5. Driving mode decisions, for when it comes back:
    1. Prepared prompts in the car: impromptu only (built), or also a "for the drive" queue built at home and read aloud before the tone.
       The agent recommends impromptu only for M2.
    2. Interrupting the app while it talks: today it finishes what it is saying before it listens.
@@ -46,7 +50,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
    4. Late feedback: when waiting gives up, should the feedback be spoken later in the same drive, once it is ready?
       Today it is only in History.
       The agent recommends yes, at the next break.
-6. Run a drive on the iPhone in the car, with AirPods, with the phone locked, with a call mid-take, and with a navigation prompt, and say how the defaults below feel.
+6. When driving mode comes back: run a drive on the iPhone in the car, with AirPods, with the phone locked, with a call mid-take, and with a navigation prompt, and say how the defaults below feel.
 
 ## Open decisions
 
@@ -59,13 +63,13 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 
 ## Next steps
 
-1. Run the bake-off on Ryan's recordings and record the engine decision in [architecture.md#speech-to-text](architecture.md#speech-to-text).
-2. Iterate the coaching prompt and rubric v1 on the same recordings with Ryan.
-3. Calibrate the block thresholds in `speakup.analysis.thresholds` on Ryan's recordings.
-4. Set up the server on the Mac mini as [server.md](server.md) describes, outside `~/Documents`.
-5. Apply the visual direction in [design/README.md](design/README.md) to the iOS app's `Theme` and screens.
-6. Finish driving mode (M2) once its decisions under Waiting on Ryan are settled: a locked start and going on after a call, then a device run. Then history and polish.
-7. Run the app on Ryan's iPhone over Tailscale: check background upload with the phone locked, and recording with AirPods and the car's microphone.
+1. Run a take on Ryan's iPhone over Tailscale: recording level with the `.measurement` audio mode, upload, the report opening at analysis, then coaching; check background upload with the phone locked.
+2. Run the bake-off on Ryan's recordings and record the engine decision in [architecture.md#speech-to-text](architecture.md#speech-to-text).
+3. Iterate the coaching prompt and rubric v1 on the same recordings with Ryan.
+4. Calibrate the block thresholds in `speakup.analysis.thresholds` on Ryan's recordings.
+5. Set up the server on the Mac mini as [server.md](server.md) describes, outside `~/Documents`.
+6. Apply the visual direction in [design/README.md](design/README.md) to the iOS app's `Theme` and screens.
+7. Later, driving mode (M2): replay a captured phone run to find why short answers are missed, settle its decisions under Waiting on Ryan, then a device run in the car.
 
 ## Known issues
 

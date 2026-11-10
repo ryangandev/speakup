@@ -5,7 +5,8 @@ Ryan records short solo answers, gets direct feedback on fluency and structure, 
 It has an iPhone app, written in SwiftUI, and an analysis server that runs on Ryan's home Mac mini.
 v1 is English, work scenarios, used only by Ryan.
 
-Milestone 1 (home practice) and milestone 2 (driving mode) are built and run end to end in the simulator; neither has run on a real iPhone yet.
+Milestone 1 (home practice) is built and runs end to end in the simulator, simplified on 2026-11-09 to one loop: pick a topic and length, record, report; it has not run a take on a real iPhone yet.
+Milestone 2 (driving mode) is built but set aside and hidden in the app; on a real iPhone it did not yet hear short answers.
 `server/` holds the analysis server (store, pipeline worker, API, coaching, analysis) and the speech-to-text bake-off; `tools/apple-transcribe/` is the Apple engine for the bake-off.
 `ios/` holds the iPhone app (SwiftUI, iOS 26 or later); start from [ios/AGENTS.md](ios/AGENTS.md).
 What is decided, what is open and what comes next is in [docs/status.md](docs/status.md).

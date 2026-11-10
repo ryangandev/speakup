@@ -41,6 +41,15 @@ struct ProcessingControllerTests {
         #expect(ProcessingController.phase(for: TakeFactory.take(status: TakeStatus(rawValue: "queued"))) == .processing(TakeStatus(rawValue: "queued")))
     }
 
+    /// The practice flow opens the report once analysis exists; coaching fills in there.
+    @Test func theReportCanOpenAtAnalysis() {
+        let coaching = TakeFactory.take(status: .coaching)
+        #expect(ProcessingController.phase(for: coaching, opensReportAtAnalysis: true) == .done(coaching))
+        #expect(
+            ProcessingController.phase(for: TakeFactory.take(status: .analyzing), opensReportAtAnalysis: true)
+                == .processing(.analyzing))
+    }
+
     @Test func uploadsThenPollsEveryOneAndAHalfSecondsUntilDone() async {
         let api = FakeAPI()
         api.onUpload = { [takeID] _, _ in TakeFactory.take(id: takeID, status: .uploaded) }

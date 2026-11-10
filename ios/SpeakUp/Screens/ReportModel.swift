@@ -3,7 +3,7 @@ import Observation
 
 /// Where a Report or Comparison was opened from, which decides its actions and where links push.
 enum ReportContext: Hashable {
-    /// From Practice: Retry, Next prompt and End session are available for the open session.
+    /// From Practice: Retry and New topic are available for the open session.
     case practice
     /// From History: reading only.
     case history

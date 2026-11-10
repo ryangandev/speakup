@@ -311,7 +311,8 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
     }
 
     private func stageDurations(_ scenario: MockScenario) -> [Double] {
-        scenario == .slowProcessing ? [0.8, 600, 1.5, 2] : [0.8, 2, 1.5, 2]
+        // Coaching takes longest, as Claude does, so the report is seen while it runs.
+        scenario == .slowProcessing ? [0.8, 600, 1.5, 5] : [0.8, 2, 1.5, 5]
     }
 
     /// The Take resource at `now`, from where processing started and how long each stage takes.

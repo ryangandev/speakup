@@ -1206,7 +1206,9 @@ Evidence and alternatives are in [research.md#speech-to-text](research.md#speech
 
 Secrets live in ignored files only: the Anthropic API key, any speech-to-text API key, and the server bearer token.
 The server reads them from the environment, then from `server/.env`; `server/.env.example` lists the names.
-The app keeps the server address and token in the Keychain.
+The app keeps the server address in `UserDefaults` and the token in the Keychain.
+So a fresh install needs no typing, a local build bundles both: `ios/scripts/write-local-server.sh` writes the ignored `ios/SpeakUp/Settings/LocalServer.json` from `server/.env` and the Mac mini's tailnet name, and the app uses it until Settings saves its own values.
+The token is then readable inside any build made on that Mac, which is fine while the app is built only for Ryan's phone.
 
 Server settings added in M1 (the API implementer adds them to `server/.env.example`):
 

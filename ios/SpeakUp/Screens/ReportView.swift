@@ -6,7 +6,6 @@ struct ReportView: View {
     let takeID: String
     let context: ReportContext
     @State private var model: ReportModel
-    @State private var isEndingSession = false
 
     init(takeID: String, context: ReportContext) {
         self.takeID = takeID
@@ -37,12 +36,6 @@ struct ReportView: View {
         .onDisappear {
             model.stop()
             app.player.stop()
-        }
-        .sheet(isPresented: $isEndingSession) {
-            NervousnessSheet(title: "Ending the session: how nervous do you feel now?") { rating in
-                app.endOpenSession(nervousnessAfter: rating)
-                app.practice.path = []
-            }
         }
     }
 
@@ -88,21 +81,14 @@ struct ReportView: View {
                         Label("Retry", systemImage: "arrow.counterclockwise")
                     }
                     .buttonStyle(.primary(tint: Theme.Colors.recording))
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: Theme.Spacing.m) { nextButton; endButton }
-                        VStack(spacing: Theme.Spacing.s) { nextButton; endButton }
-                    }
+                    nextButton
                 }
             }
         }
     }
 
     private var nextButton: some View {
-        Button("Next prompt") { app.practice.path = [] }.buttonStyle(.secondary)
-    }
-
-    private var endButton: some View {
-        Button("End session") { isEndingSession = true }.buttonStyle(.secondary)
+        Button("New topic") { app.practice.path = [] }.buttonStyle(.secondary)
     }
 
     private func openComparison() {
@@ -114,7 +100,7 @@ struct ReportView: View {
 
     @ViewBuilder private func coachingBanner(_ report: TakeReport) -> some View {
         if model.isCoachingRunning || report.take.coachingStatus == .pending {
-            Banner(tone: .info, systemImage: "sparkles", message: "Coaching is running. The report fills in when it is done.")
+            Banner(tone: .info, systemImage: "sparkles", message: "Claude is reviewing this take. Its feedback appears here when it is done.")
                 .overlay(alignment: .topTrailing) { ProgressView().padding(Theme.Spacing.l) }
         } else if report.take.coachingStatus == .failed {
             Banner(

@@ -8,10 +8,9 @@ v1 is English, focused on work conversations, and built for one person.
 
 - **iPhone app** (SwiftUI, iOS 26 or later): records takes, uploads them, and shows reports and comparisons.
 - **Analysis server** (Python, FastAPI) on a home Mac, reached over Tailscale: verbatim speech to text with CrisperWhisper, rule-based analysis of fillers, blocks, restarts and repetitions, then coaching from Claude.
-- **Home practice:** pick a prepared topic or an impromptu question, record, read the report, retry, compare.
-- **Driving mode:** fully hands-free.
+- **Practice:** pick a topic (a question by category, or your own) and a length, record, see the transcript and metrics as soon as the take is analyzed, then Claude's feedback; retry and compare.
+- **Driving mode** (set aside for now, hidden in the app): fully hands-free.
   The app reads a question, you answer, say "done", and it reads the feedback aloud.
-  Voice commands: again, next, repeat that, read the better version, stop.
 
 ## Status
 
