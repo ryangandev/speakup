@@ -42,6 +42,12 @@ clip next-question   betweenTakes next          "next question"
 clip say-that-again  betweenTakes repeatThat    "say that again"
 clip better-version  betweenTakes betterVersion "read the better version"
 clip stop            betweenTakes stop          "stop"
+# The nervousness rating: one short word, alone.
+clip rating-three    betweenTakes rating3       "three"
+clip rating-two      betweenTakes rating2       "two"
+clip rating-five     betweenTakes rating5       "five"
+clip rating-one      betweenTakes rating1       "one"
+clip skip            betweenTakes skip          "skip"
 clip weather         betweenTakes unrecognized  "what is the weather going to be like today"
 # A command word that starts a longer utterance, after a short pause, is not a command.
 clip again-nowait    betweenTakes unrecognized  "again [[slnc 400]] no wait, never mind"

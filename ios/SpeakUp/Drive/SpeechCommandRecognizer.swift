@@ -21,12 +21,17 @@ final class SpeechCommandRecognizer: CommandRecognizing {
     /// Counts starts, stops and failures, so a `start` that a `stop` overtook while it awaited
     /// the engine, or a late stop or failure from an old session, cannot act on the current one.
     private var generation = 0
+    private let capture: RecognizerCapture?
 
     private static let log = Logger(subsystem: "dev.ryangan.speakup", category: "SpeechCommandRecognizer")
 
-    init(engine: any RecognitionEngine = SpeechAnalyzerEngine(), config: CommandRecognitionCore.Config = .init()) {
+    init(
+        engine: any RecognitionEngine = SpeechAnalyzerEngine(), config: CommandRecognitionCore.Config = .init(),
+        capture: RecognizerCapture? = nil
+    ) {
         self.engine = engine
         core = CommandRecognitionCore(config: config)
+        self.capture = capture
     }
 
     func prepare() async throws {
@@ -57,8 +62,10 @@ final class SpeechCommandRecognizer: CommandRecognizing {
                 if !Task.isCancelled { self?.fail(error.localizedDescription, generation: started) }
             }
         }
+        let capture = self.capture
         feeding = Task.detached { [weak self] in
             for await buffer in buffers {
+                capture?.write(buffer)
                 do {
                     try session.append(buffer)
                 } catch {
@@ -74,10 +81,12 @@ final class SpeechCommandRecognizer: CommandRecognizing {
     }
 
     func listen(mode: CommandSpotter.Mode, from time: TimeInterval) {
+        capture?.note(String(format: "listen %@ from %.2f", "\(mode)", time))
         core.listen(mode: mode, from: time)
     }
 
     func stopListening() {
+        capture?.note("stop listening")
         core.stopListening()
     }
 
@@ -96,6 +105,7 @@ final class SpeechCommandRecognizer: CommandRecognizing {
     }
 
     private func received(_ result: RecognizedResult) {
+        capture?.note(result)
         perform(core.receive(result))
     }
 
@@ -110,6 +120,7 @@ final class SpeechCommandRecognizer: CommandRecognizing {
                 continuation?.yield(.update(update))
             case .finalize(let time):
                 guard let session else { continue }
+                capture?.note(String(format: "finalize through %.2f", time))
                 let started = generation
                 Task { [weak self] in
                     do {
@@ -131,6 +142,7 @@ final class SpeechCommandRecognizer: CommandRecognizing {
 
     private func finalized(through time: TimeInterval, in finished: any RecognitionSession) {
         guard session === finished else { return }
+        capture?.note(String(format: "finalized through %.2f", time))
         core.finalized(through: time)
     }
 
@@ -451,7 +463,100 @@ enum CommandRecognizers {
     static func makeDefault() -> any CommandRecognizing {
         #if DEBUG
         if let recognizer = ScriptedRecognizer.fromLaunchArguments() { return recognizer }
+        if ProcessInfo.processInfo.arguments.contains("-debug.recognizerCapture") {
+            return SpeechCommandRecognizer(capture: RecognizerCapture(directory: FileManager.default.temporaryDirectory))
+        }
         #endif
         return SpeechCommandRecognizer()
+    }
+}
+
+// MARK: - Capture
+
+/// What the recognizer was fed and what it did, so a device run can be replayed on a Mac with
+/// `tools/drive-commands`. Debug builds write it with `-debug.recognizerCapture`, to the app's
+/// temporary directory:
+///
+/// - `recognizer-input.caf`: the input as fed, in its own format. It starts at drive time 0,
+///   and a gap in the input (an engine restart) is filled with silence, so a time in the file
+///   is a drive time.
+/// - `recognizer-trace.txt`: one line per event, on the drive clock: listening windows,
+///   finalization requests and completions, and every engine result with its range and words.
+///
+/// It holds Ryan's speech, so it stays on the phone unless copied off by hand.
+final class RecognizerCapture: @unchecked Sendable {
+    static let inputName = "recognizer-input.caf"
+    static let traceName = "recognizer-trace.txt"
+
+    private let directory: URL
+    private let recordsInput: Bool
+    private let lock = NSLock()
+    private var file: AVAudioFile?
+    private var written: TimeInterval = 0
+    private var trace: FileHandle?
+    private let log = Logger(subsystem: "dev.ryangan.speakup", category: "RecognizerCapture")
+
+    /// `recordsInput` false writes only the trace, under `traceName`.
+    init(directory: URL, traceName: String = RecognizerCapture.traceName, recordsInput: Bool = true) {
+        self.directory = directory
+        self.recordsInput = recordsInput
+        let traceURL = directory.appending(path: traceName)
+        if recordsInput { try? FileManager.default.removeItem(at: directory.appending(path: Self.inputName)) }
+        FileManager.default.createFile(atPath: traceURL.path, contents: nil)
+        trace = try? FileHandle(forWritingTo: traceURL)
+    }
+
+    deinit {
+        try? trace?.close()
+    }
+
+    func write(_ input: DriveAudioBuffer) {
+        lock.withLock {
+            let buffer = input.buffer
+            guard recordsInput else {
+                written = max(written, input.startTime + Double(buffer.frameLength) / buffer.format.sampleRate)
+                return
+            }
+            let format = buffer.format
+            do {
+                if file == nil {
+                    file = try AVAudioFile(
+                        forWriting: directory.appending(path: Self.inputName), settings: format.settings,
+                        commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+                }
+                guard let file, file.processingFormat == format else { return }
+                let gap = input.startTime - written
+                if gap > 1 / format.sampleRate, gap < 600,
+                    let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(gap * format.sampleRate))
+                {
+                    silence.frameLength = silence.frameCapacity
+                    for channel in UnsafeMutableAudioBufferListPointer(silence.mutableAudioBufferList) {
+                        if let data = channel.mData { memset(data, 0, Int(channel.mDataByteSize)) }
+                    }
+                    try file.write(from: silence)
+                }
+                try file.write(from: buffer)
+                written = max(written, input.startTime) + Double(buffer.frameLength) / format.sampleRate
+            } catch {
+                log.error("Capture failed: \(error.localizedDescription, privacy: .public)")
+                file = nil
+            }
+        }
+    }
+
+    func note(_ result: RecognizedResult) {
+        let words = result.timedWords.map { String(format: "%@@%.2f-%.2f", $0.text, $0.start, $0.end) }
+        note(
+            String(
+                format: "%@ %.2f-%.2f finalized %.2f: %@", result.isFinal ? "final" : "volatile",
+                result.range.lowerBound, result.range.upperBound, result.finalizedThrough,
+                words.joined(separator: " ")))
+    }
+
+    func note(_ line: String) {
+        lock.withLock {
+            let stamp = String(format: "%.2f ", written)
+            _ = try? trace?.write(contentsOf: Data((stamp + line + "\n").utf8))
+        }
     }
 }

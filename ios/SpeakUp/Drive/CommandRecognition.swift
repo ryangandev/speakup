@@ -309,9 +309,13 @@ struct CommandRecognitionCore: Sendable {
 
     /// Where a final's words end in the volatile text before it: the index after the last
     /// volatile token that matches the final's last token, also when one of them splits a word
-    /// the other writes as one ("trade-offs" and "tradeoffs"). Nil when they do not line up.
+    /// the other writes as one ("trade-offs" and "tradeoffs"), or one writes a number as a
+    /// digit and the other as a word (on a Mac, a volatile "3" became the final "Three."). Nil
+    /// when they do not line up.
     static func alignedEnd(of final: [String], in volatile: [String]) -> Int? {
         guard !final.isEmpty else { return 0 }
+        let final = final.map(spelledOut)
+        let volatile = volatile.map(spelledOut)
         for end in stride(from: volatile.count, to: 0, by: -1) {
             for count in 1...min(3, end) {
                 let joined = volatile[(end - count)..<end].joined()
@@ -321,6 +325,14 @@ struct CommandRecognitionCore: Sendable {
             }
         }
         return nil
+    }
+
+    private static let numberWords = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+
+    /// A token with a number from 0 to 10 written as a word.
+    private static func spelledOut(_ token: String) -> String {
+        guard let value = Int(token), numberWords.indices.contains(value) else { return token }
+        return numberWords[value]
     }
 
     /// `SpeechTranscriber` stretches the last word before a pause to the end of the audio it

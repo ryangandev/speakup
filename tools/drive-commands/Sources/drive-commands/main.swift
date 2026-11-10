@@ -3,6 +3,7 @@
 // clip's command and cut time.
 //
 // Usage: drive-commands [--transcriber speech|dictation|both] [--clips <dir>] [--only <name>] [--verbose] [--trace]
+//        drive-commands --replay <capture dir> [--transcriber speech|dictation]
 
 import AVFoundation
 import Foundation
@@ -17,6 +18,7 @@ struct Options {
     var only: String?
     var verbose = false
     var trace = false
+    var replay: URL?
 }
 
 func fail(_ message: String) -> Never {
@@ -44,8 +46,13 @@ while let argument = arguments.popFirst() {
         options.trace = true
     case "--verbose":
         options.verbose = true
+    case "--replay":
+        guard let path = arguments.popFirst() else { fail("--replay takes a directory") }
+        options.replay = URL(fileURLWithPath: path)
     default:
-        fail("usage: drive-commands [--transcriber speech|dictation|both] [--clips <dir>] [--only <name>] [--verbose] [--trace]")
+        fail(
+            "usage: drive-commands [--transcriber speech|dictation|both] [--clips <dir>] [--only <name>] [--verbose] [--trace]"
+                + "\n       drive-commands --replay <capture dir> [--transcriber speech|dictation]")
     }
 }
 
@@ -67,6 +74,10 @@ enum Expectation: Equatable {
         case "repeatThat": self = .command(.repeatThat)
         case "betterVersion": self = .command(.betterVersion)
         case "stop": self = .command(.stop)
+        case "skip": self = .command(.skip)
+        case let rating where rating.hasPrefix("rating"):
+            guard let value = Int(rating.dropFirst("rating".count)) else { return nil }
+            self = .command(.rating(value))
         default: return nil
         }
     }
@@ -310,6 +321,11 @@ let commandLeftAllowance = 0.1
 }
 
 // MARK: - Main
+
+if let directory = options.replay {
+    await replay(directory, with: options.transcribers[0])
+    exit(0)
+}
 
 let clips = loadClips()
 var failures = 0

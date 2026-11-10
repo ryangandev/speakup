@@ -22,13 +22,26 @@ swift run -c release --package-path tools/drive-commands drive-commands
 - `--transcriber speech|dictation|both` picks the recognizer; `speech` (`SpeechTranscriber`, the app's choice) is the default.
 - `--only <clip>` runs one clip; `--verbose` prints every final result and the spotter's event; `--trace` prints every update the spotter receives.
 
+## Replay a phone run
+
+A Debug build launched with `-debug.recognizerCapture` writes what its recognizer was fed and what it did to the app's temporary directory: `recognizer-input.caf` and `recognizer-trace.txt` (see `RecognizerCapture` in `SpeechCommandRecognizer.swift`).
+They hold Ryan's speech, so copy them only to a scratch folder outside the repository:
+
+```sh
+xcrun devicectl device copy from --device <udid> --domain-type appDataContainer --domain-identifier com.rystudio.speakup --source tmp --destination <scratch>/phone
+swift run -c release --package-path tools/drive-commands drive-commands --replay <scratch>/phone/tmp
+```
+
+The replay feeds the phone's input in real time, opens and closes the listening windows when the phone did, prints every spotter update and event, and writes the Mac's own trace as `mac-recognizer-trace.txt` beside the phone's, to compare line by line.
+
 It takes about 3 minutes per transcriber and exits non-zero when a clip fails.
 The clips and what each must give are in `make-clips.sh`; `clips/` is generated and ignored.
 They include speech shortly after a command ("done [0.7 s] actually, one more thing", "stop [0.5 s] at the next exit please"), which a recognizer that claims silence too early mistakes for a command.
 
 ## Results on macOS 27.0.1
 
-`SpeechTranscriber` passes all 20 clips.
+`SpeechTranscriber` passes all 25 clips, including the five nervousness answers ("one", "two", "three", "five", "skip").
+It wrote a lone "three" as a volatile "3" and a final "Three."; the recognizer lines the two up as the same word.
 Each "done" was cut within 0.21 s of where it was said, and the spotter acted 3.3 to 3.8 s after the speech ended (the 1.2 s silence rule and a 0.3 s margin, 1.5 s for the recognizer to report any words in it, then 0.3 s to settle); between takes, it acted 1.7 to 3.5 s after the speech ended.
 
 `DictationTranscriber` is not used by the app; on the first 12 clips it failed 2:

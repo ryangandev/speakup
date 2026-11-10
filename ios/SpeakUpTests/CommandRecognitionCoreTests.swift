@@ -175,6 +175,21 @@ struct CommandRecognitionCoreTests {
         #expect(Core.alignedEnd(of: ["don"], in: ["done"]) == nil)
     }
 
+    /// `tools/drive-commands` clip `rating-three`: the volatile text wrote the number as a digit
+    /// and the final as a word. Restating the "3" after the final kept the rating open forever.
+    @Test func aNumberLinesUpAsADigitOrAWord() {
+        var pair = Pair(.betweenTakes, core: listening(.betweenTakes))
+        _ = pair.receive(volatile("3.", range: 0...1.64))
+        let actions = pair.core.receive(final([Word("Three.", start: 0.32, end: 0.82)], range: 0.32...0.92))
+        // Nothing is left of the volatile text: its tail after the final is cleared.
+        #expect(updates(actions).last == .init(words: [], isFinal: false, covering: 0.92...0.92))
+        #expect(pair.give(actions).isEmpty)
+        #expect(pair.spotter.advance(progress: 2) == [.command(.rating(3))])
+
+        #expect(Core.alignedEnd(of: ["three"], in: ["3"]) == 1)
+        #expect(Core.alignedEnd(of: ["3"], in: ["i", "think", "three"]) == 3)
+    }
+
     @Test func whenTheyDoNotLineUpEveryVolatileWordIsRestated() {
         var core = listening(.recording)
         _ = core.receive(volatile("so that was it", range: 0...4))
