@@ -38,6 +38,23 @@ struct QuestionSource: OpenEnum {
     static let bank = Self(rawValue: "bank")
 }
 
+/// The language Ryan speaks in a take: English, or Mandarin Chinese.
+struct SpeechLanguage: OpenEnum {
+    let rawValue: String
+    init(rawValue: String) { self.rawValue = rawValue }
+    static let english = Self(rawValue: "en")
+    static let chinese = Self(rawValue: "zh")
+
+    static let choices: [SpeechLanguage] = [.english, .chinese]
+
+    var label: String {
+        switch self {
+        case .chinese: return "中文"
+        default: return "English"
+        }
+    }
+}
+
 struct TakeStatus: OpenEnum {
     let rawValue: String
     init(rawValue: String) { self.rawValue = rawValue }
@@ -161,7 +178,29 @@ struct Prompt: Codable, Hashable, Sendable, Identifiable {
     let category: PromptCategory?
     let targetSeconds: Int
     let questionSource: QuestionSource
+    let language: SpeechLanguage
     let createdAt: Date
+}
+
+extension Prompt {
+    private enum CodingKeys: String, CodingKey {
+        case id, sessionId, kind, text, notes, category, targetSeconds, questionSource, language, createdAt
+    }
+
+    /// A server from before `language` sends none, which means English.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        kind = try container.decode(PromptKind.self, forKey: .kind)
+        text = try container.decode(String.self, forKey: .text)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        category = try container.decodeIfPresent(PromptCategory.self, forKey: .category)
+        targetSeconds = try container.decode(Int.self, forKey: .targetSeconds)
+        questionSource = try container.decode(QuestionSource.self, forKey: .questionSource)
+        language = try container.decodeIfPresent(SpeechLanguage.self, forKey: .language) ?? .english
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+    }
 }
 
 /// The Prompt resource plus `takes`, by attempt.

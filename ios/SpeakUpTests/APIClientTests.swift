@@ -108,7 +108,7 @@ struct APIClientTests {
         let body = PromptCreateRequest(
             sessionId: "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10", kind: .impromptu,
             text: "Why did we choose Postgres over DynamoDB for the billing service?", notes: nil,
-            category: .decision, targetSeconds: 90, questionSource: .claude)
+            category: .decision, targetSeconds: 90, questionSource: .claude, language: .english)
         let prompt = try await client().createPrompt(id: "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8", body)
         #expect(prompt.category == .decision)
         let recorded = try lastRequest()

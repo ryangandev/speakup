@@ -18,7 +18,7 @@ Moving the checkout is the more durable fix.
 
 ## Setup
 
-1. From `~/speakup/server`, run `uv sync --extra crisper`. The first transcription downloads the CrisperWhisper weights (several GB).
+1. From `~/speakup/server`, run `uv sync --extra crisper --extra qwen`. The first English transcription downloads the CrisperWhisper weights and the first Chinese one the Qwen3-ASR weights (several GB each).
 2. Install ffmpeg with `brew install ffmpeg`. Without it the server falls back to macOS `afconvert`.
 3. Copy `.env.example` to `.env` (ignored by git) and fill in:
    - `SPEAKUP_API_TOKEN`: at least 32 characters, or the server refuses to start. Generate one with `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.

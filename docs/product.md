@@ -7,8 +7,8 @@ It helps one person say what they mean clearly: get to the point, structure it i
 
 - **For whom:** Ryan first, as a tool for his own improvement.
   Making it a product for others is a later decision, made only after it works for Ryan.
-- **Language:** English first.
-  Mandarin, and Mandarin mixed with English, come later.
+- **Language:** English, and Mandarin Chinese since 2026-11-10, chosen per take.
+  Mandarin mixed with English is transcribed as it comes but is not designed for yet.
 - **Scenario:** work first: stand-up updates, explaining decisions, answering questions.
   Casual conversation with friends and "deep talk" (expressing a considered idea) come later as extra practice modes, not separate apps.
 - **Mode:** deliberate practice.
@@ -97,11 +97,12 @@ Their sources are in [research.md#practice-methods](research.md#practice-methods
 - **Fillers:** filled pauses (um, uh) and lexical fillers (like, you know, so, basically, kind of) used as fillers, per 100 words.
   Ordinary spontaneous speech has about 2 to 6 per 100 words, so the goal is not zero.
   Each instance is listed with its timestamp, because hearing each one is what changes the habit.
+  In Chinese the fillers are 嗯, 呃 and the like, plus 那个, 这个, 就是, 然后 used as fillers, counted per 100 characters; there is no calibrated norm for Chinese yet.
 - **Pauses:** silences of 250 ms or more, split by position.
   A pause at a sentence or clause boundary is normal and is not counted as a problem.
   A pause inside a phrase, or one followed by a filler or a restart, counts as a **block**.
 - **Restarts and repetitions:** repeated words or phrases and abandoned starts ("we need to - we should migrate").
-- **Pace:** words per minute over voiced time.
+- **Pace:** words per minute over voiced time; characters per minute in Chinese.
   Shown for information; not graded in v1.
 - **Pitch and volume variation:** shown for information; not graded in v1.
 - **Nervousness signs:** pace rising sharply, blocks clustering, pitch rising.
@@ -198,11 +199,14 @@ One screen: pick a topic, pick a length, record.
 Shows:
 
 - Server state: reachable, unreachable, or reachable without coaching; a gear opens Settings.
-- Topic chips: Any, Decision, Status, Explain, Push back, and **Your own**.
+- Language: **English** or **中文**, remembered between launches.
+  The take is transcribed, analyzed and coached in that language; questions stay in English for now, since Ryan mostly brings his own topic in Chinese.
+- A **Question / Your own** switch; Question shows category chips: Any, Decision, Status, Explain, Push back.
   - A category shows one question in large text, with **Another question**.
     Questions are fetched three at a time; a small note says when they came from the built-in bank instead of Claude.
     If the server cannot be reached, it says so and offers Retry; Your own still works.
   - Your own shows a topic field (placeholder "Today's stand-up") and optional notes for the points Ryan wants to make (typed, or dictated with the keyboard's dictation key).
+    A **Show notes while recording** switch under the notes, remembered between launches, opens them on the recording screen from the start, for an outline of the argument and its order.
 - A target length picker: 30 seconds, 1, 1.5, 2, 3 or 5 minutes.
   A question brings its suggested length; Your own starts at the default from Settings (2 minutes).
 - The open session's takes, newest first: prompt text, attempt number, and status or verdict.
@@ -214,7 +218,7 @@ After a take starts, Home moves on to the next question, or clears a typed topic
 
 ### Recording
 
-Shows the prompt text, the prepared notes collapsed behind "Show notes", the elapsed time against the target (it keeps counting past the target and never stops the take there), a live input level, and the microphone in use.
+Shows the prompt text, the prepared notes (open when Home's "Show notes while recording" is on, otherwise collapsed behind "Show notes"; a tap toggles them either way), the elapsed time against the target (it keeps counting past the target and never stops the take there), a live input level, and the microphone in use.
 The screen stays awake.
 
 Actions: **Done** (primary; stops and keeps the take), Cancel (discards after a confirmation).
@@ -305,7 +309,7 @@ Driving mode ([Driving mode](#driving-mode)) adds no M1 screens, but the M1 cont
 ## Out of scope for v1
 
 - Recording real meetings or conversations, or anyone other than the user.
-- Mandarin and mixed-language speech.
+- Mixed Chinese and English speech as a designed case.
 - Friend chat and deep talk modes.
 - Video, facial expression and body language.
 - Android and the Web.
@@ -322,6 +326,6 @@ Each milestone ends with Ryan using it for real before the next starts.
 2. **M1, home practice:** the iPhone app records prepared and impromptu takes, the server analyzes them, and the app shows the full report, retry and comparison.
 3. **M2, driving mode:** the hands-free voice loop, Siri start, spoken feedback and the offline queue.
 4. **M3, progress and CarPlay:** history and focus tracking, and CarPlay if Apple grants the entitlement.
-5. **Later:** Mandarin and mixed speech, friend chat and deep talk modes, and the decision whether to make it a product.
+5. **Later:** mixed Chinese and English speech, friend chat and deep talk modes, and the decision whether to make it a product.
 
 Home practice comes before driving because the feedback quality is the same problem in both, and it is far easier to judge and fix while looking at a screen.

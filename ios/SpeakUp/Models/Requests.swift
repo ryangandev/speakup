@@ -44,9 +44,10 @@ struct PromptCreateRequest: Encodable, Hashable, Sendable {
     let category: PromptCategory?
     let targetSeconds: Int
     let questionSource: QuestionSource
+    let language: SpeechLanguage
 
     private enum CodingKeys: String, CodingKey {
-        case sessionId, kind, text, notes, category, targetSeconds, questionSource
+        case sessionId, kind, text, notes, category, targetSeconds, questionSource, language
     }
 
     func encode(to encoder: Encoder) throws {
@@ -58,6 +59,7 @@ struct PromptCreateRequest: Encodable, Hashable, Sendable {
         try container.encode(category, forKey: .category)
         try container.encode(targetSeconds, forKey: .targetSeconds)
         try container.encode(questionSource, forKey: .questionSource)
+        try container.encode(language, forKey: .language)
     }
 }
 

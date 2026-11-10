@@ -282,8 +282,16 @@ struct ModelDecodingTests {
         let body = PromptCreateRequest(
             sessionId: "0b6f3c1e-8f5a-4f3e-9a51-2d1c7e4b9a10", kind: .impromptu,
             text: "Why did we choose Postgres over DynamoDB for the billing service?", notes: nil,
-            category: .decision, targetSeconds: 90, questionSource: .claude)
+            category: .decision, targetSeconds: 90, questionSource: .claude, language: .english)
         #expect(Fixture.sameJSON(try JSONCoding.encoder().encode(body), Fixture.data("prompt_create_request")))
+    }
+
+    @Test func aPromptWithoutALanguageIsEnglish() throws {
+        var object = Fixture.promptObject()
+        object.removeValue(forKey: "language")
+        #expect(try Fixture.decode(Prompt.self, object: object).language == .english)
+        object["language"] = "zh"
+        #expect(try Fixture.decode(Prompt.self, object: object).language == .chinese)
     }
 
     @Test func takeMetadataMatchesContract() throws {

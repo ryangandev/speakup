@@ -274,7 +274,7 @@ class Store:
         marks = ", ".join("?" for _ in session_ids)
         with self._read() as conn:
             rows = conn.execute(
-                f"SELECT p.session_id, p.id, p.kind, p.text,"
+                f"SELECT p.session_id, p.id, p.kind, p.language, p.text,"
                 f" (SELECT COUNT(*) FROM takes t WHERE t.prompt_id = p.id) AS take_count"
                 f" FROM prompts p WHERE p.session_id IN ({marks})"
                 f" ORDER BY p.created_at, p.rowid",
@@ -294,6 +294,7 @@ class Store:
         "category",
         "target_seconds",
         "question_source",
+        "language",
     )
 
     def create_prompt(self, *, id: str, **fields: Any) -> tuple[Row, bool]:

@@ -98,13 +98,14 @@ struct TranscriptMark: Hashable, Identifiable, Sendable {
 }
 
 /// What the transcript draws, in reading order: words, and pauses between them.
+/// `joinsPrevious` is true for Chinese text that follows Chinese text, which takes no space.
 enum TranscriptToken: Hashable, Identifiable, Sendable {
-    case word(index: Int, text: String, start: Double, marks: [TranscriptMark])
+    case word(index: Int, text: String, start: Double, marks: [TranscriptMark], joinsPrevious: Bool)
     case pause(TranscriptMark)
 
     var id: String {
         switch self {
-        case .word(let index, _, _, _): return "w\(index)"
+        case .word(let index, _, _, _, _): return "w\(index)"
         case .pause(let mark): return "p\(mark.event.id)"
         }
     }
@@ -137,8 +138,21 @@ enum TranscriptLayout {
         tokens.reserveCapacity(words.count + pausesBefore.count)
         for (index, word) in words.enumerated() {
             for pause in pausesBefore[index] ?? [] { tokens.append(.pause(pause)) }
-            tokens.append(
-                .word(index: index, text: word.text, start: word.start, marks: marksByWord[index]))
+            let marks = marksByWord[index]
+            // Chinese comes one character per word: a marked run such as 那个 becomes one token,
+            // so its mark is drawn once, and plain characters sit next to each other with no gap.
+            if case .word(let first, let text, let start, let previousMarks, let joins)? = tokens.last,
+                joinsWithoutSpace(text, word.text)
+            {
+                if !marks.isEmpty, marks == previousMarks {
+                    tokens[tokens.count - 1] = .word(
+                        index: first, text: text + word.text, start: start, marks: marks, joinsPrevious: joins)
+                    continue
+                }
+                tokens.append(.word(index: index, text: word.text, start: word.start, marks: marks, joinsPrevious: true))
+                continue
+            }
+            tokens.append(.word(index: index, text: word.text, start: word.start, marks: marks, joinsPrevious: false))
         }
         for pause in pausesBefore[words.count] ?? [] { tokens.append(.pause(pause)) }
         return tokens
@@ -156,8 +170,39 @@ enum TranscriptLayout {
             let lower = max(0, event.wordStart)
             let upper = min(analysis.words.count, event.wordEnd)
             let text = lower < upper
-                ? analysis.words[lower..<upper].map(\.text).joined(separator: " ") : "filler"
+                ? join(analysis.words[lower..<upper].map(\.text)) : "filler"
             return (event, text)
+        }
+    }
+
+    /// Words as one string: a space between words, none between Chinese characters.
+    static func join(_ texts: [String]) -> String {
+        var result = ""
+        for text in texts {
+            if !result.isEmpty, !joinsWithoutSpace(result, text) { result += " " }
+            result += text
+        }
+        return result
+    }
+
+    /// True when `left` ends and `right` starts with Chinese text, including its punctuation.
+    static func joinsWithoutSpace(_ left: String, _ right: String) -> Bool {
+        guard let last = left.unicodeScalars.last, let first = right.unicodeScalars.first else { return false }
+        return isCJK(last) && isCJK(first)
+    }
+
+    static func containsChinese(_ text: String) -> Bool {
+        text.unicodeScalars.contains(where: isCJK)
+    }
+
+    private static func isCJK(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3000...0x303F,  // CJK punctuation: 。、「」
+            0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF, 0x20000...0x2FA1F,  // Han
+            0xFF01...0xFF0F, 0xFF1A...0xFF20, 0xFF5B...0xFF65:  // Full-width punctuation: ，！？：；（）
+            return true
+        default:
+            return false
         }
     }
 }

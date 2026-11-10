@@ -17,6 +17,7 @@
       "category": "decision",
       "target_seconds": 90,
       "question_source": "claude",
+      "language": "en",
       "created_at": "2026-11-09T08:12:40.880Z",
       "takes": []
     }

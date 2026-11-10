@@ -4,6 +4,10 @@ The prompt and rubric are versioned files in `resources/`. Each starts with a
 `<!-- version: ... -->` line; the version goes into every report, and the line itself
 is not sent. Change the version whenever the text changes in a way that can change
 results, so reports stay comparable.
+
+A Mandarin (`zh`) take adds `coach-zh.md` after the rubric: the instructions and rubric stay
+one text for both languages, and the addition says where Mandarin differs (Chinese output,
+verbatim Chinese quotes, per-character units, Mandarin fillers).
 """
 
 from __future__ import annotations
@@ -13,6 +17,8 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import Any
+
+from speakup.text import join_words
 
 RESOURCES = Path(__file__).parent / "resources"
 
@@ -46,9 +52,23 @@ def questions_prompt() -> VersionedText:
     return load_resource("questions-prompt.md")
 
 
-def system_prompt() -> str:
-    """The coaching system prompt: instructions, then the rubric."""
-    return coach_prompt().text + "\n" + rubric().text
+def language_addition(language: str) -> VersionedText | None:
+    """The language-specific part of the system prompt, or None for English."""
+    return load_resource("coach-zh.md") if language == "zh" else None
+
+
+def prompt_version(language: str = "en") -> str:
+    """The prompt version a report records: the coach prompt's, plus the addition's for zh."""
+    addition = language_addition(language)
+    version = coach_prompt().version
+    return f"{version}+{addition.version}" if addition else version
+
+
+def system_prompt(language: str = "en") -> str:
+    """The coaching system prompt: instructions, then the rubric, then any language addition."""
+    text = coach_prompt().text + "\n" + rubric().text
+    addition = language_addition(language)
+    return text + "\n" + addition.text if addition else text
 
 
 # ---------------------------------------------------------------------------
@@ -75,8 +95,8 @@ def indexed_transcript(words: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def plain_transcript(words: list[dict[str, Any]]) -> str:
-    return " ".join(w["text"] for w in words)
+def plain_transcript(words: list[dict[str, Any]], language: str = "en") -> str:
+    return join_words([w["text"] for w in words], language)
 
 
 def _indexed(words: list[dict[str, Any]], start: int, end: int) -> str:
@@ -118,7 +138,9 @@ def events_block(analysis: dict[str, Any]) -> str:
     return "\n".join(lines) if lines else "None."
 
 
-def metrics_block(metrics: dict[str, Any]) -> str:
+def metrics_block(metrics: dict[str, Any], language: str = "en") -> str:
+    if language == "zh":
+        return _metrics_block_zh(metrics)
     f = metrics["fillers"]
     b = metrics["blocks"]
     bp = metrics["boundary_pauses"]
@@ -141,13 +163,39 @@ def metrics_block(metrics: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _metrics_block_zh(metrics: dict[str, Any]) -> str:
+    """The metrics of a Mandarin take, whose word counts and rates are per character."""
+    f = metrics["fillers"]
+    b = metrics["blocks"]
+    bp = metrics["boundary_pauses"]
+    pace = metrics["pace"]
+    quarters = ", ".join(_num(q, 0) for q in pace.get("by_quarter_wpm") or [])
+    lines = [
+        f"Recording {_num(metrics['duration_s'], 1)} s; first word after "
+        f"{_num(metrics['speech_start_s'], 1)} s; speaking {_num(metrics['speaking_s'], 1)} s; "
+        f"{metrics['word_count']} characters.",
+        f"Fillers: {f['filled_pauses']} filled pauses (嗯, 呃), {f['lexical']} of "
+        f"{f['lexical_candidates']} lexical candidates judged fillers by rules; "
+        f"{_num(f['per_100_words'])} per 100 characters.",
+        f"Blocks: {b['count']} ({_num(b['per_minute'])} per minute), longest "
+        f"{_num(b['longest_s'])} s, total {_num(b['total_s'])} s.",
+        f"Restarts: {metrics['restarts']}. Repetitions: {metrics['repetitions']}.",
+        f"Boundary pauses (normal): {bp['count']}, median {_num(bp['median_s'])} s.",
+        f"Pace (information only, not graded): {_num(pace['wpm_voiced'], 0)} characters per "
+        "minute" + (f"; by quarter {quarters}." if quarters else "."),
+    ]
+    return "\n".join(lines)
+
+
 def nervousness_block(analysis: dict[str, Any]) -> str:
     signs = analysis.get("nervousness_signs") or []
     return "\n".join(s["detail"] for s in signs) if signs else "None."
 
 
-def _prompt_block(prompt: dict[str, Any], attempt: int) -> str:
+def _prompt_block(prompt: dict[str, Any], attempt: int, language: str) -> str:
     lines = [f"Kind: {prompt['kind']}"]
+    if language == "zh":
+        lines.append("Language: Mandarin Chinese; write your coaching in Simplified Chinese")
     if prompt.get("category"):
         lines.append(f"Category: {prompt['category']}")
     label = "Question" if prompt["kind"] == "impromptu" else "Title"
@@ -159,15 +207,15 @@ def _prompt_block(prompt: dict[str, Any], attempt: int) -> str:
     return "\n".join(lines)
 
 
-def _previous_block(previous: dict[str, Any]) -> str:
+def _previous_block(previous: dict[str, Any], language: str) -> str:
     analysis = previous["analysis"]
     parts = [
         f'<previous_take attempt="{previous["attempt"]}">',
         "<transcript>",
-        plain_transcript(analysis["words"]),
+        plain_transcript(analysis["words"], language),
         "</transcript>",
         "<metrics>",
-        metrics_block(analysis["metrics"]),
+        metrics_block(analysis["metrics"], language),
         "</metrics>",
     ]
     coaching = previous.get("coaching")
@@ -187,14 +235,20 @@ def _previous_block(previous: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def request_language(request: dict[str, Any]) -> str:
+    """The take's language: the prompt's, else the analysis's, else English."""
+    return request["prompt"].get("language") or request["analysis"].get("language") or "en"
+
+
 def user_content(request: dict[str, Any]) -> str:
     """Everything Claude needs about one take, as tagged plain text."""
     analysis = request["analysis"]
     previous = request.get("previous")
+    language = request_language(request)
     filler_ids = lexical_filler_ids(analysis)
     parts = [
         "<prompt>",
-        _prompt_block(request["prompt"], request["attempt"]),
+        _prompt_block(request["prompt"], request["attempt"], language),
         "</prompt>",
         "<transcript>",
         indexed_transcript(analysis["words"]),
@@ -203,14 +257,14 @@ def user_content(request: dict[str, Any]) -> str:
         events_block(analysis),
         "</rule_events>",
         "<metrics>",
-        metrics_block(analysis["metrics"]),
+        metrics_block(analysis["metrics"], language),
         "</metrics>",
         "<nervousness_signs>",
         nervousness_block(analysis),
         "</nervousness_signs>",
     ]
     if previous is not None:
-        parts.append(_previous_block(previous))
+        parts.append(_previous_block(previous, language))
 
     asks = ["Coach this take."]
     asks.append(

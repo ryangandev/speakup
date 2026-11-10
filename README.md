@@ -34,7 +34,7 @@ Details are in [docs/status.md](docs/status.md).
 Server, from `server/`:
 
 ```bash
-uv sync --extra crisper
+uv sync --extra crisper --extra qwen
 ```
 
 ```bash

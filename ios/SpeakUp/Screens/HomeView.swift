@@ -89,7 +89,7 @@ struct HomeView: View {
             }
             // A drive may have started while the permission prompt was up; opening a home
             // session now would close the drive's.
-            guard !app.isDriving, let prompt = topic.makePrompt(store: app.store) else { return }
+            guard !app.isDriving, let prompt = topic.makePrompt(store: app.store, language: app.settings.language) else { return }
             await app.practice.record(prompt)
             if app.practice.takeFlow != nil { topic.recorded(api: app.api) }
         }

@@ -68,6 +68,7 @@ def test_story_from_upload_to_done(env):
         "notes": None,
         "category": "decision",
         "target_seconds": 90,
+        "language": "en",
     }
     assert env.coach.requests[0]["mode"] == "home"
     assert env.coach.requests[0]["attempt"] == 1
@@ -92,6 +93,7 @@ def test_story_from_upload_to_done(env):
         "category": "decision",
         "target_seconds": 90,
         "question_source": "claude",
+        "language": "en",
         "created_at": "2026-11-09T08:12:40.880Z",
     }
     retry_report = env.client.get(f"/v1/takes/{TAKE2_ID}/report").json()

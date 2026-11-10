@@ -4,14 +4,22 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 import anthropic
 
 from . import claude
 from .errors import CoachingFailed, CoachingUnavailable
 from .models import CoachingOutput, output_schema
-from .prompt import coach_prompt, lexical_filler_ids, reask_content, rubric, system_prompt
+from .prompt import (
+    coach_prompt,
+    lexical_filler_ids,
+    prompt_version,
+    reask_content,
+    request_language,
+    rubric,
+    system_prompt,
+)
 from .prompt import user_content as render_user_content
 from .validate import add_anchor_times, validate_output
 
@@ -29,6 +37,8 @@ class PromptContext(TypedDict):
     notes: str | None
     category: str | None
     target_seconds: int
+    # `en` or `zh`; a request without it is English. A zh take is coached in Chinese.
+    language: NotRequired[Literal["en", "zh"]]
 
 
 class PreviousTake(TypedDict):
@@ -61,7 +71,7 @@ def build_request(request: CoachingRequest, extra_user: list[str] | None = None)
     user = [render_user_content(request), *(extra_user or [])]
     return claude.request_params(
         model_id=claude.model(),
-        system=system_prompt(),
+        system=system_prompt(request_language(request)),
         user=user,
         schema=output_schema(CoachingOutput),
         effort=claude.COACH_EFFORT,
@@ -121,7 +131,7 @@ def coach_take_with_usage(request: CoachingRequest) -> tuple[CoachingReportDoc, 
                 "created_at": _now(),
                 "model": reply.model,
                 "rubric_version": rubric().version,
-                "prompt_version": coach_prompt().version,
+                "prompt_version": prompt_version(request_language(request)),
                 **add_anchor_times(output.model_dump(mode="json"), words),
             }
             return report, usages

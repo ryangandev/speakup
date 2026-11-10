@@ -122,7 +122,7 @@ The analysis pipeline, the coaching module, the server API with storage, and the
 | Entity | Created by | Holds | Stored in |
 | --- | --- | --- | --- |
 | Session | App | mode (`home` or `driving`), start and end, nervousness before and after | `sessions` table |
-| Prompt | App | kind, text, notes, category, target length, question source | `prompts` table |
+| Prompt | App | kind, text, notes, category, target length, question source, language | `prompts` table |
 | Take | App, by upload | attempt number, recording time, duration, audio hash, processing status | `takes` table; audio under `takes/<take_id>/` |
 | Transcript | Server, stage 1 | the engine's `Transcript` (the existing type in `speakup.stt`) | `transcripts` table |
 | Analysis | Server, stages 2 and 3 | words, events, metrics, nervousness signs, provenance | `analyses` table, as JSON |
@@ -148,6 +148,7 @@ The app assigns `attempt` when Ryan keeps a recording; a recording he cancels ne
 | `category` | `decision`, `status`, `explain`, `pushback`, `other`, or null | Impromptu question type; null for prepared |
 | `target_seconds` | integer | Suggested length; the app shows it and never cuts a take off at it |
 | `question_source` | `typed`, `claude`, or `bank` | Who wrote `text`: Ryan, Claude, or the built-in question bank |
+| `language` | `en` or `zh` | The language Ryan answers in: English, or Mandarin (coached in Simplified Chinese). It picks the speech-to-text engine, the analysis rules and the coaching language. |
 | `created_at` | timestamp | |
 
 Impromptu categories map to the drills in [product.md#practice-loop](product.md#practice-loop): `decision` ("Why did you choose X over Y?"), `status` ("Give a status update on a project that is behind"), `explain` ("Explain a concept to a new teammate"), `pushback` ("Push back on a request"), and `other`.
@@ -191,6 +192,8 @@ A failed take carries `error.code`, one of:
 
 `speakup.analysis.analyze` produces one JSON document per take.
 It is the input to coaching and, after [finalization](#finalization), what the report shows as the annotated transcript and metrics.
+Its top-level `language` (`en` or `zh`) is copied from the take's prompt, so a reader knows the units: for `zh`, word counts and rates count characters (see [Metrics](#metrics)).
+English and Mandarin share the document's shape and every timing rule; they differ only where this section says so.
 
 ### Words
 
@@ -201,13 +204,24 @@ Events point into it, so the transcript the app renders and the indexes coaching
 | --- | --- | --- |
 | `i` | integer | Index in `words` |
 | `text` | string | The word as the engine wrote it, with its punctuation, for display |
-| `norm` | string | Normalized tokens joined by one space, from `tokens_from_words` (see `speakup/text.py`); empty for non-speech |
+| `norm` | string | Normalized tokens joined by one space, from `tokens_from_words` (see `speakup/text.py`); empty for non-speech. For `zh`, Han characters are kept as written without punctuation, so `我们，` becomes `我们`. |
 | `start`, `end` | number | Seconds |
 | `confidence` | number or null | Engine confidence, 0 to 1 |
-| `kind` | `word`, `filled_pause`, or `non_speech` | `filled_pause` when `norm` is um, uh or hmm; `non_speech` for sounds such as "(laughter)" |
+| `kind` | `word`, `filled_pause`, or `non_speech` | `filled_pause` when `norm` is um, uh or hmm (for `zh`, see below); `non_speech` for sounds such as "(laughter)" |
 | `cutoff` | boolean | The word was broken off mid-way ("th-") |
 
 Normalization reuses the bake-off's token rules instead of duplicating them: they live in `speakup/text.py`, which both import.
+
+A Mandarin engine writes one token per character, sometimes per word, with no spaces and punctuation attached or absent, so each token is one item of `words`.
+Its Han characters are kept unchanged; Latin-script words inside it (an English term, or an "um") follow the English rules.
+A `zh` token is a `filled_pause` when:
+
+- it is 嗯 or 呃, alone or repeated (嗯嗯), which never occur inside a word;
+- it is 啊, 哦 or 噢 and is not attached to the word before: it starts the take, or follows punctuation, a filled pause, or a word gap of at least 250 ms.
+  Right after a word, as in 好啊 or 是哦, it is a sentence-final particle and stays a `word`;
+- it is 额 or 唔 and is set off that way on both sides, because 额 is also part of words such as 金额 and 额外.
+
+When unsure, these rules leave the token a `word`.
 
 ### Word ranges
 
@@ -246,6 +260,20 @@ All events share one flat shape, so the app and JSON Schema need a single type.
 Lexical filler candidates are "like", "you know", "so", "basically", "kind of", "sort of", "I mean", "actually", "right" and "literally".
 Analysis sets `is_filler` from rules (for example, sentence-initial "so" followed by a pause, or "like" not followed by a noun phrase) with `filler_resolution: "rules"`; coaching overrides it in context.
 
+For `zh` the rules differ in these ways, and every rule still prefers missing an event to inventing one:
+
+- **Lexical filler candidates** are 那个, 这个, 就是, 然后, 对, 其实, 反正 and 怎么说.
+  Their characters are usually separate tokens, so a candidate is a span of consecutive whole tokens, and its word range covers all of them.
+  然后, 其实, 反正 and 怎么说 are always candidates; 那个, 这个 and 就是 only when set off on at least one side by a silence, punctuation or a filled pause (a sentence start alone does not count), since they are mostly grammatical ("这个方案"); 对 only when it stands alone, set off on both sides or at a sentence start or end, since it is part of words such as 对于 and 不对.
+  The rules estimate of `is_filler` is the English one: set off on both sides, with a silence on one side or punctuation on both.
+- **Repetitions** compare spoken units (each Han character, each Latin-script word) and mark a unit sequence of up to four said again right away, such as 我我, 就是就是 or 这个这个, when both copies start and end on token boundaries.
+  `reason` is `word` for one token or a two-character word and `phrase` for anything longer.
+  A double counts only with a hesitation (a silence or filled pause) between the copies when it is a reduplication on the allowlist in `speakup/analysis/zh.py` (看看, 试试, 谢谢, 常常, 慢慢, 刚刚, 人人, 天天, 研究研究, 一个一个, and so on), or a single character outside a short list of pronouns and function words that stutter (我, 你, 这, 那, 就 and so on): a transcript of one token per character cannot tell a stutter of 生 from 学生生活, two words that share a character.
+- **Restarts** come from cut-off tokens (a token ending in a dash), reaching back twice as many units as in English for the repeated start.
+  The abandoned-phrase rule rests on English grammar, so for `zh` coaching marks those as self-corrections.
+- **Pauses and blocks** are timing-based and unchanged.
+  Boundaries come from punctuation (full-width marks such as `，` and `。` count as their ASCII counterparts) and from clause-starting words such as 但是, 所以, 因为, 然后 and 如果; capital letters mean nothing in Chinese, so they mark no sentence start.
+
 Pauses are silences of at least 250 ms between the first and last word, from the voice-activity track cross-checked against word gaps.
 Silences and filled pauses between the same two words are one hesitation: "was [0.6 s] um [0.3 s] the" is one hesitation, not two.
 Each hesitation becomes at most one `block` or `boundary_pause` event, which spans from the start of its first silence or filled pause to the end of its last, with an empty word range just before its first word; its filled pauses are still marked on their own.
@@ -258,6 +286,8 @@ Silence before the first word is the `speech_start_s` metric, not an event; for 
 ### Metrics
 
 Denominators: `word_count` counts words of kind `word` (lexical fillers and cut-off words included; filled pauses and non-speech excluded).
+For `zh`, a word is one character: `word_count` counts the Han characters of those words plus their Latin-script words, so `fillers.per_100_words` is per 100 characters and `pace.wpm_*` is characters per minute.
+The keys keep their names so both languages share one shape; `language` says which unit applies.
 `speaking_s` runs from the first word's start to the last word's end; `voiced_s` is the voice-activity time inside it.
 "Quarters" split `speaking_s` into four equal parts.
 
@@ -328,6 +358,7 @@ The prompt was "Why did we choose Postgres over DynamoDB for the billing service
 {
   "schema_version": "analysis/1",
   "take_id": "c41a7e02-5b9d-4c66-8e1f-0a7b3d92f5c4",
+  "language": "en",
   "created_at": "2026-11-09T08:17:02.481Z",
   "coaching_applied": true,
   "provenance": {
@@ -404,8 +435,11 @@ So the shape follows these rules:
 - Every anchor is checked against the transcript: indexes in range, and the quote matches those words after normalization.
   A wrong range is repaired by searching for the quote; if any check still fails, the module re-asks once with the errors, and then reports `coaching_status: "failed"`.
 - All text is plain English with no Markdown, written so it can be read aloud, because driving mode speaks the verdict, strength, first focus item and reference version.
+  For a `zh` take every sentence Claude writes is in Simplified Chinese instead, while quotes stay verbatim from the transcript and keys and enum values stay as defined.
 
 Claude sees the transcript as indexed words (`[12]need [13]joins.`), which is how it can return word ranges.
+A Mandarin transcript is indexed per token, usually per character (`[12]我 [13]们`), and quote matching treats each Han character as one token, so a quote like `我们选了` matches its characters however the engine split them.
+For a `zh` take the system prompt is the same prompt and rubric plus `coach-zh.md`, a short addition on Chinese output, verbatim Chinese quotes, per-character units and Mandarin fillers; the report's `prompt_version` names both, such as `coach-prompt/1+coach-zh/1`.
 
 ### Coaching output (what Claude returns)
 
@@ -542,6 +576,7 @@ It is not stored, so it always reflects the current state of both takes.
 `metric_changes` always has these metrics in this order: `fillers_per_100_words`, `blocks`, `restarts`, `repetitions` (graded: lower is better), then `wpm_voiced`, `duration_s`, `pitch_variation_st`, `volume_variation_db` (`info`, not graded).
 A graded metric is `same` when counts are equal or a rate moved less than 10%.
 A metric that is null on either side has `change: "info"` and the null value.
+For a `zh` take, the per-word labels and units say characters: `fillers_per_100_words` is "Fillers per 100 characters" with unit "per 100 characters", and `wpm_voiced` has unit "characters per minute".
 
 ```json
 {
@@ -711,7 +746,7 @@ Response `200`:
       "created_at": "2026-11-09T08:12:03.402Z",
       "updated_at": "2026-11-09T08:41:50.311Z",
       "prompts": [
-        {"id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8", "kind": "impromptu", "text": "Why did we choose Postgres over DynamoDB for the billing service?", "take_count": 2}
+        {"id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8", "kind": "impromptu", "language": "en", "text": "Why did we choose Postgres over DynamoDB for the billing service?", "take_count": 2}
       ],
       "take_count": 2
     }
@@ -746,6 +781,7 @@ Response `200`: the Session resource plus `prompts`, each a Prompt resource with
       "category": "decision",
       "target_seconds": 90,
       "question_source": "claude",
+      "language": "en",
       "created_at": "2026-11-09T08:12:40.880Z",
       "takes": []
     }
@@ -790,12 +826,15 @@ Request:
   "notes": null,
   "category": "decision",
   "target_seconds": 90,
-  "question_source": "claude"
+  "question_source": "claude",
+  "language": "en"
 }
 ```
 
 A prepared prompt looks like `{"kind": "prepared", "text": "Today's stand-up", "notes": "Shipped the invoice export. Blocked on the tax API keys. Next: retry logic.", "category": null, "target_seconds": 120, "question_source": "typed", ...}`.
-Validation: `notes` and `category` must be null for the other kind; `target_seconds` is 15 to 900.
+Validation: `notes` and `category` must be null for the other kind; `target_seconds` is 15 to 900; `language` is `en` or `zh`, and any other value, null included, is a `422`.
+A request without `language` means `"en"`, because app builds from before Mandarin do not send it; the Prompt resource always includes it.
+An identical repeat compares `language` too, so the same id with another language is a `409`.
 Response `201` or `200` (identical repeat) or `409`: the **Prompt** resource, the request plus `id` and `created_at`.
 
 #### `GET /v1/prompts/{prompt_id}`
@@ -893,7 +932,7 @@ Response `200`:
 ```json
 {
   "take": {"id": "c41a7e02-5b9d-4c66-8e1f-0a7b3d92f5c4", "attempt": 1, "status": "done", "coaching_status": "done"},
-  "prompt": {"id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8", "kind": "impromptu", "text": "Why did we choose Postgres over DynamoDB for the billing service?"},
+  "prompt": {"id": "7d2e9a44-1c3b-4e8f-b6a2-93f0c5d1e7a8", "kind": "impromptu", "language": "en", "text": "Why did we choose Postgres over DynamoDB for the billing service?"},
   "analysis": {"schema_version": "analysis/1"},
   "coaching": {"schema_version": "coaching/1"},
   "has_comparison": false
@@ -1033,6 +1072,7 @@ CREATE TABLE coaching_reports (
 Keeping every stage run makes it possible to compare a new engine, threshold set or rubric on old takes without losing the old result.
 Server-generated ids (transcripts, analyses, coaching reports) are UUIDs too; they never appear in the API.
 Schema changes are numbered migrations applied at startup.
+The DDL above is migration 1; migration 2 adds `takes.stage_started_at TEXT`, and migration 3 adds `prompts.language TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en', 'zh'))`, so every earlier prompt is English.
 
 ## Module boundaries and ownership
 
@@ -1061,17 +1101,18 @@ CoachingReportDoc = dict[str, Any]  # "Coaching report", stored form
 MetricChange = dict[str, Any]       # one item of Comparison.metric_changes
 
 
-# speakup.stt (exists): the pipeline picks the engine by name.
+# speakup.stt (exists): the pipeline picks the engine by name, per prompt language.
 from speakup.stt.registry import all_engines
-engine: Engine = all_engines()[settings.stt_engine]
-engine.prepare()                                   # once, at worker start
+engine: Engine = all_engines()[settings.stt_engine]        # English; settings.stt_engine_zh for zh
+engine.prepare()                                   # English at worker start, zh on its first take
 transcript: Transcript = engine.transcribe(wav16k, audio_seconds)
 
 
 # speakup.analysis
 def analyze(*, take_id: str, wav16k: Path, transcript: Transcript,
-            thresholds: Thresholds | None = None) -> AnalysisDoc:
-    """Rules-only analysis. Raises NoSpeech when fewer than 5 words were transcribed."""
+            thresholds: Thresholds | None = None, language: str = "en") -> AnalysisDoc:
+    """Rules-only analysis in the prompt's language ("en" or "zh").
+    Raises NoSpeech when fewer than 5 words (for zh, characters) were transcribed."""
 
 def finalize(analysis: AnalysisDoc, coaching: CoachingReportDoc | None) -> AnalysisDoc:
     """Pure. Applies filler rulings and annotations, recomputes metrics."""
@@ -1089,6 +1130,7 @@ class PromptContext(TypedDict):
     notes: str | None
     category: str | None
     target_seconds: int
+    language: Literal["en", "zh"]      # optional; absent means "en"; zh is coached in Chinese
 
 class CoachingRequest(TypedDict):
     take_id: str
@@ -1119,7 +1161,8 @@ def generate_questions(*, count: int, category: str | None,
 
 # speakup.pipeline
 class Analyzer(Protocol):   # satisfied by the speakup.analysis module
-    def analyze(self, *, take_id: str, wav16k: Path, transcript: Transcript) -> AnalysisDoc: ...
+    def analyze(self, *, take_id: str, wav16k: Path, transcript: Transcript,
+                language: str = "en") -> AnalysisDoc: ...
     def finalize(self, analysis: AnalysisDoc, coaching: CoachingReportDoc | None) -> AnalysisDoc: ...
     def compare_metrics(self, previous: AnalysisDoc, current: AnalysisDoc) -> list[MetricChange]: ...
 
@@ -1129,7 +1172,10 @@ class Coach(Protocol):      # satisfied by the speakup.coaching module
     def generate_questions(self, *, count: int, category: str | None, exclude: list[str]) -> dict[str, Any]: ...
 
 class Worker:
-    def __init__(self, store: Store, engine: Engine, analyzer: Analyzer, coach: Coach) -> None: ...
+    def __init__(self, store: Store, engine: Engine, analyzer: Analyzer, coach: Coach, *,
+                 engines: Mapping[str, Callable[[], Engine]] | None = None) -> None: ...
+    # engine: English, prepared at start. engines: a factory per other language ("zh"),
+    # built and prepared on that language's first take, then kept loaded.
     def start(self) -> None: ...    # resumes unfinished takes, then waits for work
     def wake(self) -> None: ...     # called after an upload or reprocess
     def stop(self) -> None: ...
@@ -1156,7 +1202,9 @@ Uploads, polling and question generation are served by the API concurrently with
 
 For each take, the worker runs the stages in order, setting `status` before each and saving each output before moving on:
 
-1. **`transcribing`:** convert `original.wav` to `audio16k.wav` (`audio_invalid` on failure), run the engine, save the transcript.
+1. **`transcribing`:** convert `original.wav` to `audio16k.wav` (`audio_invalid` on failure), run the engine for the prompt's `language`, save the transcript.
+   The English engine is prepared when the worker starts; the Mandarin engine is built and prepared on the first `zh` take, and both stay loaded.
+   If the Mandarin engine is not registered or cannot run here, the take fails with `stt_failed` and a message naming the reason; English takes are unaffected, and a `reprocess` tries again once it is fixed.
 2. **`analyzing`:** `analyze(...)`, save `stage_json`, and save `final_json = finalize(stage, None)`.
    `NoSpeech` fails the take with `no_speech`.
 3. **`coaching`:**
@@ -1196,6 +1244,13 @@ The engine sits behind one interface with two candidates, chosen by the M0 bake-
 The bake-off also runs two reference engines: AssemblyAI Universal-3.5 Pro with a verbatim prompt, the strongest candidate for Mandarin later, and Apple's on-device `SpeechTranscriber`, which shows what the iPhone could do without a server.
 The procedure and decision criteria are in [bakeoff.md](bakeoff.md).
 
+Mandarin prompts (`language: "zh"`) use their own engine, named by `SPEAKUP_STT_ENGINE_ZH`.
+It has the same verbatim requirement: 嗯, 呃, repetitions and false starts must survive transcription.
+The default, `DEFAULT_STT_ENGINE_ZH` in `speakup/config.py`, is **Qwen3-ASR 1.7B with Qwen3-ForcedAligner 0.6B** (`qwen3-asr-1.7b`), run locally on the GPU: Apache-2.0, about 6.5 GB of weights, installed with `uv sync --extra crisper --extra qwen`.
+It was chosen on 2026-11-10 on synthesized Mandarin clips dense with fillers, as the only local candidate that kept nearly every filler and repetition, wrote English terms correctly and gave usable timestamps; [research.md#speech-to-text](research.md#speech-to-text) has the comparison.
+It has not yet seen Ryan's real Chinese speech, where a language-model engine may tidy mumbled 嗯 and 呃 more than it did on clean clips.
+It emits one word per Han character or Latin-script word, with no spaces, and punctuation attached to the token before it.
+
 Every engine returns words with start and end times in seconds.
 Engines write the same speech differently ("[UM]", "Um,", "th-", "(laughter)"), so analysis normalizes tokens first (`speakup/text.py`).
 
@@ -1217,7 +1272,8 @@ Server settings added in M1 (the API implementer adds them to `server/.env.examp
 | `SPEAKUP_API_TOKEN` | none; the server refuses to start without it | Bearer token the app sends |
 | `ANTHROPIC_API_KEY` | none | Coaching and question generation; without it coaching is unavailable and questions come from the bank |
 | `SPEAKUP_DATA_DIR` | `data/server` in the repository | Database, audio and `profile.md` |
-| `SPEAKUP_STT_ENGINE` | `crisperwhisper` until the bake-off decides | Engine name from `registry.py` |
+| `SPEAKUP_STT_ENGINE` | `crisperwhisper` until the bake-off decides | Engine name from `registry.py`, for English prompts |
+| `SPEAKUP_STT_ENGINE_ZH` | `paraformer-zh`, a placeholder until the Mandarin engine is chosen (`DEFAULT_STT_ENGINE_ZH` in `speakup/config.py`) | Engine name from `registry.py`, for Mandarin (`zh`) prompts |
 | `SPEAKUP_COACH_MODEL` | `claude-opus-5-5` | Claude model for coaching and questions |
 | `SPEAKUP_PORT` | `8765` | Local port behind `tailscale serve` |
 

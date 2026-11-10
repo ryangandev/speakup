@@ -61,8 +61,21 @@ F1 is the detection score, from 0 to 100; higher is better.
 
 Lexical fillers ("like", "so") are not tagged by any engine and need classification in context.
 
-For Mandarin later: Qwen3-ASR with Qwen3-ForcedAligner, FunASR Paraformer-zh or Fun-ASR-Nano (trained for mixed Chinese and English), or the cloud engines above.
 Chinese engines tend to remove 嗯, 呃, 那个 and 就是, which must be tested on Ryan's casual speech.
+
+Local Mandarin candidates, measured on 2026-11-10 on five synthesized clips (21 to 27 s, dense with fillers, repetitions, a restart, English terms and pauses), clean and with noise at 8 dB SNR, on an M5 Pro:
+
+| Engine | Fillers kept (clean / noisy, of 49) | Repetitions (of 23) | Character error (clean / noisy) | Timestamps | English terms | Real-time factor | License |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Qwen3-ASR 1.7B + ForcedAligner 0.6B (chosen) | 48 / 48 | 23 | 0.9% / 2.0% | Per character or Latin word; every pause shows | Right | 0.06 | Apache-2.0 |
+| Qwen3-ASR 0.6B + ForcedAligner | 49 / 48 | 23 | 1.5% / 0.9% | Same | Sometimes wrong ("post girls") | 0.04 | Apache-2.0 |
+| SeACo-Paraformer-zh (FunASR) | 45 / 42; writes 呃 as 恶 | 22 | 3.5% / 4.7% | Per character | Weak | 0.05, CPU only | Apache-2.0 |
+| SenseVoiceSmall | 48 / 46 | 23 | 4.4% / 4.9% | Marks only, no durations | Weak | 0.05 | FunASR license |
+| Fun-ASR-Nano-2512 | 48 | 23 | 5.2% | None in the released checkpoint | Weak | 0.03 | Apache-2.0 |
+| CrisperWhisper large, `zh` | 46 | 22 | 11% | Yes | Right | 0.88 | Non-commercial |
+
+The one filler every engine missed was a quirk of the synthetic voice; Apple's zh-CN model would not download for the test.
+Synthesized speech says every filler clearly, so the choice still has to hold on Ryan's real takes.
 
 Sources: https://www.nyra-labs.com/research/nyra-verbatim-speech-benchmark, https://www.nyra-labs.com/research/attention-to-aligner, https://github.com/nyrahealth/CrisperWhisper, https://elevenlabs.io/pricing/api, https://elevenlabs.io/docs/overview/capabilities/speech-to-text, https://www.assemblyai.com/docs/pre-recorded-audio/filler-words, https://developers.deepgram.com/docs/filler-words, https://developers.openai.com/api/docs/guides/speech-to-text, https://arxiv.org/abs/2509.12508.
 

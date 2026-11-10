@@ -56,3 +56,37 @@ def summary(doc: dict[str, Any], type_: str) -> list[tuple]:
         (texts[e["word_start"]], e["word_start"], e["word_end"], e["reason"])
         for e in events_of(doc, type_)
     ]
+
+
+def zh_words_from(script: str, *, char_s: float = 0.2, gap_s: float = 0.04) -> list[Word]:
+    """Timed Mandarin tokens, one per space-separated item as an engine writes them: a Han
+    character lasts `char_s` per character, a Latin-script word twice that, and `|0.6|` puts that
+    much silence before the next token."""
+    words, cursor, gap = [], 0.5, 0.0
+    for token in script.split():
+        if token.startswith("|") and token.endswith("|"):
+            gap = float(token.strip("|"))
+            continue
+        han = sum(1 for c in token if "一" <= c <= "鿿")
+        length = char_s * han if han else char_s * 2
+        start = round(cursor + (gap if words else 0.0), 3)
+        words.append(Word(token, start, round(start + length, 3), 0.95))
+        cursor, gap = start + length, gap_s
+    return words
+
+
+def analyze_zh(script: str, **timing: float) -> dict[str, Any]:
+    """Analyze a Mandarin script without audio; pauses are exactly the scripted gaps."""
+    words = zh_words_from(script, **timing)
+    acoustics = Acoustics(duration_s=words[-1].end + 0.5, speech=[])
+    return build_analysis(
+        take_id="t", transcript=transcript_from(words), acoustics=acoustics, language="zh"
+    )
+
+
+def spans(doc: dict[str, Any], type_: str) -> list[str]:
+    """The text each event of a type covers, tokens joined without spaces."""
+    return [
+        "".join(w["text"] for w in doc["words"][e["word_start"] : e["word_end"]])
+        for e in events_of(doc, type_)
+    ]

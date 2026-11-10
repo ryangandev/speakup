@@ -7,6 +7,8 @@ The analysis server is built and runs end to end on synthesized takes: upload, t
 Coaching runs against Claude: the key is in `server/.env`, and a synthesized take and its retry got a full report and a comparison on 2026-11-09, about 30 s for coaching.
 It has not yet seen Ryan's real recordings, so the prompt and rubric are still v1.
 The analysis rules have only seen synthesized speech; their block thresholds (0.5 s inside a phrase, 1.0 s for a pause plus a filler between ideas) are starting values to calibrate on Ryan's recordings.
+Mandarin practice works end to end (2026-11-10): Home has an English / 中文 switch, a Chinese take is transcribed locally by Qwen3-ASR 1.7B, analyzed per character (嗯 and 呃, 那个 and 就是 as fillers, repetitions), and coached by Claude in Chinese.
+It has run on synthesized Chinese clips through a real server and the simulator, not yet on Ryan's own Chinese speech; the Chinese filler rules and thresholds are uncalibrated.
 The iPhone app is one simple loop (2026-11-09): Home picks a topic (a question by category, or Ryan's own) and a length, Record, and the report opens as soon as analysis is done, showing the transcript and metrics while Claude's feedback fills in.
 It runs end to end against the real server in the simulator: settings, a take, its report, a retry and the comparison.
 It still uses system colors; the visual direction below is not applied yet, and it has not run a take on a real iPhone.
@@ -28,6 +30,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - iPhone only, SwiftUI.
 - Analysis runs on the home Mac mini as a server; coaching uses Claude.
 - Working codename: SpeakUp.
+- 2026-11-10: Chinese practice now, the same loop as English, mostly with Ryan's own topics; the preset questions stay (in English). Notes can stay open while recording, by a switch on Home.
 - 2026-11-09: build the core loop first, simply: open the app, pick a topic and a length, record, see the transcript and metrics right away, then Claude's report. Driving mode and the prepared/impromptu split come later; no nervousness self-ratings for now.
 
 ## Waiting on Ryan
@@ -63,13 +66,14 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 
 ## Next steps
 
-1. Run a take on Ryan's iPhone over Tailscale: recording level with the `.measurement` audio mode, upload, the report opening at analysis, then coaching; check background upload with the phone locked.
-2. Run the bake-off on Ryan's recordings and record the engine decision in [architecture.md#speech-to-text](architecture.md#speech-to-text).
-3. Iterate the coaching prompt and rubric v1 on the same recordings with Ryan.
-4. Calibrate the block thresholds in `speakup.analysis.thresholds` on Ryan's recordings.
-5. Set up the server on the Mac mini as [server.md](server.md) describes, outside `~/Documents`.
-6. Apply the visual direction in [design/README.md](design/README.md) to the iOS app's `Theme` and screens.
-7. Later, driving mode (M2): replay a captured phone run to find why short answers are missed, settle its decisions under Waiting on Ryan, then a device run in the car.
+1. Restart the server (`uv sync --extra crisper --extra qwen`, then `uv run speakup-server`), then record a Chinese take on the iPhone and check that real 嗯 and 呃 survive transcription.
+2. Run a take on Ryan's iPhone over Tailscale: recording level with the `.measurement` audio mode, upload, the report opening at analysis, then coaching; check background upload with the phone locked.
+3. Run the bake-off on Ryan's recordings and record the engine decision in [architecture.md#speech-to-text](architecture.md#speech-to-text).
+4. Iterate the coaching prompt and rubric v1 on the same recordings with Ryan.
+5. Calibrate the block thresholds (and the Chinese filler rules) in `speakup.analysis.thresholds` on Ryan's recordings.
+6. Set up the server on the Mac mini as [server.md](server.md) describes, outside `~/Documents`.
+7. Apply the visual direction in [design/README.md](design/README.md) to the iOS app's `Theme` and screens.
+8. Later, driving mode (M2): replay a captured phone run to find why short answers are missed, settle its decisions under Waiting on Ryan, then a device run in the car.
 
 ## Known issues
 
@@ -79,6 +83,8 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - The analysis misses a restart that has no pause, comma or written cut-off; coaching's self-correction annotation covers it.
 - Without an Anthropic API key, impromptu questions come only from the built-in bank, which runs out after 8 per category.
 - iOS: the tab bar is hidden on pushed practice screens.
+- Chinese: a repetition is missed when the engine splits the two copies differently (我们 then 我 们), and `/v1/health` reports only the English engine.
+- Chinese: impromptu questions are in English only.
 - iOS: a recording cut off by an app crash is not recovered.
 - iOS: if the server is rebuilt, takes the phone already uploaded are not sent again.
 - Driving mode: a coaching instruction that quotes an unfinished example, such as the contract's "Second, ...", is read aloud cut short ("Second.").

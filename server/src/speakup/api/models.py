@@ -32,6 +32,8 @@ Timestamp = Annotated[str, AfterValidator(_timestamp)]
 Rating = Annotated[StrictInt, Field(ge=1, le=5)]
 
 Category = Literal["decision", "status", "explain", "pushback", "other"]
+# English, or Mandarin in Simplified Chinese.
+Language = Literal["en", "zh"]
 
 
 class SessionCreate(BaseModel):
@@ -60,6 +62,8 @@ class PromptCreate(BaseModel):
     category: Category | None = None
     target_seconds: Annotated[StrictInt, Field(ge=15, le=900)]
     question_source: Literal["typed", "claude", "bank"]
+    # Omitted means English: the app predates the field.
+    language: Language = "en"
 
     @validator("text")
     @classmethod

@@ -82,6 +82,12 @@ _COMPARED = [
     ("volume_variation_db", "Volume variation", "dB", ("volume", "variation_db"), False, "info"),
 ]  # fmt: skip
 
+# Mandarin rates count characters, so their labels say so.
+_ZH_LABELS = {
+    "fillers_per_100_words": ("Fillers per 100 characters", "per 100 characters"),
+    "wpm_voiced": ("Pace", "characters per minute"),
+}
+
 # A graded rate that moved less than this, relative to the previous take, is "same".
 SAME_RATE_BAND = 0.10
 
@@ -107,10 +113,14 @@ def _change(before: float, after: float, kind: str) -> str:
 def compare_metrics(previous: AnalysisDoc, current: AnalysisDoc) -> list[MetricChange]:
     """The fixed metric list of a retry's comparison, previous take first. Lower is better for
     every graded metric; the others are shown for information. Filler rates judged differently
-    (rules on one take, coaching on the other) are not comparable, so they are information too."""
+    (rules on one take, coaching on the other) are not comparable, so they are information too.
+    For Mandarin takes the per-word labels and units say characters."""
     resolutions = {_get(doc["metrics"], ("fillers", "resolution")) for doc in (previous, current)}
+    zh = current.get("language") == "zh"
     changes = []
     for metric, label, unit, path, graded, kind in _COMPARED:
+        if zh and metric in _ZH_LABELS:
+            label, unit = _ZH_LABELS[metric]
         before, after = _get(previous["metrics"], path), _get(current["metrics"], path)
         comparable = metric != "fillers_per_100_words" or len(resolutions) == 1
         if not graded or not comparable or before is None or after is None:

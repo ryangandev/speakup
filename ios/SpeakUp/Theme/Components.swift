@@ -234,7 +234,7 @@ struct QuoteButton: View {
                 Image(systemName: player.isPlaying(key) ? "stop.circle.fill" : "play.circle.fill")
                     .foregroundStyle(Theme.Colors.accent)
                 Text("\u{201C}\(anchor.quote)\u{201D}")
-                    .font(Theme.Fonts.quote)
+                    .font(TranscriptLayout.containsChinese(anchor.quote) ? Theme.Fonts.quoteUpright : Theme.Fonts.quote)
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -308,6 +308,12 @@ struct ValueRow: View {
 }
 
 /// Lays children out left to right, wrapping onto new lines, like words in a paragraph.
+/// Set on a `FlowLayout` item that sits flush against the one before it on the same line,
+/// such as a Chinese character after another.
+struct FlowJoinsPrevious: LayoutValueKey {
+    static let defaultValue = false
+}
+
 struct FlowLayout: Layout {
     var spacing: CGFloat = 4
     var lineSpacing: CGFloat = 6
@@ -324,13 +330,14 @@ struct FlowLayout: Layout {
         let rows = arrange(width: bounds.width, subviews: subviews)
         for row in rows {
             var x = bounds.minX
-            for index in row.indices {
+            for (position, index) in row.indices.enumerated() {
+                if position > 0 { x += gap(before: subviews[index]) }
                 let size = subviews[index].sizeThatFits(.unspecified)
                 let width = min(size.width, bounds.width)
                 subviews[index].place(
                     at: CGPoint(x: x, y: bounds.minY + row.y + (row.height - size.height) / 2),
                     proposal: ProposedViewSize(width: width, height: size.height))
-                x += width + spacing
+                x += width
             }
         }
     }
@@ -348,7 +355,7 @@ struct FlowLayout: Layout {
         for index in subviews.indices {
             let size = subviews[index].sizeThatFits(.unspecified)
             let itemWidth = min(size.width, width)
-            let needed = current.indices.isEmpty ? itemWidth : current.width + spacing + itemWidth
+            let needed = current.indices.isEmpty ? itemWidth : current.width + gap(before: subviews[index]) + itemWidth
             if needed > width, !current.indices.isEmpty {
                 rows.append(current)
                 current = Row(y: current.y + current.height + lineSpacing)
@@ -361,6 +368,10 @@ struct FlowLayout: Layout {
         }
         if !current.indices.isEmpty { rows.append(current) }
         return rows
+    }
+
+    private func gap(before subview: LayoutSubview) -> CGFloat {
+        subview[FlowJoinsPrevious.self] ? 0 : spacing
     }
 }
 

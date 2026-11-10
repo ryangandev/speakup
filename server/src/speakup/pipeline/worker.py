@@ -10,7 +10,7 @@ import contextlib
 import json
 import logging
 import threading
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Protocol
@@ -35,8 +35,17 @@ SLOW_STAGE_SECONDS = 600.0
 _START_STAGE = {"uploaded": 0, "transcribing": 0, "analyzing": 1, "coaching": 2}
 
 
+# Builds the engine for a language other than English when its first take arrives. Raises with
+# a plain reason when the configured engine is not registered or cannot run here.
+EngineFactory = Callable[[], Engine]
+
+LANGUAGE_NAMES = {"en": "English", "zh": "Mandarin"}
+
+
 class Analyzer(Protocol):  # satisfied by the speakup.analysis module
-    def analyze(self, *, take_id: str, wav16k: Path, transcript: Transcript) -> AnalysisDoc: ...
+    def analyze(
+        self, *, take_id: str, wav16k: Path, transcript: Transcript, language: str = "en"
+    ) -> AnalysisDoc: ...
 
     def finalize(
         self, analysis: AnalysisDoc, coaching: CoachingReportDoc | None
@@ -107,6 +116,10 @@ def transcript_from_json(text: str) -> Transcript:
 
 
 class Worker:
+    """`engine` transcribes English and is prepared when the worker starts. `engines` maps each
+    other language to a factory for its engine, built and prepared on that language's first
+    take; every engine stays loaded once prepared, one instance per engine name."""
+
     def __init__(
         self,
         store: Store,
@@ -114,6 +127,7 @@ class Worker:
         analyzer: Analyzer,
         coach: Coach,
         *,
+        engines: Mapping[str, EngineFactory] | None = None,
         convert: Callable[[Path, Path], Any] = to_wav16k,
         stt_retry_delays: Sequence[float] = (5.0, 30.0),
         idle_seconds: float = 30.0,
@@ -122,6 +136,9 @@ class Worker:
     ) -> None:
         self.store = store
         self.engine = engine
+        self._engine_factories = dict(engines or {})
+        self._engines: dict[str, Engine] = {"en": engine}
+        self._prepared: set[str] = set()
         self.analyzer = analyzer
         self.coach = coach
         self._convert = convert
@@ -132,7 +149,6 @@ class Worker:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._engine_ready = False
 
     # -- lifecycle ------------------------------------------------------------------------
 
@@ -187,7 +203,32 @@ class Worker:
         except Exception:
             log.exception("Speech-to-text engine %s could not prepare", self.engine.name)
             return
-        self._engine_ready = True
+        self._prepared.add(self.engine.name)
+
+    def engine_for(self, language: str) -> Engine:
+        """The engine for a language, built on first use. Raises StageFailure("stt_failed")
+        with the reason when there is none or it cannot be built; nothing is cached then, so a
+        reprocess after fixing the setup tries again."""
+        if language in self._engines:
+            return self._engines[language]
+        name = LANGUAGE_NAMES.get(language, language)
+        factory = self._engine_factories.get(language)
+        if factory is None:
+            raise StageFailure("stt_failed", f"No speech-to-text engine is set up for {name}.")
+        try:
+            engine = factory()
+        except Exception as exc:
+            log.warning("The %s speech-to-text engine is not available: %s", name, exc)
+            raise StageFailure(
+                "stt_failed", f"The {name} speech-to-text engine is not available: {exc}"
+            ) from None
+        # Two languages configured with the same engine share one loaded model.
+        for loaded in self._engines.values():
+            if loaded.name == engine.name:
+                engine = loaded
+                break
+        self._engines[language] = engine
+        return engine
 
     def resume(self) -> None:
         """Count the stages a restart interrupted, so a take that keeps killing the process
@@ -298,18 +339,19 @@ class Worker:
             raise StageFailure(
                 "audio_invalid", "The audio could not be decoded or converted."
             ) from None
-        transcript = self._transcribe(take_id, wav, seconds)
+        engine = self.engine_for(self._language(take_id))
+        transcript = self._transcribe(take_id, engine, wav, seconds)
         self.store.save_transcript(take_id, transcript.engine, transcript_to_json(transcript))
 
-    def _transcribe(self, take_id: str, wav: Path, seconds: float) -> Transcript:
+    def _transcribe(self, take_id: str, engine: Engine, wav: Path, seconds: float) -> Transcript:
         delays = list(self._stt_retry_delays)
         attempt = 0
         while True:
             try:
-                if not self._engine_ready:
-                    self.engine.prepare()
-                    self._engine_ready = True
-                return self.engine.transcribe(wav, seconds)
+                if engine.name not in self._prepared:
+                    engine.prepare()
+                    self._prepared.add(engine.name)
+                return engine.transcribe(wav, seconds)
             except Exception as exc:
                 if attempt < len(delays) and _retryable(exc):
                     log.warning(
@@ -337,6 +379,7 @@ class Worker:
                 take_id=take_id,
                 wav16k=self.store.audio16k_path(take_id),
                 transcript=transcript_from_json(transcript_json),
+                language=self._language(take_id),
             )
             final_doc = self.analyzer.finalize(stage_doc, None)
         except Exception as exc:
@@ -414,11 +457,17 @@ class Worker:
                 "notes": prompt["notes"],
                 "category": prompt["category"],
                 "target_seconds": prompt["target_seconds"],
+                "language": prompt["language"],
             },
             "attempt": take["attempt"],
             "analysis": docs[0],
             "previous": previous,
         }
+
+    def _language(self, take_id: str) -> str:
+        prompt = self.store.get_prompt(self._take(take_id)["prompt_id"])
+        assert prompt is not None
+        return prompt["language"]
 
     def _take(self, take_id: str) -> dict[str, Any]:
         take = self.store.get_take(take_id)

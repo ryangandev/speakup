@@ -170,7 +170,7 @@ struct SessionDetailView: View {
                         }
                         ForEach(prompt.takes) { take in
                             NavigationLink(value: HistoryRoute.report(takeID: take.id)) {
-                                HistoryTakeRow(take: take)
+                                HistoryTakeRow(take: take, language: prompt.prompt.language)
                             }
                             .disabled(!(take.status == .done || take.status == .coaching))
                         }
@@ -212,6 +212,7 @@ struct SessionDetailView: View {
 
 private struct HistoryTakeRow: View {
     let take: Take
+    let language: SpeechLanguage
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
@@ -240,7 +241,7 @@ private struct HistoryTakeRow: View {
 
     private func metrics(_ summary: TakeSummary) -> String {
         var parts: [String] = []
-        if let fillers = summary.fillersPer100Words { parts.append("\(Format.decimal(fillers)) fillers per 100 words") }
+        if let fillers = summary.fillersPer100Words { parts.append("\(Format.decimal(fillers)) fillers per 100 \(language == .chinese ? "characters" : "words")") }
         if let blocks = summary.blocks { parts.append(blocks == 1 ? "1 block" : "\(blocks) blocks") }
         return parts.joined(separator: ", ")
     }

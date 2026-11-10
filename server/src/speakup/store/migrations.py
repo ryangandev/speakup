@@ -102,4 +102,10 @@ MIGRATION_2 = """
 ALTER TABLE takes ADD COLUMN stage_started_at TEXT;
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2)]
+# The language a prompt is answered in: `en` (English) or `zh` (Mandarin, Simplified Chinese).
+# Every prompt before this migration was English.
+MIGRATION_3 = """
+ALTER TABLE prompts ADD COLUMN language TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en', 'zh'));
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3)]

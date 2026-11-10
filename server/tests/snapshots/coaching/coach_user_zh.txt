@@ -1,0 +1,42 @@
+<prompt>
+Kind: impromptu
+Language: Mandarin Chinese; write your coaching in Simplified Chinese
+Category: decision
+Question: 账单服务为什么选了 Postgres，而不是 DynamoDB？
+Suggested length: 60 seconds
+Attempt: 1
+</prompt>
+<transcript>
+[0]嗯 [1]我 [2]们 [3]最 [4]后 [5]选 [6]了 [7]Postgres， [8]没 [9]有 [10]选 [11]DynamoDB。 [12]主 [13]要 [14]是 [15]两 [16]个 [17]原 [18]因。 [19]第
+[20]一， [21]那 [22]个 [23]账 [24]单 [25]服 [26]务 [27]需 [28]要 [29]很 [30]多 [31]关 [32]联 [33]查 [34]询， [35]我 [36]我 [37]觉 [38]得 [39]用
+[40]Postgres [41]写 [42]起 [43]来 [44]简 [45]单 [46]很 [47]多。 [48]然 [49]后 [50]第 [51]二 [52]个 [53]原 [54]因 [55]是 [56]团 [57]队 [58]其 [59]实
+[60]对 [61]Postgres [62]更 [63]熟 [64]悉， [65]出 [66]了 [67]问 [68]题 [69]能 [70]很 [71]快 [72]定 [73]位。 [74]就 [75]是 [76]就 [77]是 [78]说， [79]成
+[80]本 [81]上 [82]也 [83]差 [84]不 [85]多。 [86]呃 [87]当 [88]然 [89]DynamoDB [90]扩 [91]展 [92]性 [93]更 [94]好， [95]但 [96]是 [97]我 [98]们 [99]现
+[100]在 [101]的 [102]量 [103]还 [104]用 [105]不 [106]到。 [107]所 [108]以 [109]结 [110]论 [111]就 [112]是 [113]先 [114]用 [115]Postgres， [116]以 [117]后 [118]量 [119]大
+[120]了 [121]再 [122]看 [123]看。
+</transcript>
+<rule_events>
+e0 filled_pause: [0]嗯
+e2 lexical_filler: [21]那 [22]个; rules' guess: filler
+e3 block (inside_phrase): 0.5 s hesitation before word 23
+e4 repetition (word): [35]我 [36]我; repair starts at word 36
+e5 lexical_filler: [48]然 [49]后; rules' guess: not a filler
+e6 block (inside_phrase): 1.2 s hesitation before word 56
+e7 lexical_filler: [58]其 [59]实; rules' guess: not a filler
+e8 repetition (word): [74]就 [75]是 [76]就 [77]是; repair starts at word 76
+e9 filled_pause: [86]呃
+</rule_events>
+<metrics>
+Recording 34.5 s; first word after 0.5 s; speaking 33.5 s; 122 characters.
+Fillers: 2 filled pauses (嗯, 呃), 1 of 3 lexical candidates judged fillers by rules; 2.46 per 100 characters.
+Blocks: 2 (3.59 per minute), longest 1.2 s, total 1.7 s.
+Restarts: 0. Repetitions: 2.
+Boundary pauses (normal): 2, median 0.7 s.
+Pace (information only, not graded): 282 characters per minute; by quarter 272, 289, 273, 291.
+</metrics>
+<nervousness_signs>
+None.
+</nervousness_signs>
+Coach this take.
+Rule on these lexical filler events: e2, e5, e7.
+There is no previous coaching to compare with, so comparison is null.

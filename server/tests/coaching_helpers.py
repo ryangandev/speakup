@@ -263,3 +263,99 @@ class FakeClient:
         if isinstance(item, BaseException):
             raise item
         return item
+
+
+# ---------------------------------------------------------------------------
+# A Mandarin take, analyzed from a hand-made token list
+
+
+ZH_QUESTION = "账单服务为什么选了 Postgres，而不是 DynamoDB？"
+# One token per character, punctuation attached, as a Mandarin engine writes it. It has filled
+# pauses, lexical candidates, a repetition (我我, 就是就是) and a 1.2 s block inside a phrase.
+ZH_SCRIPT = (
+    "嗯 |0.4| 我 们 最 后 选 了 Postgres， 没 有 选 DynamoDB。 主 要 是 两 个 原 因。 "
+    "第 一， 那 个 |0.5| 账 单 服 务 需 要 很 多 关 联 查 询， 我 我 觉 得 用 Postgres 写 起 来 "
+    "简 单 很 多。 然 后 第 二 个 原 因 是 |1.2| 团 队 其 实 对 Postgres 更 熟 悉， 出 了 问 题 "
+    "能 很 快 定 位。 就 是 就 是 说， 成 本 上 也 差 不 多。 呃 |0.6| 当 然 DynamoDB 扩 展 性 更 "
+    "好， 但 是 我 们 现 在 的 量 还 用 不 到。 所 以 结 论 就 是 先 用 Postgres， "
+    "以 后 量 大 了 再 看 看。"
+)
+
+
+def zh_analysis() -> dict[str, Any]:
+    from analysis_helpers import analyze_zh
+
+    analysis = analyze_zh(ZH_SCRIPT)
+    analysis["take_id"] = "3b9f6a52-7c1d-4e8a-9f0b-2d4c6e8a0b1c"
+    return analysis
+
+
+def zh_request(**overrides: Any) -> dict[str, Any]:
+    analysis = zh_analysis()
+    req = request(
+        take_id=analysis["take_id"],
+        prompt={
+            "kind": "impromptu",
+            "text": ZH_QUESTION,
+            "notes": None,
+            "category": "decision",
+            "target_seconds": 60,
+            "language": "zh",
+        },
+        analysis=analysis,
+    )
+    req.update(overrides)
+    return req
+
+
+def zh_anchor(analysis: dict[str, Any], quote: str) -> dict[str, Any]:
+    """An anchor for `quote`, at the first word range whose characters match it."""
+    from speakup.coaching.validate import Transcript, tokens
+
+    (start, end), *_ = Transcript(analysis["words"]).find(tokens(quote))
+    return {"quote": quote, "word_start": start, "word_end": end}
+
+
+def zh_output(analysis: dict[str, Any]) -> dict[str, Any]:
+    """A valid Chinese coaching output for `zh_analysis()`."""
+    lexical = [e["id"] for e in analysis["events"] if e["type"] == "lexical_filler"]
+    level = {"level": "okay", "evidence": "结构基本清楚。"}
+    return {
+        "verdict": "结论放在了开头，两个原因也编了号，但中间卡顿和重复让第二个原因听起来没底气。",
+        "strength": {
+            "dimension": "answer_first",
+            "point": "第一句就给出了选择，听的人马上知道答案。",
+            "anchor": zh_anchor(analysis, "我们最后选了Postgres"),
+        },
+        "focus": [
+            {
+                "dimension": "fluency",
+                "title": "停在句子之间",
+                "problem": "你在“原因是”后面停了一秒多，句子被切断。",
+                "evidence": [zh_anchor(analysis, "第二个原因是")],
+                "instruction": "想好整句再开口：先在心里说完“第二，团队更熟悉”，再说出来。",
+            }
+        ],
+        "dimensions": {
+            "answer_first": {"level": "strong", "evidence": "第一句就是结论。"},
+            "layering": {"level": "strong", "evidence": "两个原因有编号。"},
+            "focus": level,
+            "concision": level,
+            "fluency": {"level": "needs_work", "evidence": "一次一秒以上的卡顿。"},
+            "close": {"level": "strong", "evidence": "最后重申了结论。"},
+        },
+        "outline": {
+            "main_point": "账单服务选了 Postgres。",
+            "main_point_first": True,
+            "points": [
+                {"summary": "选了 Postgres", "role": "main", "word_start": 1, "word_end": 12},
+            ],
+        },
+        "reference_version": {
+            "text": "我们选了 Postgres，有两个原因。\n\n第一，账单需要很多关联查询。",
+            "structure": "结论，两个编号的原因，结论。",
+        },
+        "filler_rulings": [{"event_id": i, "is_filler": True} for i in lexical],
+        "annotations": [],
+        "comparison": None,
+    }

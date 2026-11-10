@@ -46,13 +46,14 @@ struct LocalPrompt: Codable, Hashable, Identifiable, Sendable {
     let category: PromptCategory?
     let targetSeconds: Int
     let questionSource: QuestionSource
+    var language: SpeechLanguage = .english
     let createdAt: Date
     var isCreated = false
 
     var createRequest: PromptCreateRequest {
         PromptCreateRequest(
             sessionId: sessionId, kind: kind, text: text, notes: notes, category: category,
-            targetSeconds: targetSeconds, questionSource: questionSource)
+            targetSeconds: targetSeconds, questionSource: questionSource, language: language)
     }
 }
 
@@ -171,13 +172,13 @@ final class PracticeStore {
     func addPrompt(
         sessionID: String, kind: PromptKind, text: String, notes: String?,
         category: PromptCategory?, targetSeconds: Int, questionSource: QuestionSource,
-        now: Date = Date()
+        language: SpeechLanguage = .english, now: Date = Date()
     ) -> LocalPrompt? {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return nil }
         let prompt = LocalPrompt(
             id: IDs.make(), sessionId: sessionID, kind: kind, text: text,
             notes: kind == .prepared ? notes : nil, category: kind == .impromptu ? category : nil,
-            targetSeconds: targetSeconds, questionSource: questionSource, createdAt: now)
+            targetSeconds: targetSeconds, questionSource: questionSource, language: language, createdAt: now)
         sessions[index].prompts.append(prompt)
         save()
         return prompt
@@ -402,6 +403,7 @@ extension LocalPrompt {
         category = try container.decodeIfPresent(PromptCategory.self, forKey: .category)
         targetSeconds = try container.decode(Int.self, forKey: .targetSeconds)
         questionSource = try container.decode(QuestionSource.self, forKey: .questionSource)
+        language = try container.decodeIfPresent(SpeechLanguage.self, forKey: .language) ?? .english
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         isCreated = try container.decodeIfPresent(Bool.self, forKey: .isCreated) ?? false
     }

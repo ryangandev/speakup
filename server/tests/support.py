@@ -176,8 +176,12 @@ class FakeAnalyzer:
         self.statuses: list[str] = []
         self.analyze_calls: list[dict[str, Any]] = []
 
-    def analyze(self, *, take_id: str, wav16k: Path, transcript: Transcript) -> dict[str, Any]:
-        self.analyze_calls.append({"take_id": take_id, "wav16k": wav16k, "transcript": transcript})
+    def analyze(
+        self, *, take_id: str, wav16k: Path, transcript: Transcript, language: str = "en"
+    ) -> dict[str, Any]:
+        self.analyze_calls.append(
+            {"take_id": take_id, "wav16k": wav16k, "transcript": transcript, "language": language}
+        )
         if self.store is not None:
             self.statuses.append(self.store.get_take(take_id)["status"])
         if self.error is not None:
@@ -363,13 +367,22 @@ def build_env(
     clock: FakeClock | None = None,
     raise_server_exceptions: bool = True,
     convert: Any = copy_convert,
+    engines: dict[str, Any] | None = None,
 ) -> Env:
     clock = clock or FakeClock()
     store = Store(data_dir, clock=clock)
     engine = FakeEngine(store)
     analyzer = FakeAnalyzer(store)
     coach = FakeCoach(store)
-    worker = Worker(store, engine, analyzer, coach, convert=convert, stt_retry_delays=(0.0, 0.0))
+    worker = Worker(
+        store,
+        engine,
+        analyzer,
+        coach,
+        engines=engines,
+        convert=convert,
+        stt_retry_delays=(0.0, 0.0),
+    )
     app = create_app(store=store, worker=worker, coach=coach, analyzer=analyzer, token=TOKEN)
     client = TestClient(
         app,

@@ -431,7 +431,11 @@ def test_the_database_survives_a_reopen_and_migrations_run_once(env):
     again = Store(env.data_dir, clock=FakeClock())
     assert again.get_take(TAKE1_ID)["status"] == "done"
     with closing(sqlite3.connect(env.store.db_path)) as conn:
-        assert conn.execute("SELECT version FROM schema_migrations").fetchall() == [(1,), (2,)]
+        assert conn.execute("SELECT version FROM schema_migrations").fetchall() == [
+            (1,),
+            (2,),
+            (3,),
+        ]
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
 
 

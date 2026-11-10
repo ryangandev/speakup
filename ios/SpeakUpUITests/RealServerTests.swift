@@ -62,6 +62,44 @@ final class RealServerTests: XCTestCase {
         shot("real-04-comparison")
     }
 
+    /// A Chinese take of your own topic: the report shows the transcript without gaps between
+    /// characters, and Claude's feedback in Chinese. `SPEAKUP_MIC_FILE` must be Chinese speech.
+    func testChineseTakeAgainstRealServer() throws {
+        let server = try RealServer.fromEnvironment()
+        let seconds = ProcessInfo.processInfo.environment["SPEAKUP_RECORD_SECONDS"].flatMap(UInt32.init) ?? 15
+
+        app = XCUIApplication()
+        app.launchArguments = [
+            "-resetState", "-debug.useMockServer", "NO", "-debug.microphoneFile", server.micFile,
+            "-serverAddress", server.address,
+        ]
+        app.launch()
+
+        app.saveServerToken(server.token) { shot("real-zh-00-settings") }
+        XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 10))
+        app.buttons["中文"].tap()
+        app.buttons["Your own"].tap()
+        let title = app.textFields.firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("This week's progress")
+        if app.buttons["hideKeyboard"].exists { app.buttons["hideKeyboard"].tap() }
+        shot("real-zh-01-home")
+        app.buttons["Record"].tap()
+        record(seconds: seconds)
+        waitForReport(attempt: 1)
+        shot("real-zh-02-report")
+        // Claude's feedback fills in once coaching is done.
+        XCTAssertTrue(app.staticTexts["Verdict"].waitForExistence(timeout: 180), "Coaching did not finish")
+        sleep(1)
+        shot("real-zh-03-coached")
+        for page in 1...3 {
+            app.swipeUp()
+            sleep(1)
+            shot("real-zh-03-coached-p\(page + 1)")
+        }
+    }
+
     // MARK: Steps
 
     private func record(seconds: UInt32) {

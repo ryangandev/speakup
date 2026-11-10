@@ -26,6 +26,7 @@ from speakup.analysis.metrics import compute_metrics, nervousness_signs, word_co
 from speakup.analysis.thresholds import Thresholds
 from speakup.analysis.words import WordDoc, word_docs
 from speakup.stt import Transcript
+from speakup.text import LANGUAGES
 
 __all__ = [
     "AnalysisDoc",
@@ -49,6 +50,8 @@ _STT_MODELS: dict[str, tuple[str, str | None]] = {
     "scribe": ("scribe_v2", None),
     "assemblyai": ("universal-3-5-pro", None),
     "apple": ("SpeechTranscriber", None),
+    "qwen3-asr-1.7b": ("Qwen/Qwen3-ASR-1.7B", "qwen-asr"),
+    "qwen3-asr-0.6b": ("Qwen/Qwen3-ASR-0.6B", "qwen-asr"),
 }
 
 
@@ -76,10 +79,17 @@ def _provenance(transcript: Transcript, thresholds: Thresholds) -> dict[str, Any
     }
 
 
-def _spoken_words(transcript: Transcript, thresholds: Thresholds) -> list[WordDoc]:
-    words = word_docs(transcript.words)
-    if word_count(words) < thresholds.min_words:
-        raise NoSpeech(f"{word_count(words)} words transcribed; at least {thresholds.min_words}")
+def _language(language: str) -> str:
+    if language not in LANGUAGES:
+        raise ValueError(f"unknown language {language!r}; expected one of {LANGUAGES}")
+    return language
+
+
+def _spoken_words(transcript: Transcript, thresholds: Thresholds, language: str) -> list[WordDoc]:
+    words = word_docs(transcript.words, language)
+    count = word_count(words, language)
+    if count < thresholds.min_words:
+        raise NoSpeech(f"{count} words transcribed; at least {thresholds.min_words}")
     return words
 
 
@@ -89,24 +99,26 @@ def _document(
     words: list[WordDoc],
     acoustics: Acoustics,
     thresholds: Thresholds,
+    language: str,
 ) -> AnalysisDoc:
     track, _ = voice_track(words, acoustics.speech, thresholds)
     pauses = find_pauses(words, track, thresholds)
-    events = detect_events(words, pauses, thresholds)
+    events = detect_events(words, pauses, thresholds, language)
     for n, e in enumerate(events):
         e["id"] = f"e{n}"
-    metrics = compute_metrics(words, events, track, acoustics)
+    metrics = compute_metrics(words, events, track, acoustics, language)
     created = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     return {
         "schema_version": SCHEMA_VERSION,
         "take_id": take_id,
+        "language": language,
         "created_at": created,
         "coaching_applied": False,
         "provenance": _provenance(transcript, thresholds),
         "words": words,
         "events": events,
         "metrics": metrics,
-        "nervousness_signs": nervousness_signs(words, events, metrics, thresholds),
+        "nervousness_signs": nervousness_signs(words, events, metrics, thresholds, language),
     }
 
 
@@ -116,11 +128,13 @@ def build_analysis(
     transcript: Transcript,
     acoustics: Acoustics,
     thresholds: Thresholds | None = None,
+    language: str = "en",
 ) -> AnalysisDoc:
     """`analyze` with the audio already measured, so tests can pass hand-built acoustics."""
     thresholds = thresholds or Thresholds()
-    words = _spoken_words(transcript, thresholds)
-    return _document(take_id, transcript, words, acoustics, thresholds)
+    language = _language(language)
+    words = _spoken_words(transcript, thresholds, language)
+    return _document(take_id, transcript, words, acoustics, thresholds, language)
 
 
 def analyze(
@@ -129,9 +143,11 @@ def analyze(
     wav16k: Path,
     transcript: Transcript,
     thresholds: Thresholds | None = None,
+    language: str = "en",
 ) -> AnalysisDoc:
-    """Rules-only analysis. Raises NoSpeech when fewer than 5 words were transcribed, before
-    the audio is read."""
+    """Rules-only analysis. Raises NoSpeech when fewer than 5 words (for Mandarin, characters)
+    were transcribed, before the audio is read. `language` is the prompt's: `en` or `zh`."""
     thresholds = thresholds or Thresholds()
-    words = _spoken_words(transcript, thresholds)
-    return _document(take_id, transcript, words, measure(wav16k), thresholds)
+    language = _language(language)
+    words = _spoken_words(transcript, thresholds, language)
+    return _document(take_id, transcript, words, measure(wav16k), thresholds, language)

@@ -22,7 +22,7 @@ Do not read every doc by default.
 
 From `server/` (Python, managed by `uv`):
 
-- `uv sync --extra crisper` installs everything, including local CrisperWhisper.
+- `uv sync --extra crisper --extra qwen` installs everything, including local CrisperWhisper (English) and Qwen3-ASR (Chinese).
 - `uv run pytest` runs the tests; `uv run ruff format` and `uv run ruff check` format and lint.
 - `uv run speakup-bakeoff --help` runs the bake-off; the procedure is in [docs/bakeoff.md](docs/bakeoff.md).
 - `uv run speakup-server` runs the analysis server on 127.0.0.1; it needs `SPEAKUP_API_TOKEN` (32 characters or more) in `server/.env`. Operating it is in [docs/server.md](docs/server.md).

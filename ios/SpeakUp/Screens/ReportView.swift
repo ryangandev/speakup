@@ -362,8 +362,11 @@ private struct MetricsCard: View {
             } label: {
                 HStack(alignment: .firstTextBaseline) {
                     ValueRow(
-                        label: "Fillers per 100 words", value: Format.decimal(metrics.fillers.per100Words),
-                        note: "Normal is about 2 to 6. \(fillerCount) in this take.")
+                        label: analysis.countsCharacters ? "Fillers per 100 characters" : "Fillers per 100 words",
+                        value: Format.decimal(metrics.fillers.per100Words),
+                        // The 2 to 6 norm is for English words; there is none yet for characters.
+                        note: analysis.countsCharacters
+                            ? "\(fillerCount) in this take." : "Normal is about 2 to 6. \(fillerCount) in this take.")
                     Image(systemName: showsFillers ? "chevron.up" : "chevron.down")
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
@@ -381,7 +384,9 @@ private struct MetricsCard: View {
             Divider()
             Text("For information, not graded").font(Theme.Fonts.captionEmphasis)
                 .foregroundStyle(Theme.Colors.textSecondary)
-            ValueRow(label: "Pace", value: "\(Int(metrics.pace.wpmVoiced.rounded())) wpm")
+            ValueRow(
+                label: "Pace",
+                value: "\(Int(metrics.pace.wpmVoiced.rounded())) \(analysis.countsCharacters ? "characters/min" : "wpm")")
             ValueRow(
                 label: "Pitch variation",
                 value: metrics.pitch.map { "\(Format.decimal($0.variationSt)) st" } ?? "Not measured")

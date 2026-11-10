@@ -34,6 +34,7 @@ def prompt_resource(row: Row) -> Row:
         "category": row["category"],
         "target_seconds": row["target_seconds"],
         "question_source": row["question_source"],
+        "language": row["language"],
         "created_at": row["created_at"],
     }
 

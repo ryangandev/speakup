@@ -40,6 +40,9 @@ def setting(name: str, default: str | None = None) -> str | None:
 
 DEFAULT_PORT = 8765
 DEFAULT_STT_ENGINE = "crisperwhisper"
+# The engine for Mandarin (`zh`) takes, by its name in `speakup.stt.registry`; chosen on 2026-11-10
+# (docs/architecture.md#speech-to-text). SPEAKUP_STT_ENGINE_ZH overrides it.
+DEFAULT_STT_ENGINE_ZH = "qwen3-asr-1.7b"
 DEFAULT_COACH_MODEL = "claude-opus-5-5"
 
 
@@ -48,6 +51,7 @@ class ServerSettings:
     api_token: str | None
     data_dir: Path
     stt_engine: str
+    stt_engine_zh: str
     coach_model: str
     port: int
 
@@ -74,6 +78,8 @@ def server_settings() -> ServerSettings:
         api_token=setting("SPEAKUP_API_TOKEN"),
         data_dir=data_dir(),
         stt_engine=setting("SPEAKUP_STT_ENGINE", DEFAULT_STT_ENGINE) or DEFAULT_STT_ENGINE,
+        stt_engine_zh=setting("SPEAKUP_STT_ENGINE_ZH", DEFAULT_STT_ENGINE_ZH)
+        or DEFAULT_STT_ENGINE_ZH,
         coach_model=setting("SPEAKUP_COACH_MODEL", DEFAULT_COACH_MODEL) or DEFAULT_COACH_MODEL,
         port=port,
     )

@@ -8,6 +8,16 @@ struct TopicPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            HStack {
+                FieldLabel("Language")
+                Spacer()
+                Picker("Language", selection: language) {
+                    ForEach(SpeechLanguage.choices, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
+
             Picker("Topic", selection: source) {
                 Text("Question").tag(TopicModel.Source.question)
                 Text("Your own").tag(TopicModel.Source.own)
@@ -33,6 +43,10 @@ struct TopicPicker: View {
                 LengthPicker(options: AppSettings.impromptuLengths, selection: $model.targetSeconds)
             }
         }
+    }
+
+    private var language: Binding<SpeechLanguage> {
+        Binding(get: { app.settings.language }, set: { app.settings.language = $0 })
     }
 
     private var source: Binding<TopicModel.Source> {
@@ -98,7 +112,7 @@ struct TopicPicker: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                 FieldLabel("Topic")
-                TextField("Today's stand-up", text: $model.ownTitle)
+                TextField(app.settings.language == .chinese ? "今天的站会" : "Today's stand-up", text: $model.ownTitle)
                     .font(Theme.Fonts.body)
                     .submitLabel(.next)
                     .focused(focusedField, equals: .title)
@@ -117,8 +131,18 @@ struct TopicPicker: View {
                     .padding(Theme.Spacing.s)
                     .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
                     .accessibilityLabel("Notes")
+                Toggle("Show notes while recording", isOn: showsNotesWhileRecording)
+                    .font(Theme.Fonts.secondary)
+                    .tint(Theme.Colors.accent)
+                    .padding(.top, Theme.Spacing.xs)
             }
         }
+    }
+
+    private var showsNotesWhileRecording: Binding<Bool> {
+        Binding(
+            get: { app.settings.showsNotesWhileRecording },
+            set: { app.settings.showsNotesWhileRecording = $0 })
     }
 }
 
@@ -225,20 +249,21 @@ final class TopicModel {
     }
 
     /// Adds the chosen topic as a prompt of the open home session, opening one when none is.
-    func makePrompt(store: PracticeStore) -> LocalPrompt? {
+    func makePrompt(store: PracticeStore, language: SpeechLanguage) -> LocalPrompt? {
         let sessionID = store.openHomeSession?.id ?? store.openNewSession(nervousnessBefore: nil).id
         switch choice {
         case .question:
             guard let question = current else { return nil }
             return store.addPrompt(
                 sessionID: sessionID, kind: .impromptu, text: question.text, notes: nil,
-                category: question.category, targetSeconds: targetSeconds, questionSource: source)
+                category: question.category, targetSeconds: targetSeconds, questionSource: source,
+                language: language)
         case .own:
             guard !trimmedTitle.isEmpty else { return nil }
             let notes = ownNotes.trimmingCharacters(in: .whitespacesAndNewlines)
             return store.addPrompt(
                 sessionID: sessionID, kind: .prepared, text: trimmedTitle, notes: notes.isEmpty ? nil : notes,
-                category: nil, targetSeconds: targetSeconds, questionSource: .typed)
+                category: nil, targetSeconds: targetSeconds, questionSource: .typed, language: language)
         }
     }
 

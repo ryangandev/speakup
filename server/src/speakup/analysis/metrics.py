@@ -16,7 +16,7 @@ import numpy as np
 from speakup.analysis.acoustics import Acoustics
 from speakup.analysis.events import EventDoc, Segment, overlap
 from speakup.analysis.thresholds import Thresholds
-from speakup.analysis.words import WordDoc
+from speakup.analysis.words import WordDoc, units
 
 MetricsDoc = dict[str, Any]
 
@@ -39,8 +39,13 @@ def quarters(t0: float, t1: float) -> list[Segment]:
     return [(t0 + n * step, t0 + (n + 1) * step) for n in range(4)]
 
 
-def word_count(words: list[WordDoc]) -> int:
-    return sum(w["kind"] == "word" for w in words)
+def word_count(words: list[WordDoc], language: str = "en") -> int:
+    """Words of kind `word`; for Mandarin, their spoken units (one per character)."""
+    return sum(units(w, language) for w in words if w["kind"] == "word")
+
+
+# The unit pace and rates count, for the nervousness details.
+PACE_UNIT = {"en": "words per minute", "zh": "characters per minute"}
 
 
 def event_metrics(
@@ -81,9 +86,14 @@ def event_metrics(
 
 
 def _pace(
-    words: list[WordDoc], track: list[Segment], span: Segment, parts: list[Segment]
+    words: list[WordDoc],
+    track: list[Segment],
+    span: Segment,
+    parts: list[Segment],
+    language: str,
 ) -> MetricsDoc:
-    counted = [w for w in words if w["kind"] == "word"]
+    counted = [(w, units(w, language)) for w in words if w["kind"] == "word"]
+    total = sum(n for _, n in counted)
     voiced = overlap(track, *span)
     speaking = span[1] - span[0]
 
@@ -94,13 +104,15 @@ def _pace(
     for n, (lo, hi) in enumerate(parts):
         last = n == len(parts) - 1
         count = sum(
-            lo <= (w["start"] + w["end"]) / 2 < hi or (last and (w["start"] + w["end"]) / 2 == hi)
-            for w in counted
+            n
+            for w, n in counted
+            if lo <= (w["start"] + w["end"]) / 2 < hi
+            or (last and (w["start"] + w["end"]) / 2 == hi)
         )
         by_quarter.append(wpm(count, overlap(track, lo, hi)))
     return {
-        "wpm_voiced": wpm(len(counted), voiced),
-        "wpm_speaking": wpm(len(counted), speaking),
+        "wpm_voiced": wpm(total, voiced),
+        "wpm_speaking": wpm(total, speaking),
         "by_quarter_wpm": by_quarter,
     }
 
@@ -160,11 +172,14 @@ def compute_metrics(
     events: list[EventDoc],
     track: list[Segment],
     acoustics: Acoustics,
+    language: str = "en",
 ) -> MetricsDoc:
+    """The metrics block. For Mandarin, `word_count`, pace and rates per 100 words count
+    characters (see `units`)."""
     span = speaking_span(words)
     speaking = span[1] - span[0]
     parts = quarters(*span)
-    count = word_count(words)
+    count = word_count(words, language)
     return {
         "duration_s": _r(acoustics.duration_s),
         "speech_start_s": _r(span[0]),
@@ -172,7 +187,7 @@ def compute_metrics(
         "voiced_s": _r(overlap(track, *span)),
         "word_count": count,
         **event_metrics(events, count, speaking),
-        "pace": _pace(words, track, span, parts),
+        "pace": _pace(words, track, span, parts, language),
         "pitch": _pitch(acoustics, span, parts),
         "volume": _volume(acoustics, track, span, parts),
     }
@@ -184,7 +199,11 @@ def _clock(seconds: float) -> str:
 
 
 def nervousness_signs(
-    words: list[WordDoc], events: list[EventDoc], metrics: MetricsDoc, thresholds: Thresholds
+    words: list[WordDoc],
+    events: list[EventDoc],
+    metrics: MetricsDoc,
+    thresholds: Thresholds,
+    language: str = "en",
 ) -> list[dict[str, Any]]:
     signs: list[dict[str, Any]] = []
     span = speaking_span(words)
@@ -202,7 +221,7 @@ def nervousness_signs(
                         "end": _r(last_quarter[1]),
                         "value": _r(change, 1),
                         "detail": f"Pace rose {change:.0f}% from the first quarter to the last "
-                        f"({first:.0f} to {last:.0f} words per minute).",
+                        f"({first:.0f} to {last:.0f} {PACE_UNIT[language]}).",
                     }
                 )
 

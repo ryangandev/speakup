@@ -57,10 +57,17 @@ final class WalkthroughTests: XCTestCase {
         }
         shot("04-own-topic-keyboard")
         dismissKeyboard()
+        // Notes open on the recording screen from the start.
+        let showNotes = app.switches["Show notes while recording"]
+        XCTAssertTrue(showNotes.waitForExistence(timeout: 5))
+        showNotes.tap()
+        if showNotes.value as? String != "1" { showNotes.switches.firstMatch.tap() }
+        XCTAssertEqual(showNotes.value as? String, "1")
         shot("04-own-topic")
         app.buttons["Record"].tap()
 
-        record(shotName: "05-recording", showNotes: true)
+        XCTAssertTrue(app.buttons["Hide notes"].waitForExistence(timeout: 10), "Notes should start open")
+        record(shotName: "05-recording")
         waitForProcessing(shotName: "06-processing")
         // The report opens once analysis is done, with the transcript and metrics, while
         // Claude still runs.

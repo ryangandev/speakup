@@ -70,7 +70,10 @@ struct RecordingView: View {
         } message: {
             Text("The recording is deleted and does not count as an attempt.")
         }
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            showsNotes = app.settings.showsNotesWhileRecording
+        }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 
@@ -92,7 +95,7 @@ struct RecordingView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             if let notes = flow.prompt.notes {
-                // Notes stay hidden while recording until tapped.
+                // Open from the start when Home's "Show notes while recording" is on; either way a tap toggles them.
                 Button {
                     withAnimation { showsNotes.toggle() }
                 } label: {

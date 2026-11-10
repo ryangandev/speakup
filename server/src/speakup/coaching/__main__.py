@@ -3,6 +3,7 @@
     uv run python -m speakup.coaching <analysis.json> --prompt "Why did we ..."
     uv run python -m speakup.coaching <analysis.json> --previous <analysis.json> \\
         --previous-report <report.json>
+    uv run python -m speakup.coaching <analysis.json> --language zh --prompt "..."
 
 Prints the coaching report as JSON on stdout and token usage on stderr.
 `--dry-run` prints the request instead and needs no API key.
@@ -41,6 +42,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--notes", help="prepared notes, or @file to read them from a file")
     parser.add_argument("--target-seconds", type=int, default=90)
+    parser.add_argument(
+        "--language",
+        choices=["en", "zh"],
+        help="the prompt's language; default: the analysis's `language`, else en",
+    )
     parser.add_argument("--attempt", type=int, help="default: 2 with --previous, else 1")
     parser.add_argument("--dry-run", action="store_true", help="print the request, do not call")
     args = parser.parse_args(argv)
@@ -70,6 +76,7 @@ def build(args: argparse.Namespace) -> CoachingRequest:
             "notes": notes if args.kind == "prepared" else None,
             "category": args.category if args.kind == "impromptu" else None,
             "target_seconds": args.target_seconds,
+            "language": args.language or analysis.get("language") or "en",
         },
         "attempt": args.attempt or (2 if previous else 1),
         "analysis": analysis,

@@ -73,6 +73,14 @@ final class AppSettings {
     var defaultPreparedSeconds: Int {
         didSet { defaults.set(defaultPreparedSeconds, forKey: Keys.preparedSeconds) }
     }
+    /// The language Home records in next.
+    var language: SpeechLanguage {
+        didSet { defaults.set(language.rawValue, forKey: Keys.language) }
+    }
+    /// Whether a take's notes start open on the recording screen; off keeps them behind Show notes.
+    var showsNotesWhileRecording: Bool {
+        didSet { defaults.set(showsNotesWhileRecording, forKey: Keys.showsNotesWhileRecording) }
+    }
     /// Whether Home offers driving mode. It is set aside for now (product.md#driving-mode), so
     /// only the `-showsDriving YES` launch argument turns it on, for its UI tests and device checks.
     let showsDriving: Bool
@@ -90,6 +98,8 @@ final class AppSettings {
         static let serverAddress = "serverAddress"
         static let preparedSeconds = "defaultPreparedSeconds"
         static let showsDriving = "showsDriving"
+        static let showsNotesWhileRecording = "showsNotesWhileRecording"
+        static let language = "language"
         static let token = "server-token"
         static let useMock = "debug.useMockServer"
         static let mockScenario = "debug.mockScenario"
@@ -108,6 +118,8 @@ final class AppSettings {
         let seconds = defaults.integer(forKey: Keys.preparedSeconds)
         defaultPreparedSeconds = Self.preparedLengths.contains(seconds) ? seconds : Self.defaultPreparedSeconds
         showsDriving = defaults.bool(forKey: Keys.showsDriving)
+        showsNotesWhileRecording = defaults.bool(forKey: Keys.showsNotesWhileRecording)
+        language = defaults.string(forKey: Keys.language).map(SpeechLanguage.init(rawValue:)) ?? .english
         #if DEBUG
         useMockServer = defaults.bool(forKey: Keys.useMock)
         mockScenario = MockScenario(rawValue: defaults.string(forKey: Keys.mockScenario) ?? "") ?? .normal

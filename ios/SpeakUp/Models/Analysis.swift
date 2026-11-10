@@ -47,6 +47,11 @@ struct Analysis: Codable, Hashable, Sendable {
     let events: [TranscriptEvent]
     let metrics: Metrics
     let nervousnessSigns: [NervousnessSign]
+    /// The take's language; for Chinese a "word" in the metrics is one character. Absent from
+    /// servers that predate it, which means English.
+    var language: SpeechLanguage? = nil
+
+    var countsCharacters: Bool { language == .chinese }
 }
 
 struct Provenance: Codable, Hashable, Sendable {

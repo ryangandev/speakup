@@ -34,8 +34,9 @@ private struct TokenView: View {
 
     var body: some View {
         switch token {
-        case .word(let index, let text, let start, let marks):
+        case .word(let index, let text, let start, let marks, let joinsPrevious):
             WordView(text: text, marks: marks, isPlaying: player.isPlaying("word-\(takeID)-\(index)"))
+                .layoutValue(key: FlowJoinsPrevious.self, value: joinsPrevious)
                 .onTapGesture {
                     if let mark = marks.first {
                         selectedMark = mark

@@ -17,12 +17,17 @@ from pydantic import ValidationError
 
 from .models import DIMENSIONS, Anchor, CoachingOutput
 
-_TOKEN = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)*")
+# A Latin-script word, or one Han character: Chinese has no spaces, so each character is a token
+# and a quote matches its words whatever way the engine split them.
+_TOKEN = re.compile(
+    r"[a-z0-9]+(?:'[a-z0-9]+)*|[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0003134f]"
+)
 _MARKDOWN = re.compile(r"\*\*|__|`|^\s*(?:#{1,6}\s|[-*•]\s)", re.MULTILINE)
 
 
 def tokens(text: str) -> list[str]:
-    """Lowercase word tokens, ignoring punctuation and cut-off hyphens."""
+    """Lowercase word tokens and single Han characters, ignoring punctuation (ASCII and
+    full-width) and cut-off hyphens."""
     text = text.lower().replace("’", "'").replace("‘", "'")
     return _TOKEN.findall(text)
 

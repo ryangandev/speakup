@@ -392,7 +392,7 @@ final class DriveServer: @unchecked Sendable {
             return Prompt(
                 id: id, sessionId: body.sessionId, kind: body.kind, text: body.text, notes: body.notes,
                 category: body.category, targetSeconds: body.targetSeconds,
-                questionSource: body.questionSource, createdAt: Date())
+                questionSource: body.questionSource, language: body.language, createdAt: Date())
         }
         api.beforeUpload = { [uploadGate] _ in await uploadGate.wait() }
         api.onUpload = { [unowned self] id, metadata in

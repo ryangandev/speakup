@@ -44,7 +44,7 @@ struct TakeSyncTests {
             Prompt(
                 id: id, sessionId: body.sessionId, kind: body.kind, text: body.text, notes: body.notes,
                 category: body.category, targetSeconds: body.targetSeconds,
-                questionSource: body.questionSource, createdAt: Date())
+                questionSource: body.questionSource, language: body.language, createdAt: Date())
         }
         api.onEndSession = { _, _ in try Fixture.decode(Session.self, "session") }
     }

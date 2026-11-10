@@ -10,14 +10,16 @@ import math
 from typing import Any
 
 from speakup.stt import Word
-from speakup.text import tokens_from_words
+from speakup.text import tokens_from_words, zh_units
 
 WordDoc = dict[str, Any]
 
 SENTENCE_END = (".", "?", "!")
 CLAUSE_END = (",", ";", ":")
 # Closing quotes and brackets that may follow a word's final punctuation.
-_TRAILING = "\"'”’)]}"
+_TRAILING = "\"'”’)]}）」』》】"
+# Full-width punctuation in Mandarin transcripts, read as its ASCII counterpart.
+_FULL_WIDTH = {"。": ".", "？": "?", "！": "!", "，": ",", "、": ",", "；": ";", "：": ":"}
 
 
 def _confidence(value: float | None) -> float | None:
@@ -28,7 +30,11 @@ def _confidence(value: float | None) -> float | None:
     return float(value)
 
 
-def word_docs(words: list[Word]) -> list[WordDoc]:
+def word_docs(words: list[Word], language: str = "en") -> list[WordDoc]:
+    if language == "zh":
+        from speakup.analysis.zh import zh_word_docs
+
+        return zh_word_docs(words)
     docs = []
     for i, word in enumerate(words):
         tokens = tokens_from_words([word])
@@ -62,7 +68,8 @@ def final_punctuation(word: WordDoc) -> str:
     text = word["text"].rstrip().rstrip(_TRAILING)
     if text.endswith(("...", "\N{HORIZONTAL ELLIPSIS}")):
         return "..."
-    return text[-1] if text and text[-1] in SENTENCE_END + CLAUSE_END else ""
+    last = _FULL_WIDTH.get(text[-1:], text[-1:])
+    return last if last and last in SENTENCE_END + CLAUSE_END else ""
 
 
 def ends_sentence(word: WordDoc) -> bool:
@@ -71,6 +78,14 @@ def ends_sentence(word: WordDoc) -> bool:
 
 def ends_clause(word: WordDoc) -> bool:
     return final_punctuation(word) in CLAUSE_END
+
+
+def units(word: WordDoc, language: str = "en") -> int:
+    """How many spoken units a word counts for in `word_count` and pace: one in English; in
+    Mandarin, one per Han character plus one per Latin-script word."""
+    if language == "zh":
+        return len(zh_units(word["norm"]))
+    return 1
 
 
 def content_indexes(words: list[WordDoc]) -> list[int]:

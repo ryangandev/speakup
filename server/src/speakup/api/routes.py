@@ -174,6 +174,7 @@ def list_sessions(
                     {
                         "id": p["id"],
                         "kind": p["kind"],
+                        "language": p["language"],
                         "text": p["text"],
                         "take_count": p["take_count"],
                     }
@@ -229,6 +230,7 @@ def put_prompt(
             category=body.category,
             target_seconds=body.target_seconds,
             question_source=body.question_source,
+            language=body.language,
         )
     except Conflict as exc:
         raise ApiError(409, "conflict", str(exc)) from None

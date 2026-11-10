@@ -5,7 +5,7 @@ import Testing
 /// How the annotated transcript turns words and events into what it draws.
 struct TranscriptLayoutTests {
     private func marks(_ token: TranscriptToken) -> [String] {
-        guard case .word(_, _, _, let marks) = token else { return [] }
+        guard case .word(_, _, _, let marks, _) = token else { return [] }
         return marks.map(\.event.id)
     }
 
@@ -96,5 +96,39 @@ struct TranscriptLayoutTests {
         let analysis = try Fixture.decode(Analysis.self, object: object)
         let tokens = TranscriptLayout.tokens(for: analysis)
         #expect(tokens.last?.id == "pe4")
+    }
+
+    @Test func chineseCharactersJoinAndAMarkedRunIsOneToken() throws {
+        var object = Fixture.object("analysis")
+        var words = object["words"] as! [[String: Any]]
+        let chinese = ["所以", "嗯", "我", "我", "觉", "得"]
+        for index in words.indices { words[index]["text"] = index < chinese.count ? chinese[index] : "好" }
+        object["words"] = words
+        let analysis = try Fixture.decode(Analysis.self, object: object)
+        let tokens = TranscriptLayout.tokens(for: analysis)
+
+        // The repetition 我我 (words 2 and 3, event e1) is drawn once.
+        #expect(Array(tokens.prefix(5).map(\.id)) == ["w0", "w1", "w2", "w4", "w5"])
+        guard case .word(_, let text, _, let marks, let joins) = tokens[2] else {
+            Issue.record("Expected a word")
+            return
+        }
+        #expect(text == "我我")
+        #expect(marks.map(\.event.id) == ["e1"])
+        #expect(joins)
+        guard case .word(_, _, _, _, let firstJoins) = tokens[0], case .word(_, _, _, _, let plainJoins) = tokens[3] else {
+            Issue.record("Expected words")
+            return
+        }
+        #expect(!firstJoins)
+        #expect(plainJoins)
+    }
+
+    @Test func joiningPutsSpacesOnlyBetweenNonChineseWords() {
+        #expect(TranscriptLayout.join(["我", "们", "用", "Postgres", "吧，", "对"]) == "我们用 Postgres 吧，对")
+        #expect(TranscriptLayout.join(["you", "know,"]) == "you know,")
+        #expect(TranscriptLayout.join(["就", "是"]) == "就是")
+        #expect(TranscriptLayout.containsChinese("风险在API上"))
+        #expect(!TranscriptLayout.containsChinese("we picked Postgres"))
     }
 }

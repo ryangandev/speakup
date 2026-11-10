@@ -43,6 +43,26 @@ def default_engine(settings: ServerSettings) -> Engine:
     return engine
 
 
+def mandarin_engine(settings: ServerSettings) -> Engine:
+    """The engine `SPEAKUP_STT_ENGINE_ZH` names, for the worker to build on the first Mandarin
+    take. Raises RuntimeError when it is not registered or cannot run here (for example, its
+    model is not installed); the take then fails with that reason, and English is unaffected."""
+    from speakup.stt.registry import all_engines
+
+    engines = all_engines()
+    name = settings.stt_engine_zh
+    if name not in engines:
+        raise RuntimeError(
+            f"SPEAKUP_STT_ENGINE_ZH={name!r} is not a registered engine "
+            f"(registered: {', '.join(sorted(engines))})"
+        )
+    engine = engines[name]
+    problem = engine.missing_config()
+    if problem:
+        raise RuntimeError(f"{name} cannot run: {problem}")
+    return engine
+
+
 def _load(module_name: str, what: str) -> Any:
     try:
         return importlib.import_module(module_name)

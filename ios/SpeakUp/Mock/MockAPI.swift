@@ -165,7 +165,7 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
             let prompt = Prompt(
                 id: id, sessionId: body.sessionId, kind: body.kind, text: body.text, notes: body.notes,
                 category: body.category, targetSeconds: body.targetSeconds, questionSource: body.questionSource,
-                createdAt: Date())
+                language: body.language, createdAt: Date())
             prompts[id] = prompt
             return prompt
         }
@@ -462,7 +462,7 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
                 id: promptID, sessionId: sessionID, kind: kind, text: text,
                 notes: kind == .prepared ? "Shipped the invoice export. Blocked on the tax API keys. Next: retry logic." : nil,
                 category: category, targetSeconds: target, questionSource: kind == .prepared ? .typed : .claude,
-                createdAt: cursor)
+                language: .english, createdAt: cursor)
             for attempt in 1...takeCount {
                 cursor = cursor.addingTimeInterval(150)
                 let id = IDs.make()

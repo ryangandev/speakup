@@ -222,8 +222,9 @@ def find_pauses(words: list[WordDoc], track: list[Segment], thresholds: Threshol
 class _Transcript:
     """Read-only views of the words that every rule needs."""
 
-    def __init__(self, words: list[WordDoc], pauses: list[Pause]) -> None:
+    def __init__(self, words: list[WordDoc], pauses: list[Pause], language: str = "en") -> None:
         self.words = words
+        self.language = language
         self.content = content_indexes(words)
         self.position = {i: p for p, i in enumerate(self.content)}
         self.pause_before = {p.before: p for p in pauses}
@@ -291,7 +292,7 @@ class _Transcript:
         return prev is None or ends_sentence(self.words[prev])
 
 
-def _restarts_at_cutoffs(t: _Transcript, thresholds: Thresholds) -> list[EventDoc]:
+def _restarts_at_cutoffs(t: _Transcript, lookback: int) -> list[EventDoc]:
     """A broken-off word ("nee-") and the abandoned start it ends.
 
     The abandoned start reaches back to the word the repair begins with, when the speaker
@@ -311,7 +312,7 @@ def _restarts_at_cutoffs(t: _Transcript, thresholds: Thresholds) -> list[EventDo
         start_word, last = content[p], content[q]
         repair = content[q + 1] if q + 1 < len(content) else None
         if repair is not None and not t.norm(repair).startswith(t.norm(content[p])):
-            for back in range(1, thresholds.restart_lookback_words + 1):
+            for back in range(1, lookback + 1):
                 if p - back < 0:
                     break
                 candidate = content[p - back]
@@ -583,6 +584,10 @@ def _boundary(
     t: _Transcript, prev: int | None, nxt: int | None, filler_words: set[int]
 ) -> str | None:
     """`sentence` or `clause` when the gap between content words prev and nxt is a boundary."""
+    if t.language == "zh":
+        from speakup.analysis import zh
+
+        return zh.boundary(t, prev, nxt, filler_words)
     if prev is None or nxt is None or ends_sentence(t.words[prev]):
         return "sentence"
     if t.starts_sentence(nxt):
@@ -648,15 +653,27 @@ def _pause_event(
 
 
 def detect_events(
-    words: list[WordDoc], pauses: list[Pause], thresholds: Thresholds
+    words: list[WordDoc], pauses: list[Pause], thresholds: Thresholds, language: str = "en"
 ) -> list[EventDoc]:
-    """All rules events, sorted, without ids."""
-    t = _Transcript(words, pauses)
-    restarts = _restarts_at_cutoffs(t, thresholds)
-    repetitions = _repetitions(t)
-    taken = {i for e in restarts + repetitions for i in range(e["word_start"], e["word_end"])}
-    restarts += _abandoned_phrases(t, taken, thresholds)
-    lexical = _lexical_fillers(t)
+    """All rules events, sorted, without ids.
+
+    Mandarin swaps in its own repetition, lexical filler and clause rules (speakup.analysis.zh)
+    and leaves abandoned phrases to coaching, since the English rule rests on English grammar.
+    """
+    t = _Transcript(words, pauses, language)
+    if language == "zh":
+        from speakup.analysis import zh
+
+        lookback = thresholds.restart_lookback_words * zh.RESTART_LOOKBACK_FACTOR
+        restarts = _restarts_at_cutoffs(t, lookback)
+        repetitions = zh.repetitions(t)
+        lexical = zh.lexical_fillers(t)
+    else:
+        restarts = _restarts_at_cutoffs(t, thresholds.restart_lookback_words)
+        repetitions = _repetitions(t)
+        taken = {i for e in restarts + repetitions for i in range(e["word_start"], e["word_end"])}
+        restarts += _abandoned_phrases(t, taken, thresholds)
+        lexical = _lexical_fillers(t)
 
     restart_points = {e["word_start"] for e in restarts + repetitions} | {
         e["repair_word"] for e in restarts + repetitions if e["repair_word"] is not None

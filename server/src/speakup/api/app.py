@@ -51,7 +51,13 @@ def create_app(
     analyzer = analyzer or defaults.load_analyzer()
     coach = coach or defaults.load_coach()
     if worker is None:
-        worker = Worker(store, defaults.default_engine(settings), analyzer, coach)
+        worker = Worker(
+            store,
+            defaults.default_engine(settings),
+            analyzer,
+            coach,
+            engines={"zh": lambda: defaults.mandarin_engine(settings)},
+        )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

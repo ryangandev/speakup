@@ -43,6 +43,8 @@ enum Theme {
         static let caption = Font.caption
         static let captionEmphasis = Font.caption.weight(.semibold)
         static let quote = Font.callout.italic()
+        /// Chinese has no italic; the system would slant the characters.
+        static let quoteUpright = Font.callout
         static let timer = Font.system(.largeTitle, design: .rounded).weight(.semibold).monospacedDigit()
         static let metricValue = Font.title3.weight(.semibold).monospacedDigit()
         static let numeric = Font.body.monospacedDigit()
