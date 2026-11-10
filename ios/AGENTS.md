@@ -23,6 +23,7 @@ Use one simulator and one `xcodebuild` at a time.
 - Both real-server tests type the token into Settings, so the test log holds it: keep the log private and delete it after.
 - `xcodebuild test` can sit idle after the UI tests report; once the log says "Executed N tests", it is safe to stop it.
 - Server address and token for a new install: run `scripts/write-local-server.sh [address]` once on the Mac; it writes the ignored `SpeakUp/Settings/LocalServer.json` (the address defaults to the Mac's tailnet name), and every build after it starts configured.
+- App icon: `scripts/make-app-icon.swift` draws it (a voice that grows from timid to a full wave, orange to pink on black) and writes the light, dark and tinted images into `SpeakUp/Assets.xcassets/AppIcon.appiconset`; how to run it is at the top of the script.
 - Install and launch on a booted simulator: `xcrun simctl install <udid> build/DerivedData/Build/Products/Debug-iphonesimulator/SpeakUp.app`, then `xcrun simctl launch <udid> com.rystudio.speakup <arguments>`.
 
 `build/` is ignored.
