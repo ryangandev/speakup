@@ -72,8 +72,10 @@ Local Mandarin candidates, measured on 2026-11-10 on five synthesized clips (21 
 | SeACo-Paraformer-zh (FunASR) | 45 / 42; writes 呃 as 恶 | 22 | 3.5% / 4.7% | Per character | Weak | 0.05, CPU only | Apache-2.0 |
 | SenseVoiceSmall | 48 / 46 | 23 | 4.4% / 4.9% | Marks only, no durations | Weak | 0.05 | FunASR license |
 | Fun-ASR-Nano-2512 | 48 | 23 | 5.2% | None in the released checkpoint | Weak | 0.03 | Apache-2.0 |
+| Breeze-ASR-25 (MediaTek, Whisper large-v2) | 38 / 33; drops most 嗯 and 呃 | 21 / 15 | 6.1% / 10.2% | Per token, from Whisper attention | Sometimes wrong ("post girls") | 0.28 | Apache-2.0 |
 | CrisperWhisper large, `zh` | 46 | 22 | 11% | Yes | Right | 0.88 | Non-commercial |
 
+Breeze-ASR-25 writes Traditional characters (converted with OpenCC to score it); Breeze-ASR-26 is a Taiwanese Hokkien model, so it was not tested.
 The one filler every engine missed was a quirk of the synthetic voice; Apple's zh-CN model would not download for the test.
 Synthesized speech says every filler clearly, so the choice still has to hold on Ryan's real takes.
 
