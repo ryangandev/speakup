@@ -49,6 +49,26 @@ struct HTTPAPIClient: SpeakUpAPI {
         try await send("POST", "questions", body: body)
     }
 
+    func themes() async throws -> InterestThemeList {
+        try await send("GET", "themes")
+    }
+
+    func createTheme(_ body: ThemeCreateRequest) async throws -> InterestTheme {
+        try await send("POST", "themes", body: body)
+    }
+
+    func updateTheme(id: String, _ body: ThemePatchRequest) async throws -> InterestTheme {
+        try await send("PATCH", "themes/\(id)", body: body)
+    }
+
+    func deleteTheme(id: String) async throws {
+        let request = makeRequest("DELETE", "themes/\(id)")
+        let (data, response) = try await perform { try await session.data(for: request) }
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw Self.error(from: data, response: response)
+        }
+    }
+
     func createPrompt(id: String, _ body: PromptCreateRequest) async throws -> Prompt {
         try await send("PUT", "prompts/\(id)", body: body)
     }

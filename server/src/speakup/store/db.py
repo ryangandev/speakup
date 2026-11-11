@@ -295,6 +295,7 @@ class Store:
         "target_seconds",
         "question_source",
         "language",
+        "theme",
     )
 
     def create_prompt(self, *, id: str, **fields: Any) -> tuple[Row, bool]:
@@ -340,6 +341,152 @@ class Store:
                 (limit,),
             ).fetchall()
         return [r["text"] for r in rows]
+
+    def recent_typed_topics(self, limit: int) -> list[Row]:
+        """Ryan's own topics, newest first, each text once: `{"text", "language"}`."""
+        with self._read() as conn:
+            rows = conn.execute(
+                "SELECT text, language FROM prompts WHERE question_source = 'typed'"
+                " ORDER BY created_at DESC, rowid DESC"
+            ).fetchall()
+        topics: list[Row] = []
+        seen: set[str] = set()
+        for row in rows:
+            key = " ".join(row["text"].lower().split())
+            if key in seen:
+                continue
+            seen.add(key)
+            topics.append({"text": row["text"].strip(), "language": row["language"]})
+            if len(topics) == limit:
+                break
+        return topics
+
+    def interest_take_count(self, theme: str | None) -> int:
+        """Takes of interest prompts on `theme` (any case), or of every interest prompt."""
+        with self._read() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM takes t JOIN prompts p ON p.id = t.prompt_id"
+                " WHERE p.category = 'interest'"
+                " AND (? IS NULL OR p.theme = ? COLLATE NOCASE)",
+                (theme, theme),
+            ).fetchone()
+        return int(row["n"])
+
+    # -- themes ---------------------------------------------------------------------------
+
+    def list_themes(self, *, include_hidden: bool = False) -> list[Row]:
+        """Visible themes: pinned first, then added, then learned, each in creation order."""
+        where = "" if include_hidden else " WHERE hidden = 0"
+        with self._read() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM themes{where}"
+                " ORDER BY pinned DESC, source = 'learned', created_at, rowid"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_theme(self, theme_id: str) -> Row | None:
+        with self._read() as conn:
+            row = conn.execute("SELECT * FROM themes WHERE id = ?", (theme_id,)).fetchone()
+        return dict(row) if row else None
+
+    def add_theme(self, name: str) -> tuple[Row, bool]:
+        """Return (theme, created). A name that exists in any case is Ryan's from now on: it
+        comes back visible, as an added theme, so learning never replaces it."""
+        with self._write() as conn:
+            row = conn.execute("SELECT * FROM themes WHERE name = ?", (name,)).fetchone()
+            now = self.clock()
+            if row is not None:
+                conn.execute(
+                    "UPDATE themes SET hidden = 0, source = 'added', updated_at = ? WHERE id = ?",
+                    (now, row["id"]),
+                )
+                theme_id, created = row["id"], False
+            else:
+                theme_id, created = _new_id(), True
+                conn.execute(
+                    "INSERT INTO themes (id, name, source, created_at, updated_at)"
+                    " VALUES (?, ?, 'added', ?, ?)",
+                    (theme_id, name, now, now),
+                )
+            theme = conn.execute("SELECT * FROM themes WHERE id = ?", (theme_id,)).fetchone()
+            return dict(theme), created
+
+    def set_theme_pinned(self, theme_id: str, pinned: bool) -> Row | None:
+        """None when no visible theme has the id."""
+        with self._write() as conn:
+            cursor = conn.execute(
+                "UPDATE themes SET pinned = ?, updated_at = ? WHERE id = ? AND hidden = 0",
+                (int(pinned), self.clock(), theme_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+            return dict(conn.execute("SELECT * FROM themes WHERE id = ?", (theme_id,)).fetchone())
+
+    def remove_theme(self, theme_id: str) -> bool:
+        """Delete an added theme; hide a learned one so it is not suggested again. False when
+        the id is unknown. Removing a theme that is already hidden changes nothing."""
+        with self._write() as conn:
+            row = conn.execute("SELECT * FROM themes WHERE id = ?", (theme_id,)).fetchone()
+            if row is None:
+                return False
+            if row["source"] == "added":
+                conn.execute("DELETE FROM themes WHERE id = ?", (theme_id,))
+            elif not row["hidden"]:
+                conn.execute(
+                    "UPDATE themes SET hidden = 1, pinned = 0, updated_at = ? WHERE id = ?",
+                    (self.clock(), theme_id),
+                )
+            return True
+
+    def newest_typed_prompt_at(self) -> str | None:
+        with self._read() as conn:
+            row = conn.execute(
+                "SELECT MAX(created_at) AS at FROM prompts WHERE question_source = 'typed'"
+            ).fetchone()
+        return row["at"]
+
+    def theme_learning(self) -> Row:
+        """`{"learned_through", "failed_at"}`, both null before the first learning."""
+        with self._read() as conn:
+            row = conn.execute(
+                "SELECT learned_through, failed_at FROM theme_learning WHERE id = 1"
+            ).fetchone()
+        return dict(row) if row else {"learned_through": None, "failed_at": None}
+
+    def theme_learning_failed(self) -> None:
+        with self._write() as conn:
+            conn.execute(
+                "INSERT INTO theme_learning (id, failed_at) VALUES (1, ?)"
+                " ON CONFLICT (id) DO UPDATE SET failed_at = excluded.failed_at",
+                (self.clock(),),
+            )
+
+    def replace_learned_themes(self, names: list[str], *, through: str) -> None:
+        """Make `names` the learned themes, in that order. Pinned and hidden themes stay as they
+        are, a name that already exists keeps its row, and a hidden name is never brought back.
+        Records that learning has read the typed prompts up to `through`."""
+        with self._write() as conn:
+            now = self.clock()
+            existing = {r["name"].lower(): dict(r) for r in conn.execute("SELECT * FROM themes")}
+            wanted = {name.lower() for name in names}
+            for key, row in existing.items():
+                stale = row["source"] == "learned" and not row["pinned"] and not row["hidden"]
+                if stale and key not in wanted:
+                    conn.execute("DELETE FROM themes WHERE id = ?", (row["id"],))
+            for name in names:
+                if name.lower() in existing:
+                    continue
+                conn.execute(
+                    "INSERT INTO themes (id, name, source, created_at, updated_at)"
+                    " VALUES (?, ?, 'learned', ?, ?)",
+                    (_new_id(), name, now, now),
+                )
+            conn.execute(
+                "INSERT INTO theme_learning (id, learned_through, failed_at) VALUES (1, ?, NULL)"
+                " ON CONFLICT (id) DO UPDATE SET learned_through = excluded.learned_through,"
+                " failed_at = NULL",
+                (through,),
+            )
 
     # -- takes: API side ------------------------------------------------------------------
 

@@ -1,0 +1,8 @@
+{
+  "source": "claude",
+  "questions": [
+    {"text": "知足对你来说意味着什么？讲一个让你觉得已经足够的时刻。", "category": "interest", "theme": "Contentment", "target_seconds": 60},
+    {"text": "你觉得个人魅力可以后天培养吗？说说你的看法和两个理由。", "category": "interest", "theme": "Charisma", "target_seconds": 90},
+    {"text": "旅行中让你改变想法的一次经历是什么？", "category": "interest", "theme": "Travel", "target_seconds": 60}
+  ]
+}

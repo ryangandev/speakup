@@ -36,7 +36,7 @@ Debug builds only; none of this exists in Release.
 
 - `-debug.useMockServer YES` runs against the in-app mock server (`Mock/`), which simulates the whole pipeline with no Mac mini.
 - `-debug.mockScenario <name>` picks a scenario: `normal`, `coachingUnavailable`, `coachingFailed`, `noSpeech`, `processingFails`, `uploadFails`, `slowProcessing`, `unreachable`.
-- `-resetState` clears the phone's practice state at launch. The mock server keeps its data in memory, so it starts fresh on every launch anyway; pass `-resetState` with it so the phone does not point at takes the mock no longer has.
+- `-resetState` clears the phone's practice state at launch, with the Home language, the question track and the cached themes. The mock server keeps its data in memory, so it starts fresh on every launch anyway; pass `-resetState` with it so the phone does not point at takes the mock no longer has.
 - `-slowAfter <seconds>` shortens the "Taking longer than usual" threshold.
 - `-showsDriving YES` shows Home's "Start a drive" card, which is hidden while driving mode is set aside. The drive UI tests pass it.
 - `-debug.recognizerCapture` records a drive's recognizer input and results to the app's temporary directory, for `tools/drive-commands --replay` on a Mac (see its README).
@@ -75,8 +75,8 @@ Settings shows the same mock toggle and scenario picker in Debug builds.
 - `Audio/`: the `AVAudioEngine` recorder, the WAV writer and playback.
 - `Drive/`: driving mode: the start from Siri (`DriveIntents.swift`: `StartDriveIntent`, which opens the app and calls `AppModel.startDrive()`, and the `SpeakUpShortcuts` phrases), the voice loop (`DriveLoop`: the drive's state machine over protocols for audio, recognizer, speech and clock, tested with fakes in `SpeakUpTests/Support/DriveFakes.swift`), impromptu questions for the car (`DriveQuestions`: prefetched, cached in `drive-questions.json`, built-in bank behind them), the drive audio core (`DriveAudio`: one engine for the whole drive, the take gate and trim, the driving audio session), command recognition (`SpeechCommandRecognizer` on `SpeechAnalyzer`, its pure decisions in `CommandRecognition.swift`, the Debug `ScriptedRecognizer`), command spotting, the spoken script, and speech output (`SpeechOutput`: text rendered with `AVSpeechSynthesizer.write` and played with the tones on the drive engine's player).
   `tools/drive-commands` runs the recognition files on the Mac against real speech; keep them free of iOS-only APIs.
-- `Practice/`: the phone's local store, upload sync, the polling state machine and transcript layout.
-- `Screens/`: one file per screen group; `HomeView` with `PromptViews` (`TopicPicker`, `TopicModel`) is the whole start of a take; `DriveView` is the drive's screen (state in large text, Stop, the end summary). `Settings/`: settings and the Keychain.
+- `Practice/`: the phone's local store, upload sync, the polling state machine, transcript layout, and `ThemesModel` (the interest themes, cached in `UserDefaults`).
+- `Screens/`: one file per screen group; `HomeView` with `PromptViews` (`TopicPicker`, `TopicModel`) and `ThemesSheet` is the whole start of a take; `DriveView` is the drive's screen (state in large text, Stop, the end summary). `Settings/`: settings and the Keychain.
 - `Theme/`: every color, font, spacing value and transcript mark, plus reusable components.
 - `Mock/`: the Debug-only mock server.
 - `SpeakUpTests/Fixtures/`: the JSON examples from the contract, copied verbatim.

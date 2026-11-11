@@ -253,7 +253,12 @@ class FakeClient:
     def __init__(self, *replies: Any) -> None:
         self.replies = list(replies)
         self.calls: list[dict[str, Any]] = []
+        self.options: list[dict[str, Any]] = []
         self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+
+    def with_options(self, **options: Any) -> FakeClient:
+        self.options.append(options)
+        return self
 
     def _create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)

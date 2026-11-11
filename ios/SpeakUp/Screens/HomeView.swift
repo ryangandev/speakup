@@ -58,7 +58,10 @@ struct HomeView: View {
             }
         }
         .refreshable { await app.refresh() }
-        .task { if topic.current == nil { topic.load(api: app.api) } }
+        .task(id: app.apiGeneration) {
+            topic.start(track: app.settings.questionTrack, language: app.settings.language, api: app.api)
+            await app.themes.refresh(api: app.api)
+        }
         .task(id: processingTakeIDs) {
             // While a take of the open session is processing, keep its status current.
             while !processingTakeIDs.isEmpty, !Task.isCancelled {

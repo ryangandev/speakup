@@ -94,6 +94,7 @@ def test_story_from_upload_to_done(env):
         "target_seconds": 90,
         "question_source": "claude",
         "language": "en",
+        "theme": None,
         "created_at": "2026-11-09T08:12:40.880Z",
     }
     retry_report = env.client.get(f"/v1/takes/{TAKE2_ID}/report").json()

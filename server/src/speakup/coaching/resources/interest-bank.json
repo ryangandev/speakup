@@ -1,0 +1,67 @@
+{
+  "version": "interest-bank/1",
+  "general_themes": [
+    {"en": "Happiness", "zh": "幸福"},
+    {"en": "Friendship", "zh": "友谊"},
+    {"en": "Travel", "zh": "旅行"},
+    {"en": "Courage", "zh": "勇气"},
+    {"en": "Learning", "zh": "学习"},
+    {"en": "Time", "zh": "时间"},
+    {"en": "Money", "zh": "金钱"},
+    {"en": "Family", "zh": "家庭"}
+  ],
+  "templates": {
+    "en": {
+      "1": [
+        "What does {theme} mean to you, and has that changed over the years?",
+        "Tell the story of a moment that shaped how you think about {theme}.",
+        "What is the most useful thing you have learned about {theme}, and how did you learn it?",
+        "When did {theme} matter most in your life so far? Describe that time.",
+        "Who taught you the most about {theme}, and what did they teach you?",
+        "What would you tell your younger self about {theme}?"
+      ],
+      "2": [
+        "Explain to a friend why {theme} matters more than most people think.",
+        "What is one common misunderstanding about {theme}? Explain it and give two reasons.",
+        "Is {theme} something you can learn, or something you are born with? Give your view and your reasons.",
+        "How should a busy person make room for {theme}? Give your advice and explain why it works.",
+        "What makes {theme} harder today than it was twenty years ago? Explain your view.",
+        "Pick one book, film or idea that changed how you see {theme}, and explain what it showed you."
+      ],
+      "3": [
+        "Many people say {theme} is overrated. Take a side, then answer the strongest objection to it.",
+        "Argue against the most common advice about {theme}, then answer someone who defends it.",
+        "Someone tells you that chasing {theme} makes people less content. Do you agree? Take a side and answer the best counterpoint.",
+        "Should schools teach {theme}? Take a clear position and answer the strongest argument on the other side.",
+        "Is it selfish to put {theme} first? Defend your answer against a friend who disagrees.",
+        "Make the case that most people get {theme} wrong, then answer the objection that it is only a matter of taste."
+      ]
+    },
+    "zh": {
+      "1": [
+        "「{theme}」对你来说意味着什么？这些年你的看法有变化吗？",
+        "讲一个改变了你对「{theme}」看法的经历。",
+        "关于「{theme}」，你学到的最有用的一件事是什么？你是怎么学到的？",
+        "到目前为止，「{theme}」在你生活中什么时候最重要？说说那段时间。",
+        "谁让你对「{theme}」理解最深？他教会了你什么？",
+        "关于「{theme}」，你会对年轻时的自己说什么？"
+      ],
+      "2": [
+        "向朋友解释，为什么「{theme}」比大多数人想的更重要。",
+        "人们对「{theme}」有什么常见的误解？说说你的看法，并给出两个理由。",
+        "「{theme}」是可以学会的，还是天生的？说出你的观点和理由。",
+        "一个很忙的人应该怎样给「{theme}」留出空间？给出你的建议，并说明为什么有效。",
+        "为什么今天的「{theme}」比二十年前更难？说说你的看法。",
+        "选一本书、一部电影或一个想法，说说它怎样改变了你对「{theme}」的看法。"
+      ],
+      "3": [
+        "很多人说「{theme}」被高估了。选一个立场，再回应最有力的反对意见。",
+        "反驳关于「{theme}」最常见的建议，再回应为它辩护的人。",
+        "有人说追求「{theme}」反而让人更不满足。你同意吗？选一个立场，并回应最好的反驳。",
+        "学校应该教「{theme}」吗？明确表态，再回应对方最有力的论点。",
+        "把「{theme}」放在第一位是自私吗？向一个不同意你的朋友为你的回答辩护。",
+        "论证大多数人对「{theme}」的理解是错的，再回应“这只是个人喜好”的反对意见。"
+      ]
+    }
+  }
+}

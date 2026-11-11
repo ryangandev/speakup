@@ -51,6 +51,11 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
     private var sessions: [String: Session] = [:]
     private var prompts: [String: Prompt] = [:]
     private var takes: [String: TakeRecord] = [:]
+    /// Visible themes in creation order, and the names removed from the learned ones.
+    private var themes: [InterestTheme] = MockContent.themes.map {
+        InterestTheme(id: IDs.make(), name: $0, source: .learned, pinned: false)
+    }
+    private var hiddenThemes: Set<String> = []
     private var questionCursor = 0
     private let audioDirectory = FileManager.default.temporaryDirectory.appending(path: "MockAudio")
 
@@ -143,6 +148,10 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
         try await pause(0.6)
         let scenario = try reachableScenario()
         return lock.withLock {
+            if body.track == .interests {
+                return QuestionsResponse(
+                    source: scenario == .coachingUnavailable ? .bank : .claude, questions: interestQuestions(body))
+            }
             let pool = MockContent.questions.filter {
                 (body.category == nil || $0.category == body.category) && !body.exclude.contains($0.text)
             }
@@ -156,6 +165,53 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
         }
     }
 
+    func themes() async throws -> InterestThemeList {
+        try await pause(0.3)
+        _ = try reachableScenario()
+        return lock.withLock { InterestThemeList(themes: orderedThemes()) }
+    }
+
+    func createTheme(_ body: ThemeCreateRequest) async throws -> InterestTheme {
+        try await pause(0.2)
+        _ = try reachableScenario()
+        let name = body.name.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard (1...40).contains(name.count) else {
+            throw APIError.server(
+                status: 422, code: "validation_failed", message: "A theme name is 1 to 40 characters.", details: nil)
+        }
+        return lock.withLock {
+            hiddenThemes.remove(name.lowercased())
+            if let index = themes.firstIndex(where: { $0.name.lowercased() == name.lowercased() }) {
+                let old = themes[index]
+                themes[index] = InterestTheme(id: old.id, name: old.name, source: .added, pinned: old.pinned)
+                return themes[index]
+            }
+            let theme = InterestTheme(id: IDs.make(), name: name, source: .added, pinned: false)
+            themes.append(theme)
+            return theme
+        }
+    }
+
+    func updateTheme(id: String, _ body: ThemePatchRequest) async throws -> InterestTheme {
+        try await pause(0.2)
+        _ = try reachableScenario()
+        return try lock.withLock {
+            guard let index = themes.firstIndex(where: { $0.id == id }) else { throw Self.notFound("theme", id) }
+            themes[index].pinned = body.pinned
+            return themes[index]
+        }
+    }
+
+    func deleteTheme(id: String) async throws {
+        try await pause(0.2)
+        _ = try reachableScenario()
+        try lock.withLock {
+            guard let index = themes.firstIndex(where: { $0.id == id }) else { throw Self.notFound("theme", id) }
+            let theme = themes.remove(at: index)
+            if theme.source == .learned { hiddenThemes.insert(theme.name.lowercased()) }
+        }
+    }
+
     func createPrompt(id: String, _ body: PromptCreateRequest) async throws -> Prompt {
         try await pause(0.2)
         _ = try reachableScenario()
@@ -165,7 +221,7 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
             let prompt = Prompt(
                 id: id, sessionId: body.sessionId, kind: body.kind, text: body.text, notes: body.notes,
                 category: body.category, targetSeconds: body.targetSeconds, questionSource: body.questionSource,
-                language: body.language, createdAt: Date())
+                language: body.language, theme: body.theme, createdAt: Date())
             prompts[id] = prompt
             return prompt
         }
@@ -494,6 +550,34 @@ final class MockAPI: SpeakUpAPI, @unchecked Sendable {
         }
 
         private enum CodingKeys: String, CodingKey { case takes }
+    }
+
+    /// Pinned first, then added, then learned, as the server orders them. Call under the lock.
+    private func orderedThemes() -> [InterestTheme] {
+        themes.enumerated().sorted { a, b in
+            let ka = (a.element.pinned ? 0 : 1, a.element.source == .learned ? 1 : 0, a.offset)
+            let kb = (b.element.pinned ? 0 : 1, b.element.source == .learned ? 1 : 0, b.offset)
+            return ka < kb
+        }.map(\.element)
+    }
+
+    /// Questions on the requested theme, or spread across the themes for any. Call under the lock.
+    private func interestQuestions(_ body: QuestionsRequest) -> [Question] {
+        let names = body.theme.map { [$0] } ?? orderedThemes().map(\.name)
+        let pool = names.isEmpty ? MockContent.themes : names
+        let templates = MockContent.interestTemplates[body.language] ?? MockContent.interestTemplates[.english] ?? []
+        var picked: [Question] = []
+        var offset = 0
+        while picked.count < body.count, offset < templates.count * pool.count {
+            let theme = pool[(questionCursor + offset) % pool.count]
+            let (template, seconds) = templates[(questionCursor + offset) % templates.count]
+            offset += 1
+            let text = template.replacingOccurrences(of: "{theme}", with: theme)
+            guard !body.exclude.contains(text), !picked.contains(where: { $0.text == text }) else { continue }
+            picked.append(Question(text: text, category: .interest, theme: theme, targetSeconds: seconds))
+        }
+        questionCursor += body.count
+        return picked
     }
 
     private static func promptDetail(_ prompt: Prompt, takes: [Take]) -> PromptDetailPayload {

@@ -47,13 +47,15 @@ struct LocalPrompt: Codable, Hashable, Identifiable, Sendable {
     let targetSeconds: Int
     let questionSource: QuestionSource
     var language: SpeechLanguage = .english
+    /// An interest question's theme.
+    var theme: String? = nil
     let createdAt: Date
     var isCreated = false
 
     var createRequest: PromptCreateRequest {
         PromptCreateRequest(
             sessionId: sessionId, kind: kind, text: text, notes: notes, category: category,
-            targetSeconds: targetSeconds, questionSource: questionSource, language: language)
+            targetSeconds: targetSeconds, questionSource: questionSource, language: language, theme: theme)
     }
 }
 
@@ -172,13 +174,14 @@ final class PracticeStore {
     func addPrompt(
         sessionID: String, kind: PromptKind, text: String, notes: String?,
         category: PromptCategory?, targetSeconds: Int, questionSource: QuestionSource,
-        language: SpeechLanguage = .english, now: Date = Date()
+        language: SpeechLanguage = .english, theme: String? = nil, now: Date = Date()
     ) -> LocalPrompt? {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return nil }
         let prompt = LocalPrompt(
             id: IDs.make(), sessionId: sessionID, kind: kind, text: text,
             notes: kind == .prepared ? notes : nil, category: kind == .impromptu ? category : nil,
-            targetSeconds: targetSeconds, questionSource: questionSource, language: language, createdAt: now)
+            targetSeconds: targetSeconds, questionSource: questionSource, language: language,
+            theme: category == .interest ? theme : nil, createdAt: now)
         sessions[index].prompts.append(prompt)
         save()
         return prompt
@@ -404,6 +407,7 @@ extension LocalPrompt {
         targetSeconds = try container.decode(Int.self, forKey: .targetSeconds)
         questionSource = try container.decode(QuestionSource.self, forKey: .questionSource)
         language = try container.decodeIfPresent(SpeechLanguage.self, forKey: .language) ?? .english
+        theme = try container.decodeIfPresent(String.self, forKey: .theme)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         isCreated = try container.decodeIfPresent(Bool.self, forKey: .isCreated) ?? false
     }

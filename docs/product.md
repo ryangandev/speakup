@@ -201,10 +201,15 @@ Shows:
 
 - Server state only when something is wrong: unreachable, not set up, or reachable without coaching; a gear opens Settings.
 - Language: **English** or **中文**, remembered between launches.
-  The take is transcribed, analyzed and coached in that language; questions stay in English for now, since Ryan mostly brings his own topic in Chinese.
-- A **Question / Your own** switch; Question shows category chips: Any, Decision, Status, Explain, Push back.
-  - A category shows one question in large text, with **Another question**.
-    Questions are fetched three at a time; a small note says when they came from the built-in bank instead of Claude.
+  The take is transcribed, analyzed and coached in that language, and Claude writes questions in it (the built-in work questions stay English).
+- A **Question / Your own** switch.
+  Question has two tracks, **Interests** and **Work**, by a small switch under it that is remembered between launches (Interests first).
+  - Interests shows theme chips: Any, then Ryan's themes (pinned first), then **Edit**.
+    Claude learns the themes from the topics Ryan types himself, such as "Happiness", "Charisma" or "Travel"; Edit opens a Themes sheet to add one, pin or unpin one, or swipe one away, and a removed learned theme is never suggested again.
+    Questions start personal and reflective ("What does happiness mean to you?") and get harder as Ryan practises a theme: explaining and giving an opinion after three takes on it, then taking a side and answering a counterpoint after eight, with an easier one now and then.
+  - Work shows category chips: Any, Decision, Status, Explain, Push back.
+  - A chip shows one question in large text, under the name of its theme or category, with **Another question**.
+    Questions are fetched three at a time for each track, chip and language; a small note says when they came from the built-in bank instead of Claude.
     If the server cannot be reached, it says so and offers Retry; Your own still works.
   - Your own shows a topic field (placeholder "Today's stand-up") and optional notes for the points Ryan wants to make (typed, or dictated with the keyboard's dictation key).
     A **Show notes while recording** switch under the notes, remembered between launches, opens them on the recording screen from the start, for an outline of the argument and its order.

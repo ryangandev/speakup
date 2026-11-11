@@ -6,5 +6,6 @@
   "category": "decision",
   "target_seconds": 90,
   "question_source": "claude",
-  "language": "en"
+  "language": "en",
+  "theme": null
 }

@@ -233,6 +233,9 @@ class FakeCoach:
         self.requests: list[dict[str, Any]] = []
         self.statuses: list[str] = []
         self.question_calls: list[dict[str, Any]] = []
+        self.theme_calls: list[dict[str, Any]] = []
+        # What learn_themes returns: names, None (no key or a failed call), or an exception.
+        self.learned: list[str] | None | Exception = None
 
     def coaching_info(self) -> dict[str, Any]:
         info = copy.deepcopy(HEALTH_EXAMPLE["coaching"])
@@ -279,11 +282,17 @@ class FakeCoach:
         report = self.coach_take(request)
         return report, [{"input_tokens": 1200, "output_tokens": 800}]
 
-    def generate_questions(
-        self, *, count: int, category: str | None, exclude: list[str]
-    ) -> dict[str, Any]:
-        self.question_calls.append({"count": count, "category": category, "exclude": exclude})
+    def generate_questions(self, **kwargs: Any) -> dict[str, Any]:
+        self.question_calls.append(copy.deepcopy(kwargs))
         return copy.deepcopy(QUESTIONS_EXAMPLE)
+
+    def learn_themes(
+        self, *, topics: list[dict[str, str]], current: list[str], hidden: list[str]
+    ) -> list[str] | None:
+        self.theme_calls.append({"topics": topics, "current": current, "hidden": hidden})
+        if isinstance(self.learned, Exception):
+            raise self.learned
+        return copy.deepcopy(self.learned)
 
 
 # -- the assembled server -------------------------------------------------------------------

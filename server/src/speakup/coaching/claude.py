@@ -23,6 +23,12 @@ COACH_EFFORT = "high"
 QUESTIONS_EFFORT = "medium"
 COACH_MAX_TOKENS = 16000
 QUESTIONS_MAX_TOKENS = 4000
+# Theme learning is a short list from a few dozen titles. It runs inside GET /v1/themes, so it is
+# kept small and quick: low effort, a few tokens, a shorter timeout and one retry.
+THEMES_EFFORT = "low"
+THEMES_MAX_TOKENS = 2000
+THEMES_TIMEOUT_SECONDS = 30.0
+THEMES_MAX_RETRIES = 1
 
 # Server-side refusal fallback: if a safety classifier declines a request (for example,
 # work content that mentions security tooling), the API reruns it on Anthropic's

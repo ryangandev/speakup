@@ -108,4 +108,32 @@ MIGRATION_3 = """
 ALTER TABLE prompts ADD COLUMN language TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en', 'zh'));
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3)]
+# Interest questions: a prompt's theme, Ryan's themes (learned from his own topics by Claude, or
+# added by him), and how far learning has read. A deleted learned theme stays as hidden, so it is
+# never suggested again. `theme_learning` has one row once learning has run or failed.
+MIGRATION_4 = """
+ALTER TABLE prompts ADD COLUMN theme TEXT;
+
+CREATE TABLE themes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+  source TEXT NOT NULL CHECK (source IN ('learned', 'added')),
+  pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+  hidden INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE theme_learning (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  learned_through TEXT,         -- created_at of the newest typed prompt the last learning read
+  failed_at TEXT                -- the last failed learning, to wait before trying again
+);
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [
+    (1, MIGRATION_1),
+    (2, MIGRATION_2),
+    (3, MIGRATION_3),
+    (4, MIGRATION_4),
+]

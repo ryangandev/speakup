@@ -125,6 +125,20 @@ class QuestionList(_Strict):
     questions: list[Question]
 
 
+class InterestQuestion(_Strict):
+    text: str
+    theme: str = Field(description="The theme the question is about, as named in the request.")
+    target_seconds: int
+
+
+class InterestQuestionList(_Strict):
+    questions: list[InterestQuestion]
+
+
+class ThemeList(_Strict):
+    themes: list[str] = Field(description="Up to six short theme names, most prominent first.")
+
+
 def _drop_titles(node: Any) -> Any:
     """Remove the `title` keys Pydantic adds to every schema node; they only cost tokens.
 

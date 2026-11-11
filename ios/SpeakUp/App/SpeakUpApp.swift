@@ -36,7 +36,8 @@ struct SpeakUpApp: App {
 ///
 /// - `-debug.useMockServer YES` and `-debug.mockScenario <name>` set the mock server
 ///   (they are read from the argument domain of UserDefaults).
-/// - `-resetState` deletes the phone's practice state at launch.
+/// - `-resetState` deletes the phone's practice state at launch, with the language, the
+///   question track and the cached themes.
 /// - `-slowAfter <seconds>` shortens the "Taking longer than usual" threshold.
 /// - `-debug.syntheticMicrophone` records a generated signal instead of the microphone, for
 ///   simulators with no audio input.
@@ -55,7 +56,11 @@ enum DebugLaunch {
     @MainActor
     static func apply(store: PracticeStore) {
         let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-resetState") { store.removeAll() }
+        if arguments.contains("-resetState") {
+            store.removeAll()
+            AppSettings.resetPracticeChoices()
+            ThemesModel.removeCache()
+        }
         if arguments.contains("-debug.syntheticMicrophone") { AudioRecorder.usesSyntheticInput = true }
         if let index = arguments.firstIndex(of: "-debug.microphoneFile"), index + 1 < arguments.count {
             AudioRecorder.usesSyntheticInput = true

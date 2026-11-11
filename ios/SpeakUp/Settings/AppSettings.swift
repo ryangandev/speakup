@@ -77,6 +77,10 @@ final class AppSettings {
     var language: SpeechLanguage {
         didSet { defaults.set(language.rawValue, forKey: Keys.language) }
     }
+    /// Which questions Home shows: on Ryan's interest themes, or about work.
+    var questionTrack: QuestionTrack {
+        didSet { defaults.set(questionTrack.rawValue, forKey: Keys.questionTrack) }
+    }
     /// Whether a take's notes start open on the recording screen; off keeps them behind Show notes.
     var showsNotesWhileRecording: Bool {
         didSet { defaults.set(showsNotesWhileRecording, forKey: Keys.showsNotesWhileRecording) }
@@ -100,6 +104,7 @@ final class AppSettings {
         static let showsDriving = "showsDriving"
         static let showsNotesWhileRecording = "showsNotesWhileRecording"
         static let language = "language"
+        static let questionTrack = "questionTrack"
         static let token = "server-token"
         static let useMock = "debug.useMockServer"
         static let mockScenario = "debug.mockScenario"
@@ -120,6 +125,7 @@ final class AppSettings {
         showsDriving = defaults.bool(forKey: Keys.showsDriving)
         showsNotesWhileRecording = defaults.bool(forKey: Keys.showsNotesWhileRecording)
         language = defaults.string(forKey: Keys.language).map(SpeechLanguage.init(rawValue:)) ?? .english
+        questionTrack = defaults.string(forKey: Keys.questionTrack).map(QuestionTrack.init(rawValue:)) ?? .interests
         #if DEBUG
         useMockServer = defaults.bool(forKey: Keys.useMock)
         mockScenario = MockScenario(rawValue: defaults.string(forKey: Keys.mockScenario) ?? "") ?? .normal
@@ -127,6 +133,13 @@ final class AppSettings {
     }
 
     var serverURL: URL? { Self.validatedURL(serverAddress) }
+
+    /// Forgets the language and question track, for a launch that starts from a fresh
+    /// install's state.
+    static func resetPracticeChoices(in defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: Keys.language)
+        defaults.removeObject(forKey: Keys.questionTrack)
+    }
 
     var isConfigured: Bool {
         #if DEBUG

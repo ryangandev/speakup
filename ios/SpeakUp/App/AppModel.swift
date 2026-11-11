@@ -31,6 +31,8 @@ final class AppModel {
     let store: PracticeStore
     let player = AudioPlayer()
     let practice: PracticeCoordinator
+    /// Ryan's interest themes, for the Question page and its Themes sheet.
+    let themes: ThemesModel
     private(set) var serverStatus: ServerStatus = .checking
     private(set) var api: any SpeakUpAPI
     var isSettingsPresented = false
@@ -55,9 +57,10 @@ final class AppModel {
     /// second start then must not make a second drive.
     @ObservationIgnored private var isStartingDrive = false
 
-    init(settings: AppSettings, store: PracticeStore) {
+    init(settings: AppSettings, store: PracticeStore, themes: ThemesModel = ThemesModel()) {
         self.settings = settings
         self.store = store
+        self.themes = themes
         // No drive runs at launch, so a drive session still open was cut off when the app
         // was killed. Home practice must not add to it.
         store.closeInterruptedDrives()
@@ -199,6 +202,10 @@ struct UnconfiguredAPI: SpeakUpAPI {
     func sessions(before: Date?, limit: Int) async throws -> SessionList { throw APIError.notConfigured }
     func session(id: String) async throws -> SessionDetail { throw APIError.notConfigured }
     func questions(_ body: QuestionsRequest) async throws -> QuestionsResponse { throw APIError.notConfigured }
+    func themes() async throws -> InterestThemeList { throw APIError.notConfigured }
+    func createTheme(_ body: ThemeCreateRequest) async throws -> InterestTheme { throw APIError.notConfigured }
+    func updateTheme(id: String, _ body: ThemePatchRequest) async throws -> InterestTheme { throw APIError.notConfigured }
+    func deleteTheme(id: String) async throws { throw APIError.notConfigured }
     func createPrompt(id: String, _ body: PromptCreateRequest) async throws -> Prompt { throw APIError.notConfigured }
     func prompt(id: String) async throws -> PromptDetail { throw APIError.notConfigured }
     func uploadTake(

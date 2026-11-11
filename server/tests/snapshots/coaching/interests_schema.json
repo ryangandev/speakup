@@ -1,0 +1,38 @@
+{
+  "$defs": {
+    "InterestQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "theme": {
+          "description": "The theme the question is about, as named in the request.",
+          "type": "string"
+        },
+        "target_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "theme",
+        "target_seconds"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "questions": {
+      "items": {
+        "$ref": "#/$defs/InterestQuestion"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "questions"
+  ],
+  "type": "object"
+}

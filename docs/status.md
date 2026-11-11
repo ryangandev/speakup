@@ -9,7 +9,7 @@ It has not yet seen Ryan's real recordings, so the prompt and rubric are still v
 The analysis rules have only seen synthesized speech; their block thresholds (0.5 s inside a phrase, 1.0 s for a pause plus a filler between ideas) are starting values to calibrate on Ryan's recordings.
 Mandarin practice works end to end (2026-11-10): Home has an English / 中文 switch, a Chinese take is transcribed locally by Qwen3-ASR 1.7B, analyzed per character (嗯 and 呃, 那个 and 就是 as fillers, repetitions), and coached by Claude in Chinese.
 It has run on synthesized Chinese clips through a real server and the simulator, not yet on Ryan's own Chinese speech; the Chinese filler rules and thresholds are uncalibrated.
-The iPhone app is one simple loop (2026-11-09): Home picks a topic (a question by category, or Ryan's own) and a length, Record, and the report opens as soon as analysis is done, showing the transcript and metrics while Claude's feedback fills in.
+The iPhone app is one simple loop (2026-11-09): Home picks a topic (a question on one of Ryan's interest themes or a work category, or Ryan's own) and a length, Record, and the report opens as soon as analysis is done, showing the transcript and metrics while Claude's feedback fills in.
 It runs end to end against the real server in the simulator: settings, a take, its report, a retry and the comparison.
 It still uses system colors; the visual direction below is not applied yet, and it has not run a take on a real iPhone.
 Driving mode (M2) is set aside: its code and tests stay, but Home hides it (see [product.md#driving-mode](product.md#driving-mode)).
@@ -30,7 +30,10 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - iPhone only, SwiftUI.
 - Analysis runs on the home Mac mini as a server; coaching uses Claude.
 - Working codename: SpeakUp.
-- 2026-11-10: Chinese practice now, the same loop as English, mostly with Ryan's own topics; the preset questions stay (in English). Notes can stay open while recording, by a switch on Home.
+- 2026-11-11: the Question page has two tracks, Interests (themes learned from Ryan's own topics, editable, easy to hard) and Work.
+  Claude writes questions in the Home language.
+- 2026-11-10: Chinese practice now, the same loop as English, mostly with Ryan's own topics.
+  Notes can stay open while recording, by a switch on Home.
 - 2026-11-10: History is grouped by day, not by session, and the screens drop explanatory captions to stay plain.
 - 2026-11-09: build the core loop first, simply: open the app, pick a topic and a length, record, see the transcript and metrics right away, then Claude's report. Driving mode and the prepared/impromptu split come later; no nervousness self-ratings for now.
 
@@ -82,10 +85,10 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - A chunked upload without `Content-Length` is spooled in full before the 100 MB limit applies.
 - Session list paging can skip a session whose `started_at` ties at a page boundary.
 - The analysis misses a restart that has no pause, comma or written cut-off; coaching's self-correction annotation covers it.
-- Without an Anthropic API key, impromptu questions come only from the built-in bank, which runs out after 8 per category.
+- Without an Anthropic API key, work questions come only from the built-in bank, which runs out after 8 per category, and interest questions from templates; themes are not learned.
 - iOS: the tab bar is hidden on pushed practice screens.
 - Chinese: a repetition is missed when the engine splits the two copies differently (我们 then 我 们), and `/v1/health` reports only the English engine.
-- Chinese: impromptu questions are in English only.
+- Chinese: without Claude, work questions come from the English-only bank.
 - iOS: a recording cut off by an app crash is not recovered.
 - iOS: if the server is rebuilt, takes the phone already uploaded are not sent again.
 - Driving mode: a coaching instruction that quotes an unfinished example, such as the contract's "Second, ...", is read aloud cut short ("Second.").

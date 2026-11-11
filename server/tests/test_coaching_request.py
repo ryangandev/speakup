@@ -17,8 +17,14 @@ from anthropic.lib._parse._transform import transform_schema
 from coaching_helpers import FakeClient, output_example, reply, request, retry_output, retry_request
 
 from speakup.coaching import claude as claude_mod
-from speakup.coaching import coach_take, generate_questions
-from speakup.coaching.models import CoachingOutput, QuestionList, output_schema
+from speakup.coaching import coach_take, generate_questions, learn_themes
+from speakup.coaching.models import (
+    CoachingOutput,
+    InterestQuestionList,
+    QuestionList,
+    ThemeList,
+    output_schema,
+)
 
 SNAPSHOTS = Path(__file__).parent / "snapshots" / "coaching"
 UPDATE = os.environ.get("SPEAKUP_UPDATE_SNAPSHOTS") == "1"
@@ -107,7 +113,63 @@ def test_questions_request(fake: FakeClient, tmp_path: Path) -> None:
     assert_snapshot("questions_params.json", _dump(params))
 
 
-@pytest.mark.parametrize("model", [CoachingOutput, QuestionList])
+def test_interests_request(fake: FakeClient) -> None:
+    fake.replies.append(
+        reply(
+            {
+                "questions": [
+                    {"text": f"问题 {i}", "theme": "Charisma", "target_seconds": 90}
+                    for i in range(3)
+                ]
+            }
+        )
+    )
+    generate_questions(
+        count=3,
+        category=None,
+        exclude=["What does happiness mean to you?"],
+        track="interests",
+        language="zh",
+        interests={
+            "theme": "Charisma",
+            "takes": 4,
+            "themes": ["Happiness", "Charisma", "Travel"],
+            "topics": [
+                {"text": "Contentment is a quiet kind of wealth", "language": "en"},
+                {"text": "个人魅力是什么", "language": "zh"},
+                {"text": "被讨厌的勇气", "language": "zh"},
+                {"text": "Purpose of travel", "language": "en"},
+            ],
+        },
+    )
+
+    system, user, schema, params = _split(fake.calls[0])
+    assert_snapshot("interests_system.md", system)
+    assert_snapshot("interests_user.txt", user[0] + "\n")
+    assert_snapshot("interests_schema.json", _dump(schema))
+    assert_snapshot("interests_params.json", _dump(params))
+
+
+def test_themes_request(fake: FakeClient) -> None:
+    fake.replies.append(reply({"themes": ["Happiness", "Charisma"]}))
+    learn_themes(
+        topics=[
+            {"text": "Contentment is a quiet kind of wealth", "language": "en"},
+            {"text": "个人魅力是什么", "language": "zh"},
+            {"text": "What is happiness", "language": "en"},
+        ],
+        current=["Happiness"],
+        hidden=["Stand-ups"],
+    )
+
+    system, user, schema, params = _split(fake.calls[0])
+    assert_snapshot("themes_system.md", system)
+    assert_snapshot("themes_user.txt", user[0] + "\n")
+    assert_snapshot("themes_schema.json", _dump(schema))
+    assert_snapshot("themes_params.json", _dump(params))
+
+
+@pytest.mark.parametrize("model", [CoachingOutput, QuestionList, InterestQuestionList, ThemeList])
 def test_schemas_meet_structured_output_rules(model: type) -> None:
     """The schema is already in the form the SDK's structured-output transform produces,
     so the API receives it unchanged: every object closed and fully required, and no

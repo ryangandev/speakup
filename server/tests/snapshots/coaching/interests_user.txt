@@ -1,0 +1,17 @@
+<themes>
+Happiness
+Charisma
+Travel
+</themes>
+<his_topics>
+[en] Contentment is a quiet kind of wealth
+[zh] 个人魅力是什么
+[zh] 被讨厌的勇气
+[en] Purpose of travel
+</his_topics>
+<avoid>
+What does happiness mean to you?
+</avoid>
+Theme: Charisma
+Language: Mandarin Chinese. Write the questions in Simplified Chinese.
+Write 3 new questions, at these levels in order: 2, 2, 1.

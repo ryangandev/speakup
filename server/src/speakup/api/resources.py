@@ -35,7 +35,17 @@ def prompt_resource(row: Row) -> Row:
         "target_seconds": row["target_seconds"],
         "question_source": row["question_source"],
         "language": row["language"],
+        "theme": row["theme"],
         "created_at": row["created_at"],
+    }
+
+
+def theme_resource(row: Row) -> Row:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "source": row["source"],
+        "pinned": bool(row["pinned"]),
     }
 
 

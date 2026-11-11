@@ -59,6 +59,42 @@ struct ModelDecodingTests {
         #expect(response.source == .claude)
         #expect(response.questions.map(\.category) == [.status, .decision, .pushback])
         #expect(response.questions.map(\.targetSeconds) == [90, 90, 60])
+        #expect(response.questions.allSatisfy { $0.theme == nil })
+    }
+
+    @Test func interestQuestionsResponse() throws {
+        let response = try Fixture.decode(QuestionsResponse.self, "questions_interests_response")
+        #expect(response.questions.allSatisfy { $0.category == .interest })
+        #expect(response.questions.map(\.theme) == ["Contentment", "Charisma", "Travel"])
+        #expect(response.questions.map(\.targetSeconds) == [60, 90, 60])
+    }
+
+    @Test func interestQuestionsRequestMatchesContract() throws {
+        let body = QuestionsRequest(
+            count: 3, track: .interests, category: nil, theme: nil, exclude: [], language: .chinese)
+        #expect(Fixture.sameJSON(try JSONCoding.encoder().encode(body), Fixture.data("questions_interests_request")))
+    }
+
+    @Test func workQuestionsRequestMatchesContract() throws {
+        let body = QuestionsRequest(
+            count: 3, category: .decision,
+            exclude: ["Why did we choose Postgres over DynamoDB for the billing service?"])
+        #expect(Fixture.sameJSON(try JSONCoding.encoder().encode(body), Fixture.data("questions_request")))
+    }
+
+    @Test func themes() throws {
+        let list = try Fixture.decode(InterestThemeList.self, "themes_list")
+        #expect(list.themes.map(\.name) == ["Happiness", "Courage", "Charisma"])
+        #expect(list.themes.map(\.source) == [.learned, .added, .learned])
+        #expect(list.themes.map(\.pinned) == [true, false, false])
+        let theme = try Fixture.decode(InterestTheme.self, "theme")
+        #expect(theme == list.themes[1])
+    }
+
+    @Test func themeRequestsMatchContract() throws {
+        let encoder = JSONCoding.encoder()
+        #expect(Fixture.sameJSON(try encoder.encode(ThemeCreateRequest(name: "Courage")), Fixture.data("theme_create_request")))
+        #expect(Fixture.sameJSON(try encoder.encode(ThemePatchRequest(pinned: true)), Fixture.data("theme_patch_request")))
     }
 
     @Test func takeUploaded() throws {
@@ -284,6 +320,18 @@ struct ModelDecodingTests {
             text: "Why did we choose Postgres over DynamoDB for the billing service?", notes: nil,
             category: .decision, targetSeconds: 90, questionSource: .claude, language: .english)
         #expect(Fixture.sameJSON(try JSONCoding.encoder().encode(body), Fixture.data("prompt_create_request")))
+    }
+
+    @Test func anInterestPromptCarriesItsTheme() throws {
+        var object = Fixture.promptObject()
+        #expect(try Fixture.decode(Prompt.self, object: object).theme == nil)
+        object["category"] = "interest"
+        object["theme"] = "Travel"
+        let prompt = try Fixture.decode(Prompt.self, object: object)
+        #expect(prompt.category == .interest)
+        #expect(prompt.theme == "Travel")
+        object.removeValue(forKey: "theme")
+        #expect(try Fixture.decode(Prompt.self, object: object).theme == nil, "A server from before themes sends none")
     }
 
     @Test func aPromptWithoutALanguageIsEnglish() throws {

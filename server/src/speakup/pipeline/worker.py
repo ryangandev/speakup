@@ -62,8 +62,19 @@ class Coach(Protocol):  # satisfied by the speakup.coaching module
     def coach_take(self, request: dict[str, Any]) -> CoachingReportDoc: ...
 
     def generate_questions(
-        self, *, count: int, category: str | None, exclude: list[str]
+        self,
+        *,
+        count: int,
+        category: str | None,
+        exclude: list[str],
+        track: str = "work",
+        language: str = "en",
+        interests: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
+
+    def learn_themes(
+        self, *, topics: list[dict[str, str]], current: list[str], hidden: list[str]
+    ) -> list[str] | None: ...
 
 
 class StageFailure(Exception):

@@ -104,11 +104,13 @@ struct Badge: View {
 struct Chip: View {
     let title: String
     let isSelected: Bool
+    /// A symbol before the title, for a chip that acts rather than selects.
+    var systemImage: String? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
+            label
                 .font(Theme.Fonts.secondary.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? Theme.Colors.onAccent : Theme.Colors.textPrimary)
                 .padding(.horizontal, Theme.Spacing.m)
@@ -118,6 +120,24 @@ struct Chip: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder private var label: some View {
+        if let systemImage {
+            Label(title, systemImage: systemImage).labelStyle(ChipLabelStyle())
+        } else {
+            Text(title)
+        }
+    }
+}
+
+/// A chip's symbol and title, closer together than a plain label puts them.
+private struct ChipLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            configuration.icon.imageScale(.small)
+            configuration.title
+        }
     }
 }
 

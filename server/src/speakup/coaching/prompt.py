@@ -52,6 +52,14 @@ def questions_prompt() -> VersionedText:
     return load_resource("questions-prompt.md")
 
 
+def interests_prompt() -> VersionedText:
+    return load_resource("interests-prompt.md")
+
+
+def themes_prompt() -> VersionedText:
+    return load_resource("themes-prompt.md")
+
+
 def language_addition(language: str) -> VersionedText | None:
     """The language-specific part of the system prompt, or None for English."""
     return load_resource("coach-zh.md") if language == "zh" else None

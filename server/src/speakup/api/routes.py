@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import tempfile
+from datetime import datetime, timedelta
 from importlib import metadata
 from pathlib import Path
 from typing import Annotated, Any
@@ -31,6 +33,8 @@ from speakup.api.models import (
     SessionCreate,
     SessionPatch,
     TakeMetadata,
+    ThemeCreate,
+    ThemePatch,
     parse_id,
 )
 from speakup.pipeline import Analyzer, Coach, Worker
@@ -41,9 +45,15 @@ MAX_AUDIO_BYTES = 100 * 1024 * 1024
 # Multipart framing and the metadata part on top of the audio.
 MULTIPART_OVERHEAD = 1024 * 1024
 RECENT_QUESTIONS = 50
+# Ryan's own topics that interest questions and theme learning read.
+TOPICS_FOR_QUESTIONS = 20
+TOPICS_FOR_THEMES = 40
+# After a failed theme learning, GET /v1/themes waits this long before calling Claude again.
+THEME_RETRY_AFTER = timedelta(minutes=15)
 NO_UPPER_BOUND = "9999-12-31T23:59:59.999Z"
 
 router = APIRouter(prefix="/v1")
+log = logging.getLogger(__name__)
 
 
 def _server_version() -> str:
@@ -212,7 +222,33 @@ def get_session(session_id: str, store: StoreDep) -> dict[str, Any]:
 @router.post("/questions")
 def post_questions(body: QuestionsRequest, store: StoreDep, coach: CoachDep) -> dict[str, Any]:
     exclude = list(dict.fromkeys([*body.exclude, *store.recent_impromptu_texts(RECENT_QUESTIONS)]))
-    return coach.generate_questions(count=body.count, category=body.category, exclude=exclude)
+    if body.track == "work":
+        return coach.generate_questions(
+            count=body.count,
+            category=body.category,
+            exclude=exclude,
+            track="work",
+            language=body.language,
+        )
+    themes = [t["name"] for t in store.list_themes()]
+    theme = body.theme
+    if theme is not None:
+        # A theme Ryan has keeps its own spelling, so its takes are counted together.
+        theme = next((name for name in themes if name.lower() == theme.lower()), theme)
+    interests = {
+        "theme": theme,
+        "takes": store.interest_take_count(theme),
+        "themes": themes,
+        "topics": store.recent_typed_topics(TOPICS_FOR_QUESTIONS),
+    }
+    return coach.generate_questions(
+        count=body.count,
+        category=None,
+        exclude=exclude,
+        track="interests",
+        language=body.language,
+        interests=interests,
+    )
 
 
 @router.put("/prompts/{prompt_id}")
@@ -231,6 +267,7 @@ def put_prompt(
             target_seconds=body.target_seconds,
             question_source=body.question_source,
             language=body.language,
+            theme=body.theme,
         )
     except Conflict as exc:
         raise ApiError(409, "conflict", str(exc)) from None
@@ -246,6 +283,69 @@ def get_prompt(prompt_id: str, store: StoreDep) -> dict[str, Any]:
     if prompt is None:
         raise not_found("prompt", prompt_id)
     return _prompts_with_takes(store, [prompt])[0]
+
+
+# -- themes ------------------------------------------------------------------------------------
+
+
+def _learn_themes(store: Store, coach: Coach) -> None:
+    """Relearn the learned themes when Ryan has typed topics the last learning has not read.
+
+    Never raises: without a key, or when Claude fails, the current themes stay. A failure waits
+    THEME_RETRY_AFTER before the next try, so Home does not wait on a failing call every time.
+    """
+    newest = store.newest_typed_prompt_at()
+    state = store.theme_learning()
+    if newest is None or (state["learned_through"] or "") >= newest:
+        return
+    if not coach.coaching_info().get("available"):
+        return
+    if state["failed_at"] is not None:
+        failed = datetime.fromisoformat(state["failed_at"])
+        if datetime.fromisoformat(store.clock()) < failed + THEME_RETRY_AFTER:
+            return
+    themes = store.list_themes(include_hidden=True)
+    try:
+        names = coach.learn_themes(
+            topics=store.recent_typed_topics(TOPICS_FOR_THEMES),
+            current=[t["name"] for t in themes if not t["hidden"]],
+            hidden=[t["name"] for t in themes if t["hidden"]],
+        )
+    except Exception:
+        log.exception("theme learning raised; keeping the current themes")
+        names = None
+    if names is None:
+        store.theme_learning_failed()
+        return
+    store.replace_learned_themes(names, through=newest)
+
+
+@router.get("/themes")
+def list_themes(store: StoreDep, coach: CoachDep) -> dict[str, Any]:
+    _learn_themes(store, coach)
+    return {"themes": [resources.theme_resource(t) for t in store.list_themes()]}
+
+
+@router.post("/themes")
+def post_theme(body: ThemeCreate, response: Response, store: StoreDep) -> dict[str, Any]:
+    theme, created = store.add_theme(body.name)
+    response.status_code = 201 if created else 200
+    return resources.theme_resource(theme)
+
+
+@router.patch("/themes/{theme_id}")
+def patch_theme(theme_id: str, body: ThemePatch, store: StoreDep) -> dict[str, Any]:
+    theme = store.set_theme_pinned(lookup_id(theme_id), body.pinned)
+    if theme is None:
+        raise not_found("theme", theme_id)
+    return resources.theme_resource(theme)
+
+
+@router.delete("/themes/{theme_id}", status_code=204)
+def delete_theme(theme_id: str, store: StoreDep) -> Response:
+    if not store.remove_theme(lookup_id(theme_id)):
+        raise not_found("theme", theme_id)
+    return Response(status_code=204)
 
 
 # -- takes -------------------------------------------------------------------------------------

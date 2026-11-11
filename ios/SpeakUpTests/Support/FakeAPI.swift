@@ -18,6 +18,11 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
     var onQuestions: (@Sendable (QuestionsRequest) throws -> QuestionsResponse)?
     var onTake: (@Sendable (String) throws -> Take)?
     var onReport: (@Sendable (String) throws -> TakeReport)?
+    /// Optional: without them, themes answer with the contract's example and the edits fail.
+    var onThemes: (@Sendable () throws -> InterestThemeList)?
+    var onCreateTheme: (@Sendable (ThemeCreateRequest) throws -> InterestTheme)?
+    var onUpdateTheme: (@Sendable (String, ThemePatchRequest) throws -> InterestTheme)?
+    var onDeleteTheme: (@Sendable (String) throws -> Void)?
     /// Optional: awaited before `onUpload`, so a test can hold an upload in flight.
     var beforeUpload: (@Sendable (String) async -> Void)?
 
@@ -62,6 +67,30 @@ final class FakeAPI: SpeakUpAPI, @unchecked Sendable {
         record("questions")
         if let onQuestions { return try onQuestions(body) }
         return try Fixture.decode(QuestionsResponse.self, "questions_response")
+    }
+
+    func themes() async throws -> InterestThemeList {
+        record("themes")
+        if let onThemes { return try onThemes() }
+        return try Fixture.decode(InterestThemeList.self, "themes_list")
+    }
+
+    func createTheme(_ body: ThemeCreateRequest) async throws -> InterestTheme {
+        record("createTheme \(body.name)")
+        guard let onCreateTheme else { throw APIError.notConfigured }
+        return try onCreateTheme(body)
+    }
+
+    func updateTheme(id: String, _ body: ThemePatchRequest) async throws -> InterestTheme {
+        record("updateTheme \(id) \(body.pinned)")
+        guard let onUpdateTheme else { throw APIError.notConfigured }
+        return try onUpdateTheme(id, body)
+    }
+
+    func deleteTheme(id: String) async throws {
+        record("deleteTheme \(id)")
+        guard let onDeleteTheme else { throw APIError.notConfigured }
+        try onDeleteTheme(id)
     }
 
     func createPrompt(id: String, _ body: PromptCreateRequest) async throws -> Prompt {

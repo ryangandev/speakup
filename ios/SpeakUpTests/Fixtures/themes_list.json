@@ -1,0 +1,7 @@
+{
+  "themes": [
+    {"id": "5c0e7b1a-3d42-4f6e-8a9b-1c2d3e4f5a6b", "name": "Happiness", "source": "learned", "pinned": true},
+    {"id": "a7f3c9d2-6e1b-4c8a-9f0e-2b3c4d5e6f70", "name": "Courage", "source": "added", "pinned": false},
+    {"id": "e2d4f6a8-0b1c-4d3e-8f5a-7b9c1d2e3f40", "name": "Charisma", "source": "learned", "pinned": false}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "themes": {
+      "description": "Up to six short theme names, most prominent first.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "themes"
+  ],
+  "type": "object"
+}

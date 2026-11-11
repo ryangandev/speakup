@@ -399,6 +399,27 @@ enum MockContent {
         Question(text: "Leadership asks you to cut testing time in half. Push back on the request.", category: .pushback, targetSeconds: 90),
     ]
 
+    /// The themes a fresh mock server has learned.
+    static let themes = ["Happiness", "Charisma", "Travel", "Courage"]
+
+    /// Interest questions by language, easy to hard; `{theme}` is replaced with the theme.
+    static let interestTemplates: [SpeechLanguage: [(String, Int)]] = [
+        .english: [
+            ("What does {theme} mean to you? Give one example from your own life.", 60),
+            ("Tell a short story about a time {theme} mattered to you.", 60),
+            ("Is {theme} something you can practise, or does it just happen? Take a side and defend it.", 90),
+            ("What would change in your daily life if you took {theme} more seriously?", 90),
+            ("Some people say {theme} is overrated. Argue for or against that, and answer the strongest objection.", 120),
+        ],
+        .chinese: [
+            ("「{theme}」对你来说意味着什么？举一个你自己生活中的例子。", 60),
+            ("讲一个和「{theme}」有关、对你很重要的小故事。", 60),
+            ("「{theme}」是可以练出来的，还是自然发生的？选一边并说明理由。", 90),
+            ("如果你更认真地对待「{theme}」，你的日常生活会有什么变化？", 90),
+            ("有人说「{theme}」被高估了。表明你的立场，并回应最有力的反对意见。", 120),
+        ],
+    ]
+
     private static func rounded(_ value: Double) -> Double { (value * 100).rounded() / 100 }
 }
 

@@ -85,7 +85,7 @@ def test_migration_gives_existing_prompts_english(tmp_path: Path):
     store = Store(data)
     assert store.get_prompt("p")["language"] == "en"
     with closing(sqlite3.connect(data / "speakup.db")) as conn:
-        assert [v for (v,) in conn.execute("SELECT version FROM schema_migrations")] == [1, 2, 3]
+        assert [v for (v,) in conn.execute("SELECT version FROM schema_migrations")] == [1, 2, 3, 4]
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute("UPDATE prompts SET language = 'fr'")
 

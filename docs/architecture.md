@@ -97,7 +97,7 @@ Stage 1 runs while the take's status is `transcribing`.
 Stages 2 and 3 together are **analysis** (`analyzing`) and produce the [Analysis output](#analysis-output).
 Stage 4 (`coaching`) produces the [Coaching report](#coaching-report), and stage 5 is composed when the app asks for the [comparison](#comparison).
 
-Prompt generation for impromptu questions also uses Claude, given a short work-context profile that Ryan writes.
+Prompt generation for impromptu questions also uses Claude: work questions from a short work-context profile that Ryan writes, and interest questions from his themes, which Claude learns from the topics he chooses himself.
 
 ## Domain model
 
@@ -122,7 +122,8 @@ The analysis pipeline, the coaching module, the server API with storage, and the
 | Entity | Created by | Holds | Stored in |
 | --- | --- | --- | --- |
 | Session | App | mode (`home` or `driving`), start and end, nervousness before and after | `sessions` table |
-| Prompt | App | kind, text, notes, category, target length, question source, language | `prompts` table |
+| Prompt | App | kind, text, notes, category, target length, question source, language, theme | `prompts` table |
+| Theme | Server (learned) or app (added) | name, learned or added, pinned | `themes` table |
 | Take | App, by upload | attempt number, recording time, duration, audio hash, processing status | `takes` table; audio under `takes/<take_id>/` |
 | Transcript | Server, stage 1 | the engine's `Transcript` (the existing type in `speakup.stt`) | `transcripts` table |
 | Analysis | Server, stages 2 and 3 | words, events, metrics, nervousness signs, provenance | `analyses` table, as JSON |
@@ -145,13 +146,19 @@ The app assigns `attempt` when Ryan keeps a recording; a recording he cancels ne
 | `kind` | `prepared` or `impromptu` | |
 | `text` | string | Prepared: a short title Ryan types, such as "Today's stand-up". Impromptu: the question. |
 | `notes` | string or null | Prepared only: the points Ryan typed or dictated before recording. Always null for impromptu. |
-| `category` | `decision`, `status`, `explain`, `pushback`, `other`, or null | Impromptu question type; null for prepared |
+| `category` | `decision`, `status`, `explain`, `pushback`, `other`, `interest`, or null | Impromptu question type; null for prepared |
 | `target_seconds` | integer | Suggested length; the app shows it and never cuts a take off at it |
 | `question_source` | `typed`, `claude`, or `bank` | Who wrote `text`: Ryan, Claude, or the built-in question bank |
 | `language` | `en` or `zh` | The language Ryan answers in: English, or Mandarin (coached in Simplified Chinese). It picks the speech-to-text engine, the analysis rules and the coaching language. |
+| `theme` | string or null | An interest question's theme, such as "Happiness"; null for every other prompt |
 | `created_at` | timestamp | |
 
 Impromptu categories map to the drills in [product.md#practice-loop](product.md#practice-loop): `decision` ("Why did you choose X over Y?"), `status` ("Give a status update on a project that is behind"), `explain` ("Explain a concept to a new teammate"), `pushback` ("Push back on a request"), and `other`.
+`interest` is a question on one of Ryan's own themes in life and ideas, such as "What does happiness mean to you?"; its prompt names the theme.
+
+A **Theme** is a subject Ryan practises interest questions on, such as "Happiness" or "Travel".
+Claude learns themes from his own (typed) topics, and he can add, remove and pin them.
+Theme fields: `id` (UUID, made by the server), `name` (one to 40 characters, unique in any case), `source` (`learned` or `added`) and `pinned` (boolean).
 
 ### Take lifecycle
 
@@ -613,9 +620,19 @@ For a `zh` take, the per-word labels and units say characters: `fillers_per_100_
 
 ### Impromptu questions
 
-`speakup.coaching.generate_questions` asks Claude for questions, with structured output `{"questions": [{"text", "category", "target_seconds"}]}`, given Ryan's work-context profile, the requested category, and the questions to avoid.
-Without an API key, or if the call fails, it draws from a built-in bank of about 40 general work questions across the five categories, so impromptu practice never depends on Claude.
-The profile is a plain-text file, `profile.md` in the server's data directory, that Ryan edits by hand; the app does not edit it in M1.
+`speakup.coaching.generate_questions` writes questions on two tracks, in the requested language (English, or Simplified Chinese for Mandarin).
+
+- **Work:** Claude gets Ryan's work-context profile, the requested category, and the questions to avoid, with structured output `{"questions": [{"text", "category", "target_seconds"}]}`.
+  Without an API key, or if the call fails, it draws from a built-in bank of about 40 general work questions across the five categories, in English, so impromptu practice never depends on Claude.
+  The profile is a plain-text file, `profile.md` in the server's data directory, that Ryan edits by hand; the app does not edit it in M1.
+- **Interests:** Claude gets Ryan's themes, his last 20 own topics with their language, the requested theme (or any of his), a level for each question, and the questions to avoid, with structured output `{"questions": [{"text", "theme", "target_seconds"}]}` and the system prompt `interests-prompt.md`.
+  Questions get harder as he practises a theme, counted as his takes on interest prompts of that theme (of every theme for any): fewer than 3 is level 1, personal and reflective (what it means to him, a story, what he has learned); 3 to 7 is level 2, explain and give an opinion with reasons; 8 or more is level 3, take a side against a common view and answer a counterpoint.
+  Every third question of a batch comes from the level below, so a practised theme still has an easier one now and then.
+  The suggested length is 60, 90 or 120 seconds by level, kept between 60 and 120.
+  Without a key, or if the call fails, `interest-bank.json` fills templates for each level, in English and Chinese, with the theme; with no theme of his own yet, it uses a short built-in list of general life themes (Happiness, Friendship, Travel and others).
+
+`speakup.coaching.learn_themes` names the themes behind Ryan's own topics: Claude gets his last 40 typed topics with their language, the current themes, and the themes he removed, and returns up to six English names of one to three words, with structured output `{"themes": [...]}` and the system prompt `themes-prompt.md`.
+It runs inside `GET /v1/themes`, at low effort with a 30-second timeout and one retry.
 
 ## Server API
 
@@ -667,7 +684,11 @@ Revisit when driving mode needs feedback while the phone is locked (M2).
 | `PATCH /v1/sessions/{session_id}` | End a session; record nervousness self-ratings |
 | `GET /v1/sessions` | History: sessions, newest first |
 | `GET /v1/sessions/{session_id}` | One session with its prompts and takes |
-| `POST /v1/questions` | Generate impromptu questions |
+| `POST /v1/questions` | Generate impromptu questions, work or interest |
+| `GET /v1/themes` | Ryan's themes, relearned first when he has new topics |
+| `POST /v1/themes` | Add a theme |
+| `PATCH /v1/themes/{theme_id}` | Pin or unpin a theme |
+| `DELETE /v1/themes/{theme_id}` | Remove a theme |
 | `PUT /v1/prompts/{prompt_id}` | Create a prompt |
 | `GET /v1/prompts/{prompt_id}` | One prompt with its takes |
 | `PUT /v1/takes/{take_id}` | Upload a take |
@@ -782,6 +803,7 @@ Response `200`: the Session resource plus `prompts`, each a Prompt resource with
       "target_seconds": 90,
       "question_source": "claude",
       "language": "en",
+      "theme": null,
       "created_at": "2026-11-09T08:12:40.880Z",
       "takes": []
     }
@@ -793,25 +815,47 @@ Response `200`: the Session resource plus `prompts`, each a Prompt resource with
 
 #### `POST /v1/questions`
 
-Request (`category` may be null for any; `count` is 1 to 10, default 3; `exclude` holds question texts to avoid, and the server also avoids the last 50 impromptu prompts it stored):
+Request (`track` is `work` or `interests`, default `work`; `category` is a work category or null for any, and must be null for interests; `theme` is one of Ryan's themes or null for any of them, and must be null for work; `language` is `en` or `zh`, default `en`; `count` is 1 to 10, default 3; `exclude` holds question texts to avoid, and the server also avoids the last 50 impromptu prompts it stored):
 
 ```json
-{"count": 3, "category": "decision", "exclude": ["Why did we choose Postgres over DynamoDB for the billing service?"]}
+{"count": 3, "track": "work", "category": "decision", "theme": null, "exclude": ["Why did we choose Postgres over DynamoDB for the billing service?"], "language": "en"}
 ```
 
-Response `200` (`source` is `claude` or `bank`):
+Response `200` (`source` is `claude` or `bank`; `theme` is null for work questions):
 
 ```json
 {
   "source": "claude",
   "questions": [
-    {"text": "Your manager asks why the search rewrite slipped two weeks. Explain what happened and what you are doing about it.", "category": "status", "target_seconds": 90},
-    {"text": "Why did you split the notifications service out of the monolith instead of fixing it in place?", "category": "decision", "target_seconds": 90},
-    {"text": "A product manager wants a feature by Friday that you think needs two weeks. Push back.", "category": "pushback", "target_seconds": 60}
+    {"text": "Your manager asks why the search rewrite slipped two weeks. Explain what happened and what you are doing about it.", "category": "status", "theme": null, "target_seconds": 90},
+    {"text": "Why did you split the notifications service out of the monolith instead of fixing it in place?", "category": "decision", "theme": null, "target_seconds": 90},
+    {"text": "A product manager wants a feature by Friday that you think needs two weeks. Push back.", "category": "pushback", "theme": null, "target_seconds": 60}
   ]
 }
 ```
 
+An interest request, in Chinese, for any of Ryan's themes:
+
+```json
+{"count": 3, "track": "interests", "category": null, "theme": null, "exclude": [], "language": "zh"}
+```
+
+Its response; interest questions have the category `interest` and name their theme:
+
+```json
+{
+  "source": "claude",
+  "questions": [
+    {"text": "知足对你来说意味着什么？讲一个让你觉得已经足够的时刻。", "category": "interest", "theme": "Contentment", "target_seconds": 60},
+    {"text": "你觉得个人魅力可以后天培养吗？说说你的看法和两个理由。", "category": "interest", "theme": "Charisma", "target_seconds": 90},
+    {"text": "旅行中让你改变想法的一次经历是什么？", "category": "interest", "theme": "Travel", "target_seconds": 60}
+  ]
+}
+```
+
+A request without `track` or `language` is a work question in English, as app builds from before interests send it.
+A `theme` that matches one of Ryan's themes in another case is read as that theme.
+Questions are written in `language` when Claude writes them; the work bank is English only.
 Questions are not stored until the app creates a prompt from one.
 
 #### `PUT /v1/prompts/{prompt_id}`
@@ -827,19 +871,74 @@ Request:
   "category": "decision",
   "target_seconds": 90,
   "question_source": "claude",
-  "language": "en"
+  "language": "en",
+  "theme": null
 }
 ```
 
 A prepared prompt looks like `{"kind": "prepared", "text": "Today's stand-up", "notes": "Shipped the invoice export. Blocked on the tax API keys. Next: retry logic.", "category": null, "target_seconds": 120, "question_source": "typed", ...}`.
-Validation: `notes` and `category` must be null for the other kind; `target_seconds` is 15 to 900; `language` is `en` or `zh`, and any other value, null included, is a `422`.
+Validation: `notes` and `category` must be null for the other kind; `target_seconds` is 15 to 900; `language` is `en` or `zh`, and any other value, null included, is a `422`; `theme` is null unless `category` is `interest`, and then 1 to 40 characters or null.
+An interest question's prompt looks like `{"kind": "impromptu", "text": "What does happiness mean to you, and has that changed over the years?", "category": "interest", "theme": "Happiness", "target_seconds": 60, "question_source": "claude", "language": "en", ...}`.
+A request without `theme` means null; the Prompt resource always includes it.
 A request without `language` means `"en"`, because app builds from before Mandarin do not send it; the Prompt resource always includes it.
-An identical repeat compares `language` too, so the same id with another language is a `409`.
+An identical repeat compares `language` and `theme` too, so the same id with another language or theme is a `409`.
 Response `201` or `200` (identical repeat) or `409`: the **Prompt** resource, the request plus `id` and `created_at`.
 
 #### `GET /v1/prompts/{prompt_id}`
 
 Response `200`: the Prompt resource plus `takes`, Take resources by attempt.
+
+#### `GET /v1/themes`
+
+Response `200`: Ryan's themes, pinned first, then added, then learned; removed themes are left out.
+
+```json
+{
+  "themes": [
+    {"id": "5c0e7b1a-3d42-4f6e-8a9b-1c2d3e4f5a6b", "name": "Happiness", "source": "learned", "pinned": true},
+    {"id": "a7f3c9d2-6e1b-4c8a-9f0e-2b3c4d5e6f70", "name": "Courage", "source": "added", "pinned": false},
+    {"id": "e2d4f6a8-0b1c-4d3e-8f5a-7b9c1d2e3f40", "name": "Charisma", "source": "learned", "pinned": false}
+  ]
+}
+```
+
+When Ryan has typed topics newer than the last learning and the server has an API key, the server first relearns ([Impromptu questions](#impromptu-questions)).
+Learning replaces the learned themes, except pinned ones, keeps added ones, and never brings back a removed one.
+Without a key, or when Claude fails, the current themes come back unchanged and the request still succeeds; after a failure the server waits 15 minutes before trying again.
+
+#### `POST /v1/themes`
+
+Request:
+
+```json
+{"name": "Courage"}
+```
+
+Response `201`: the Theme resource, with `source` `added`.
+
+```json
+{"id": "a7f3c9d2-6e1b-4c8a-9f0e-2b3c4d5e6f70", "name": "Courage", "source": "added", "pinned": false}
+```
+
+`name` is 1 to 40 characters after trimming, else `422`.
+A name that already exists in any case answers `200` with that theme, shown again if Ryan had removed it and marked `added`, so learning no longer replaces it.
+
+#### `PATCH /v1/themes/{theme_id}`
+
+Request:
+
+```json
+{"pinned": true}
+```
+
+Response `200`: the Theme resource.
+`pinned` must be a boolean; an unknown or removed id is a `404`.
+
+#### `DELETE /v1/themes/{theme_id}`
+
+Response `204` with no body.
+An added theme is deleted; a learned one is kept hidden, so learning never suggests it again.
+Removing an already removed theme is a `204` too; an unknown id is a `404`.
 
 #### `PUT /v1/takes/{take_id}`
 
@@ -1073,6 +1172,27 @@ Keeping every stage run makes it possible to compare a new engine, threshold set
 Server-generated ids (transcripts, analyses, coaching reports) are UUIDs too; they never appear in the API.
 Schema changes are numbered migrations applied at startup.
 The DDL above is migration 1; migration 2 adds `takes.stage_started_at TEXT`, and migration 3 adds `prompts.language TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en', 'zh'))`, so every earlier prompt is English.
+Migration 4 adds `prompts.theme TEXT` and the theme tables:
+
+```sql
+CREATE TABLE themes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+  source TEXT NOT NULL CHECK (source IN ('learned', 'added')),
+  pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+  hidden INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE theme_learning (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  learned_through TEXT,         -- created_at of the newest typed prompt the last learning read
+  failed_at TEXT                -- the last failed learning, to wait before trying again
+);
+```
+
+A removed learned theme stays as a `hidden` row, so learning never suggests it again.
 
 ## Module boundaries and ownership
 
@@ -1154,9 +1274,20 @@ def coaching_info() -> dict[str, Any]:
 def coach_take(request: CoachingRequest) -> CoachingReportDoc:
     """One Claude call (plus at most one re-ask). Returns the stored form of the report."""
 
-def generate_questions(*, count: int, category: str | None,
-                       exclude: list[str]) -> dict[str, Any]:
+class InterestContext(TypedDict):     # filled by the API from the store
+    theme: str | None                  # None: any of Ryan's themes
+    takes: int                         # his takes on interest prompts of that theme (all for None)
+    themes: list[str]                  # his visible themes, pinned first
+    topics: list[dict[str, str]]       # his recent own topics, newest first: {"text", "language"}
+
+def generate_questions(*, count: int, category: str | None, exclude: list[str],
+                       track: str = "work", language: str = "en",
+                       interests: InterestContext | None = None) -> dict[str, Any]:
     """{"source": "claude" | "bank", "questions": [...]}. Never raises for a missing key."""
+
+def learn_themes(*, topics: list[dict[str, str]], current: list[str],
+                 hidden: list[str]) -> list[str] | None:
+    """Up to six theme names, or None without a key or when the call fails."""
 
 
 # speakup.pipeline
@@ -1169,7 +1300,11 @@ class Analyzer(Protocol):   # satisfied by the speakup.analysis module
 class Coach(Protocol):      # satisfied by the speakup.coaching module
     def coaching_info(self) -> dict[str, Any]: ...
     def coach_take(self, request: CoachingRequest) -> CoachingReportDoc: ...
-    def generate_questions(self, *, count: int, category: str | None, exclude: list[str]) -> dict[str, Any]: ...
+    def generate_questions(self, *, count: int, category: str | None, exclude: list[str],
+                           track: str = "work", language: str = "en",
+                           interests: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def learn_themes(self, *, topics: list[dict[str, str]], current: list[str],
+                     hidden: list[str]) -> list[str] | None: ...
 
 class Worker:
     def __init__(self, store: Store, engine: Engine, analyzer: Analyzer, coach: Coach, *,
@@ -1270,11 +1405,11 @@ Server settings added in M1 (the API implementer adds them to `server/.env.examp
 | Name | Default | Meaning |
 | --- | --- | --- |
 | `SPEAKUP_API_TOKEN` | none; the server refuses to start without it | Bearer token the app sends |
-| `ANTHROPIC_API_KEY` | none | Coaching and question generation; without it coaching is unavailable and questions come from the bank |
+| `ANTHROPIC_API_KEY` | none | Coaching, question generation and theme learning; without it coaching is unavailable, questions come from the banks and themes are not learned |
 | `SPEAKUP_DATA_DIR` | `data/server` in the repository | Database, audio and `profile.md` |
 | `SPEAKUP_STT_ENGINE` | `crisperwhisper` until the bake-off decides | Engine name from `registry.py`, for English prompts |
 | `SPEAKUP_STT_ENGINE_ZH` | `paraformer-zh`, a placeholder until the Mandarin engine is chosen (`DEFAULT_STT_ENGINE_ZH` in `speakup/config.py`) | Engine name from `registry.py`, for Mandarin (`zh`) prompts |
-| `SPEAKUP_COACH_MODEL` | `claude-opus-5-5` | Claude model for coaching and questions |
+| `SPEAKUP_COACH_MODEL` | `claude-opus-5-5` | Claude model for coaching, questions and themes |
 | `SPEAKUP_PORT` | `8765` | Local port behind `tailscale serve` |
 
 ## Data and privacy
@@ -1284,6 +1419,7 @@ Recordings contain Ryan's work content.
 - Audio, transcripts and reports are stored on the Mac mini and cached on the iPhone.
 - Transcripts, and the prompts and prepared notes that contain work context, are sent to Anthropic for coaching.
 - The work-context profile (`profile.md`) and recent impromptu questions are sent to Anthropic to generate new questions.
+- Ryan's own topic titles (without their notes), with his themes, are sent to Anthropic to learn his themes and to write interest questions.
 - Audio is sent to ElevenLabs only if Scribe wins the bake-off.
 - During the bake-off only, the test recordings go to ElevenLabs and, when its key is set, to AssemblyAI.
 

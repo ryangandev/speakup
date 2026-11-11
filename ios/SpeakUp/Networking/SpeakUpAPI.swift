@@ -9,6 +9,10 @@ protocol SpeakUpAPI: Sendable {
     func sessions(before: Date?, limit: Int) async throws -> SessionList
     func session(id: String) async throws -> SessionDetail
     func questions(_ body: QuestionsRequest) async throws -> QuestionsResponse
+    func themes() async throws -> InterestThemeList
+    func createTheme(_ body: ThemeCreateRequest) async throws -> InterestTheme
+    func updateTheme(id: String, _ body: ThemePatchRequest) async throws -> InterestTheme
+    func deleteTheme(id: String) async throws
     func createPrompt(id: String, _ body: PromptCreateRequest) async throws -> Prompt
     func prompt(id: String) async throws -> PromptDetail
     func uploadTake(

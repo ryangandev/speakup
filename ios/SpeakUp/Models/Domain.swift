@@ -28,6 +28,23 @@ struct PromptCategory: OpenEnum {
     static let explain = Self(rawValue: "explain")
     static let pushback = Self(rawValue: "pushback")
     static let other = Self(rawValue: "other")
+    /// A question on one of Ryan's own themes, not about work.
+    static let interest = Self(rawValue: "interest")
+}
+
+/// Which questions `POST /v1/questions` writes: on Ryan's interest themes, or about work.
+struct QuestionTrack: OpenEnum {
+    let rawValue: String
+    init(rawValue: String) { self.rawValue = rawValue }
+    static let interests = Self(rawValue: "interests")
+    static let work = Self(rawValue: "work")
+}
+
+struct InterestThemeSource: OpenEnum {
+    let rawValue: String
+    init(rawValue: String) { self.rawValue = rawValue }
+    static let learned = Self(rawValue: "learned")
+    static let added = Self(rawValue: "added")
 }
 
 struct QuestionSource: OpenEnum {
@@ -179,12 +196,14 @@ struct Prompt: Codable, Hashable, Sendable, Identifiable {
     let targetSeconds: Int
     let questionSource: QuestionSource
     let language: SpeechLanguage
+    /// An interest question's theme; nil for every other prompt.
+    var theme: String? = nil
     let createdAt: Date
 }
 
 extension Prompt {
     private enum CodingKeys: String, CodingKey {
-        case id, sessionId, kind, text, notes, category, targetSeconds, questionSource, language, createdAt
+        case id, sessionId, kind, text, notes, category, targetSeconds, questionSource, language, theme, createdAt
     }
 
     /// A server from before `language` sends none, which means English.
@@ -199,6 +218,7 @@ extension Prompt {
         targetSeconds = try container.decode(Int.self, forKey: .targetSeconds)
         questionSource = try container.decode(QuestionSource.self, forKey: .questionSource)
         language = try container.decodeIfPresent(SpeechLanguage.self, forKey: .language) ?? .english
+        theme = try container.decodeIfPresent(String.self, forKey: .theme)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 }
@@ -302,12 +322,26 @@ struct CoachingInfo: Codable, Hashable, Sendable {
 struct Question: Codable, Hashable, Sendable {
     let text: String
     let category: PromptCategory
+    /// The theme of an interest question; nil for work. A server from before interests sends none.
+    var theme: String? = nil
     let targetSeconds: Int
 }
 
 struct QuestionsResponse: Codable, Hashable, Sendable {
     let source: QuestionSource
     let questions: [Question]
+}
+
+/// One of Ryan's interest themes (`GET /v1/themes`).
+struct InterestTheme: Codable, Hashable, Sendable, Identifiable {
+    let id: String
+    let name: String
+    let source: InterestThemeSource
+    var pinned: Bool
+}
+
+struct InterestThemeList: Codable, Hashable, Sendable {
+    let themes: [InterestTheme]
 }
 
 /// `GET /v1/takes/{id}/report`.

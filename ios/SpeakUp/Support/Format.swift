@@ -151,6 +151,7 @@ extension PromptCategory {
         case .explain: return "Explain"
         case .pushback: return "Push back"
         case .other: return "Other"
+        case .interest: return "Interest"
         default: return fallbackLabel
         }
     }

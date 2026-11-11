@@ -152,6 +152,8 @@ def test_questions_avoid_the_request_and_the_recent_prompts(env):
             "count": 3,
             "category": "decision",
             "exclude": ["Something Ryan just saw?", PROMPT_REQUEST["text"]],
+            "track": "work",
+            "language": "en",
         }
     ]
     # Defaults: three questions, any category, nothing excluded but what is stored.

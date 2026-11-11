@@ -40,6 +40,11 @@ def _q(text: str, category: str = "decision", seconds: int = 90) -> dict:
     return {"text": text, "category": category, "target_seconds": seconds}
 
 
+def _served(text: str, category: str = "decision", seconds: int = 90) -> dict:
+    """A work question as the server returns it: Claude's question plus a null theme."""
+    return {**_q(text, category, seconds), "theme": None}
+
+
 def test_bank_has_about_forty_questions_across_the_five_categories() -> None:
     counts = Counter(q["category"] for q in bank())
     assert set(counts) == set(CATEGORIES)
@@ -54,7 +59,7 @@ def test_without_a_key_questions_come_from_the_bank(no_key: None) -> None:
     assert result["source"] == "bank"
     assert len(result["questions"]) == 3
     for q in result["questions"]:
-        assert set(q) == {"text", "category", "target_seconds"}
+        assert set(q) == {"text", "category", "theme", "target_seconds"}
         assert q["category"] == "pushback"
 
 
@@ -84,7 +89,10 @@ def test_claude_questions_are_used_when_a_key_exists(fake: FakeClient, tmp_path:
 
     result = generate_questions(count=2, category="decision", exclude=["Why Postgres?"])
 
-    assert result == {"source": "claude", "questions": [_q("Why Kafka over SQS?"), _q("Why gRPC?")]}
+    assert result == {
+        "source": "claude",
+        "questions": [_served("Why Kafka over SQS?"), _served("Why gRPC?")],
+    }
     user = fake.calls[0]["messages"][0]["content"][0]["text"]
     assert "I work on the billing service." in user
     assert "Why Postgres?" in user
@@ -98,7 +106,7 @@ def test_claude_questions_drop_excluded_and_clamp_length(fake: FakeClient) -> No
     result = generate_questions(count=2, category="decision", exclude=["why  postgres?"])
 
     assert result["source"] == "claude"
-    assert result["questions"] == [_q("Why Kafka?", seconds=300), _q("Why Go?")]
+    assert result["questions"] == [_served("Why Kafka?", seconds=300), _served("Why Go?")]
 
 
 def test_too_few_usable_claude_questions_fall_back_to_the_bank(fake: FakeClient) -> None:

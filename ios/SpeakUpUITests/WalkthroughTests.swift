@@ -98,7 +98,46 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Practice"].waitForExistence(timeout: 5))
         app.buttons["Question"].tap()
         XCTAssertTrue(app.buttons["Another question"].waitForExistence(timeout: 10))
+        // Interests come first, with the themes the server learned.
+        XCTAssertTrue(app.buttons["theme.any"].exists)
+        XCTAssertTrue(app.buttons["theme.happiness"].exists)
         shootScrolling("11-home-session")
+        app.buttons["theme.travel"].tap()
+        XCTAssertTrue(app.buttons["Another question"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'travel' OR label CONTAINS 'Travel'"))
+                .firstMatch.exists)
+        shot("11-question-theme")
+        app.buttons["中文"].tap()
+        XCTAssertTrue(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS '「Travel」'")).firstMatch
+                .waitForExistence(timeout: 10))
+        shot("11-question-theme-chinese")
+        app.buttons["English"].tap()
+
+        // The Themes sheet: add one, pin one.
+        app.buttons["themes.edit"].tap()
+        XCTAssertTrue(app.navigationBars["Themes"].waitForExistence(timeout: 5))
+        sleep(1)
+        shot("11-themes")
+        let name = app.textFields["themes.newName"]
+        name.tap()
+        name.typeText("Deep work")
+        app.buttons["themes.add"].tap()
+        XCTAssertTrue(app.staticTexts["Deep work"].waitForExistence(timeout: 5))
+        app.buttons["Pin Courage"].tap()
+        XCTAssertTrue(app.buttons["Unpin Courage"].waitForExistence(timeout: 5))
+        sleep(1)
+        shot("11-themes-edited")
+        app.navigationBars["Themes"].buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["theme.deep work"].waitForExistence(timeout: 5))
+        shot("11-question-themes-edited")
+
+        // Work questions, by category.
+        app.buttons["Work"].tap()
+        XCTAssertTrue(app.buttons["topic.decision"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Another question"].waitForExistence(timeout: 10))
+        shot("11-question-work")
         app.buttons["Another question"].tap()
         sleep(1)
         app.buttons["topic.decision"].tap()

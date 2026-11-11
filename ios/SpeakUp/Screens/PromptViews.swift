@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// The topic on Home (product.md#home): a question from the bank, by category, or Ryan's own.
+/// The topic on Home (product.md#home): a question, on one of Ryan's interest themes or about
+/// work, or a topic of his own.
 struct TopicPicker: View {
     @Environment(AppModel.self) private var app
     @Bindable var model: TopicModel
     var focusedField: FocusState<TopicModel.Field?>.Binding
+    @State private var isEditingThemes = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
@@ -25,16 +27,18 @@ struct TopicPicker: View {
             .pickerStyle(.segmented)
 
             switch model.choice {
-            case .question:
-                FlowLayout(spacing: Theme.Spacing.s, lineSpacing: Theme.Spacing.s) {
-                    ForEach(TopicModel.categories, id: \.title) { option in
-                        Chip(title: option.title, isSelected: model.choice == .question(option.category)) {
-                            select(.question(option.category))
-                        }
-                        .accessibilityIdentifier("topic.\(option.title.lowercased())")
+            case .question(let pick):
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    Picker("Questions", selection: track) {
+                        Text("Interests").tag(QuestionTrack.interests)
+                        Text("Work").tag(QuestionTrack.work)
                     }
+                    .pickerStyle(.segmented)
+                    .controlSize(.small)
+                    .fixedSize()
+                    chips(for: pick)
                 }
-                questionArea
+                questionArea(pick)
             case .own:
                 ownTopic
             }
@@ -43,27 +47,73 @@ struct TopicPicker: View {
                 LengthPicker(options: AppSettings.impromptuLengths, selection: $model.targetSeconds)
             }
         }
+        .sheet(isPresented: $isEditingThemes) {
+            ThemesSheet()
+        }
+        .onChange(of: app.themes.names) { _, names in
+            model.themesChanged(names, api: app.api)
+        }
     }
 
     private var language: Binding<SpeechLanguage> {
-        Binding(get: { app.settings.language }, set: { app.settings.language = $0 })
+        Binding(
+            get: { app.settings.language },
+            set: {
+                app.settings.language = $0
+                model.setLanguage($0, api: app.api)
+            })
     }
 
     private var source: Binding<TopicModel.Source> {
         Binding(
             get: { model.choice == .own ? .own : .question },
-            set: { select($0 == .own ? .own : .question(model.questionCategory)) })
+            set: { select($0 == .own ? .own : .question(model.pick(for: model.track))) })
+    }
+
+    private var track: Binding<QuestionTrack> {
+        Binding(
+            get: { model.track },
+            set: {
+                app.settings.questionTrack = $0
+                select(.question(model.pick(for: $0)))
+            })
     }
 
     private func select(_ choice: TopicModel.Choice) {
         model.select(choice, api: app.api, ownSeconds: app.settings.defaultPreparedSeconds)
     }
 
-    @ViewBuilder private var questionArea: some View {
+    @ViewBuilder private func chips(for pick: TopicModel.Pick) -> some View {
+        FlowLayout(spacing: Theme.Spacing.s, lineSpacing: Theme.Spacing.s) {
+            switch pick {
+            case .interest:
+                Chip(title: "Any", isSelected: pick == .interest(nil)) { select(.question(.interest(nil))) }
+                    .accessibilityIdentifier("theme.any")
+                ForEach(app.themes.themes) { theme in
+                    Chip(title: theme.name, isSelected: pick == .interest(theme.name)) {
+                        select(.question(.interest(theme.name)))
+                    }
+                    .accessibilityIdentifier("theme.\(theme.name.lowercased())")
+                }
+                Chip(title: "Edit", isSelected: false, systemImage: "pencil") { isEditingThemes = true }
+                    .accessibilityLabel("Edit themes")
+                    .accessibilityIdentifier("themes.edit")
+            case .work:
+                ForEach(TopicModel.categories, id: \.title) { option in
+                    Chip(title: option.title, isSelected: pick == .work(option.category)) {
+                        select(.question(.work(option.category)))
+                    }
+                    .accessibilityIdentifier("topic.\(option.title.lowercased())")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func questionArea(_ pick: TopicModel.Pick) -> some View {
         if let question = model.current {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                if case .question(nil) = model.choice {
-                    Text(question.category.label.uppercased())
+                if let label = Self.label(question, pick: pick) {
+                    Text(label.uppercased())
                         .font(Theme.Fonts.captionEmphasis)
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
@@ -108,6 +158,16 @@ struct TopicPicker: View {
         }
     }
 
+    /// What the question is under, when the chip does not already say: its theme or category
+    /// for Any.
+    private static func label(_ question: Question, pick: TopicModel.Pick) -> String? {
+        switch pick {
+        case .interest(nil): return question.theme ?? question.category.label
+        case .work(nil): return question.category.label
+        default: return nil
+        }
+    }
+
     private var ownTopic: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
@@ -146,13 +206,27 @@ struct TopicPicker: View {
     }
 }
 
-/// The topic Home records next: questions fetched three at a time for the chosen category,
-/// or a topic Ryan types.
+/// The topic Home records next: questions fetched three at a time for the chosen theme or
+/// category in the Home language, or a topic Ryan types. Each pick keeps its own questions, so
+/// going back to one shows the question it showed before.
 @MainActor
 @Observable
 final class TopicModel {
+    /// Which questions: on an interest theme or of a work category, nil for any.
+    enum Pick: Hashable {
+        case interest(String?)
+        case work(PromptCategory?)
+
+        var track: QuestionTrack {
+            switch self {
+            case .interest: return .interests
+            case .work: return .work
+            }
+        }
+    }
+
     enum Choice: Hashable {
-        case question(PromptCategory?)
+        case question(Pick)
         case own
     }
 
@@ -164,21 +238,47 @@ final class TopicModel {
         ("Any", nil), ("Decision", .decision), ("Status", .status), ("Explain", .explain), ("Push back", .pushback),
     ]
 
-    private(set) var choice: Choice = .question(nil)
-    /// The category of the questions in `queue`, kept while Ryan writes his own topic.
-    private(set) var questionCategory: PromptCategory?
-    private(set) var queue: [Question] = []
-    private(set) var source: QuestionSource = .claude
-    private(set) var isLoading = false
-    private(set) var errorMessage: String?
+    private struct Key: Hashable {
+        let pick: Pick
+        let language: SpeechLanguage
+    }
+
+    private struct Batch {
+        var queue: [Question]
+        let source: QuestionSource
+    }
+
+    private(set) var choice: Choice
+    /// The track the question page shows, kept while Ryan writes his own topic.
+    private(set) var track: QuestionTrack
+    private(set) var language: SpeechLanguage = .english
     var ownTitle = ""
     var ownNotes = ""
     var targetSeconds = AppSettings.defaultImpromptuSeconds
+    /// The last pick on each track.
+    private var interestTheme: String?
+    private var workCategory: PromptCategory?
+    private var batches: [Key: Batch] = [:]
+    private var errors: [Key: String] = [:]
+    private var loads: [Key: Task<Void, Never>] = [:]
     /// Questions already shown, sent as `exclude` so the server does not repeat them.
     private var shown: [String] = []
-    private var loadTask: Task<Void, Never>?
+    private var hasStarted = false
 
-    var current: Question? { queue.first }
+    init(track: QuestionTrack = .interests) {
+        self.track = track
+        choice = .question(track == .work ? .work(nil) : .interest(nil))
+    }
+
+    private var key: Key? {
+        guard case .question(let pick) = choice else { return nil }
+        return Key(pick: pick, language: language)
+    }
+
+    var current: Question? { key.flatMap { batches[$0]?.queue.first } }
+    var source: QuestionSource { key.flatMap { batches[$0]?.source } ?? .claude }
+    var isLoading: Bool { key.map { loads[$0] != nil } ?? false }
+    var errorMessage: String? { key.flatMap { errors[$0] } }
 
     private var trimmedTitle: String { ownTitle.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -196,29 +296,64 @@ final class TopicModel {
         }
     }
 
+    /// The pick the track's page shows: the last one chosen on it.
+    func pick(for track: QuestionTrack) -> Pick {
+        track == .work ? .work(workCategory) : .interest(interestTheme)
+    }
+
+    /// When Home appears or the server changes: the saved track the first time, then a
+    /// question for the current pick unless it has one.
+    func start(track: QuestionTrack, language: SpeechLanguage, api: any SpeakUpAPI) {
+        self.language = language
+        if !hasStarted {
+            hasStarted = true
+            self.track = track
+            if case .question = choice { choice = .question(pick(for: track)) }
+        }
+        // Coming back to Home keeps the question on screen and the length Ryan chose for it.
+        guard let key, current == nil, loads[key] == nil else { return }
+        load(api: api)
+    }
+
+    func setLanguage(_ language: SpeechLanguage, api: any SpeakUpAPI) {
+        guard language != self.language else { return }
+        self.language = language
+        showOrLoad(api: api)
+    }
+
     func select(_ choice: Choice, api: any SpeakUpAPI, ownSeconds: Int) {
-        guard choice != self.choice || (choice != .own && current == nil) else { return }
+        guard choice != self.choice else {
+            if current == nil, !isLoading { load(api: api) }
+            return
+        }
         self.choice = choice
         switch choice {
-        case .question(let category):
-            // Back from Your own to the same category: the question shown before is still there.
-            if category == questionCategory, let question = current {
-                targetSeconds = Self.suggestedSeconds(question)
-                return
+        case .question(let pick):
+            track = pick.track
+            switch pick {
+            case .interest(let theme): interestTheme = theme
+            case .work(let category): workCategory = category
             }
-            questionCategory = category
-            queue = []
-            load(api: api)
+            showOrLoad(api: api)
         case .own:
-            loadTask?.cancel()
-            isLoading = false
             targetSeconds = ownSeconds
         }
     }
 
+    /// After the themes change: a removed theme's chip is gone, so its page falls back to Any.
+    func themesChanged(_ names: [String], api: any SpeakUpAPI) {
+        guard let theme = interestTheme, !names.contains(where: { $0.caseInsensitiveCompare(theme) == .orderedSame })
+        else { return }
+        interestTheme = nil
+        if choice == .question(.interest(theme)) {
+            choice = .question(.interest(nil))
+            showOrLoad(api: api)
+        }
+    }
+
     func next(api: any SpeakUpAPI) {
-        guard case .question = choice else { return }
-        if !queue.isEmpty { queue.removeFirst() }
+        guard let key else { return }
+        if batches[key]?.queue.isEmpty == false { batches[key]?.queue.removeFirst() }
         if let question = current {
             show(question)
         } else {
@@ -227,24 +362,31 @@ final class TopicModel {
     }
 
     func load(api: any SpeakUpAPI) {
-        guard case .question(let category) = choice else { return }
-        loadTask?.cancel()
-        isLoading = true
-        errorMessage = nil
-        let request = QuestionsRequest(count: 3, category: category, exclude: Array(shown.suffix(50)))
-        loadTask = Task {
+        guard let key else { return }
+        loads[key]?.cancel()
+        errors[key] = nil
+        let exclude = Array(shown.suffix(50))
+        let request: QuestionsRequest
+        switch key.pick {
+        case .interest(let theme):
+            request = QuestionsRequest(
+                count: 3, track: .interests, category: nil, theme: theme, exclude: exclude, language: key.language)
+        case .work(let category):
+            request = QuestionsRequest(
+                count: 3, track: .work, category: category, theme: nil, exclude: exclude, language: key.language)
+        }
+        loads[key] = Task {
             do {
                 let response = try await api.questions(request)
                 guard !Task.isCancelled else { return }
-                source = response.source
-                queue = response.questions
-                if let question = current { show(question) }
-                if response.questions.isEmpty { errorMessage = "The server sent no questions." }
+                batches[key] = Batch(queue: response.questions, source: response.source)
+                if response.questions.isEmpty { errors[key] = "The server sent no questions." }
+                if self.key == key, let question = current { show(question) }
             } catch {
                 guard !Task.isCancelled else { return }
-                errorMessage = APIError.wrap(error).userMessage
+                errors[key] = APIError.wrap(error).userMessage
             }
-            isLoading = false
+            loads[key] = nil
         }
     }
 
@@ -257,7 +399,7 @@ final class TopicModel {
             return store.addPrompt(
                 sessionID: sessionID, kind: .impromptu, text: question.text, notes: nil,
                 category: question.category, targetSeconds: targetSeconds, questionSource: source,
-                language: language)
+                language: language, theme: question.theme)
         case .own:
             guard !trimmedTitle.isEmpty else { return nil }
             let notes = ownNotes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -278,8 +420,18 @@ final class TopicModel {
         }
     }
 
+    /// Shows the current pick's question, or fetches some when it has none and none are coming.
+    private func showOrLoad(api: any SpeakUpAPI) {
+        guard let key else { return }
+        if let question = current {
+            show(question)
+        } else if loads[key] == nil {
+            load(api: api)
+        }
+    }
+
     private func show(_ question: Question) {
-        shown.append(question.text)
+        if !shown.contains(question.text) { shown.append(question.text) }
         targetSeconds = Self.suggestedSeconds(question)
     }
 

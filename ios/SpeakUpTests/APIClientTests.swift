@@ -101,6 +101,41 @@ struct APIClientTests {
         #expect(Fixture.sameJSON(try #require(recorded.body), Fixture.data("questions_request")))
     }
 
+    @Test func themesCalls() async throws {
+        StubURLProtocol.install { request in
+            switch request.httpMethod {
+            case "GET": return StubURLProtocol.json(200, Fixture.data("themes_list"))
+            case "DELETE": return StubURLProtocol.json(204, Data())
+            default: return StubURLProtocol.json(request.httpMethod == "POST" ? 201 : 200, Fixture.data("theme"))
+            }
+        }
+        let list = try await client().themes()
+        #expect(list.themes.count == 3)
+        #expect(try lastRequest().request.url?.path() == "/v1/themes")
+
+        let created = try await client().createTheme(ThemeCreateRequest(name: "Courage"))
+        #expect(created.source == .added)
+        var recorded = try lastRequest()
+        #expect(recorded.request.httpMethod == "POST")
+        #expect(Fixture.sameJSON(try #require(recorded.body), Fixture.data("theme_create_request")))
+
+        _ = try await client().updateTheme(id: created.id, ThemePatchRequest(pinned: true))
+        recorded = try lastRequest()
+        #expect(recorded.request.httpMethod == "PATCH")
+        #expect(recorded.request.url?.path() == "/v1/themes/\(created.id)")
+        #expect(Fixture.sameJSON(try #require(recorded.body), Fixture.data("theme_patch_request")))
+
+        try await client().deleteTheme(id: created.id)
+        recorded = try lastRequest()
+        #expect(recorded.request.httpMethod == "DELETE")
+        #expect(recorded.request.url?.path() == "/v1/themes/\(created.id)")
+    }
+
+    @Test func deletingAnUnknownThemeIsNotFound() async throws {
+        StubURLProtocol.install { _ in StubURLProtocol.json(404, Fixture.data("error")) }
+        await #expect(throws: APIError.self) { try await client().deleteTheme(id: "missing") }
+    }
+
     @Test func createPromptPutsTheContractBody() async throws {
         StubURLProtocol.install { _ in
             StubURLProtocol.json(201, try JSONSerialization.data(withJSONObject: Fixture.promptObject()))

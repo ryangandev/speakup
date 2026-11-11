@@ -435,6 +435,7 @@ def test_the_database_survives_a_reopen_and_migrations_run_once(env):
             (1,),
             (2,),
             (3,),
+            (4,),
         ]
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
 

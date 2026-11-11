@@ -87,6 +87,7 @@ class _RealCoach:
         self.coaching_info = package.coaching_info
         self.coach_take = package.coach_take
         self.generate_questions = package.generate_questions
+        self.learn_themes = package.learn_themes
         self.CoachingUnavailable = package.CoachingUnavailable
         self.CoachingFailed = package.CoachingFailed
         with_usage = getattr(coach_module, "coach_take_with_usage", None)
