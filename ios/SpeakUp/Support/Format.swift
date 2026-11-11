@@ -36,6 +36,18 @@ enum Format {
         date.formatted(date: .omitted, time: .shortened)
     }
 
+    /// A History day heading: Today, Yesterday, Mon, Nov 9, or Mon, Nov 9, 2025 in another year.
+    static func day(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, inSameDayAs: now) { return "Today" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        var style = Date.FormatStyle(date: .omitted, time: .omitted, calendar: calendar, timeZone: calendar.timeZone)
+            .weekday(.abbreviated).month(.abbreviated).day()
+        if !calendar.isDate(date, equalTo: now, toGranularity: .year) { style = style.year() }
+        return date.formatted(style)
+    }
+
     static func rating(_ value: Int?) -> String {
         value.map { "\($0)/5" } ?? "Skipped"
     }

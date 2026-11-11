@@ -116,10 +116,14 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 5))
         sleep(1)
         shootScrolling("17-history")
-        app.cells.firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Session"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Today"].exists, "History groups topics by day")
+        // The first topic today is the question; the Postgres topic with two takes is next.
+        let topic = app.cells.containing(.staticText, identifier: "Why we picked Postgres for billing").firstMatch
+        XCTAssertTrue(topic.waitForExistence(timeout: 5))
+        topic.tap()
+        XCTAssertTrue(app.navigationBars["Takes"].waitForExistence(timeout: 5))
         sleep(1)
-        shootScrolling("18-session-detail")
+        shootScrolling("18-topic-takes")
         let take = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Take 2'")).firstMatch
         // At large text sizes the row starts below the fold, and the list only loads what is near.
         for _ in 0..<6 where !(take.exists && take.isHittable) { scrollPage() }

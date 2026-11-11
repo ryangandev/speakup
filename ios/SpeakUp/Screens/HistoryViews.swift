@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum HistoryRoute: Hashable {
-    case session(id: String)
+    case topic(sessionID: String, promptID: String)
     case report(takeID: String)
     case comparison(takeID: String)
 }
@@ -13,11 +13,11 @@ struct HistoryTab: View {
     var body: some View {
         @Bindable var app = app
         NavigationStack(path: $app.historyPath) {
-            SessionsView()
+            DaysView()
                 .navigationDestination(for: HistoryRoute.self) { route in
                     Group {
                         switch route {
-                        case .session(let id): SessionDetailView(sessionID: id)
+                        case .topic(let sessionID, let promptID): TopicTakesView(sessionID: sessionID, promptID: promptID)
                         case .report(let takeID): ReportView(takeID: takeID, context: .history)
                         case .comparison(let takeID): ComparisonView(takeID: takeID, context: .history)
                         }
@@ -28,8 +28,40 @@ struct HistoryTab: View {
     }
 }
 
-/// Sessions, newest first, loading more on scroll.
-struct SessionsView: View {
+/// One day of practice: the topics Ryan answered that day, newest first.
+struct HistoryDay: Identifiable, Equatable {
+    struct Topic: Identifiable, Equatable {
+        let sessionID: String
+        let prompt: PromptSummary
+        let startedAt: Date
+        var id: String { prompt.id }
+    }
+
+    let day: Date
+    let topics: [Topic]
+    var id: Date { day }
+
+    /// Groups sessions (newest first, as the server sends them) by the day they started.
+    static func group(_ sessions: [SessionListItem], calendar: Calendar = .current) -> [HistoryDay] {
+        var days: [HistoryDay] = []
+        for item in sessions.sorted(by: { $0.session.startedAt > $1.session.startedAt }) {
+            let day = calendar.startOfDay(for: item.session.startedAt)
+            // A session's prompts come oldest first; the day lists the newest first.
+            let topics = item.prompts.reversed().map {
+                Topic(sessionID: item.id, prompt: $0, startedAt: item.session.startedAt)
+            }
+            if let last = days.last, last.day == day {
+                days[days.count - 1] = HistoryDay(day: day, topics: last.topics + topics)
+            } else {
+                days.append(HistoryDay(day: day, topics: topics))
+            }
+        }
+        return days.filter { !$0.topics.isEmpty }
+    }
+}
+
+/// Days, newest first, loading more on scroll.
+struct DaysView: View {
     @Environment(AppModel.self) private var app
     @State private var sessions: [SessionListItem] = []
     @State private var nextBefore: Date?
@@ -40,6 +72,7 @@ struct SessionsView: View {
     private static let pageSize = 20
 
     var body: some View {
+        let days = HistoryDay.group(sessions)
         List {
             if let errorMessage, sessions.isEmpty {
                 Banner(
@@ -49,12 +82,16 @@ struct SessionsView: View {
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             }
-            ForEach(sessions) { item in
-                NavigationLink(value: HistoryRoute.session(id: item.id)) {
-                    SessionRow(item: item)
-                }
-                .onAppear {
-                    if item.id == sessions.last?.id { Task { await loadMore() } }
+            ForEach(days) { day in
+                Section(Format.day(day.day)) {
+                    ForEach(day.topics) { topic in
+                        NavigationLink(value: HistoryRoute.topic(sessionID: topic.sessionID, promptID: topic.prompt.id)) {
+                            TopicRow(topic: topic)
+                        }
+                        .onAppear {
+                            if topic.id == days.last?.topics.last?.id { Task { await loadMore() } }
+                        }
+                    }
                 }
             }
             if isLoading && !sessions.isEmpty {
@@ -66,9 +103,7 @@ struct SessionsView: View {
         }
         .overlay {
             if hasLoaded && sessions.isEmpty && errorMessage == nil {
-                ContentUnavailableView(
-                    "No sessions yet", systemImage: "clock",
-                    description: Text("Sessions appear here once a take is uploaded."))
+                ContentUnavailableView("No takes yet", systemImage: "clock")
             } else if !hasLoaded && isLoading {
                 ProgressView()
             }
@@ -110,79 +145,47 @@ struct SessionsView: View {
     }
 }
 
-private struct SessionRow: View {
-    let item: SessionListItem
+private struct TopicRow: View {
+    let topic: HistoryDay.Topic
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(Format.dateTime(item.session.startedAt)).font(Theme.Fonts.bodyEmphasis)
-                Spacer(minLength: Theme.Spacing.s)
-                Badge(text: item.session.mode.label, color: Theme.Colors.neutral)
-            }
-            if let first = item.prompts.first {
-                Text(first.text).font(Theme.Fonts.secondary).foregroundStyle(Theme.Colors.textPrimary)
-                    .lineLimit(2)
-            }
-            Text(counts).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-            Text(
-                "Nervousness \(Format.rating(item.session.nervousnessBefore)) before, \(afterRating) after"
-            )
-            .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+            Text(topic.prompt.text).font(Theme.Fonts.body).lineLimit(2)
+            Text(detail).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
         }
-        .padding(.vertical, Theme.Spacing.xs)
+        .padding(.vertical, Theme.Spacing.xxs)
     }
 
-    private var afterRating: String {
-        if item.session.endedAt == nil { return "open" }
-        return Format.rating(item.session.nervousnessAfter)
-    }
-
-    private var counts: String {
-        let prompts = item.prompts.count == 1 ? "1 prompt" : "\(item.prompts.count) prompts"
-        let takes = item.takeCount == 1 ? "1 take" : "\(item.takeCount) takes"
-        return "\(prompts), \(takes)"
+    private var detail: String {
+        let takes = topic.prompt.takeCount == 1 ? "1 take" : "\(topic.prompt.takeCount) takes"
+        return "\(Format.time(topic.startedAt)) · \(takes)"
     }
 }
 
-/// One session: its prompts in order, each with its takes.
-struct SessionDetailView: View {
+/// One topic's takes, in order.
+struct TopicTakesView: View {
     @Environment(AppModel.self) private var app
     let sessionID: String
-    @State private var detail: SessionDetail?
+    let promptID: String
+    @State private var prompt: PromptDetail?
     @State private var errorMessage: String?
 
     var body: some View {
         List {
-            if let detail {
+            if let prompt {
                 Section {
-                    LabeledContent("Started", value: Format.dateTime(detail.session.startedAt))
-                    LabeledContent("Mode", value: detail.session.mode.label)
-                    LabeledContent("Nervousness before", value: Format.rating(detail.session.nervousnessBefore))
-                    LabeledContent(
-                        "Nervousness after",
-                        value: detail.session.endedAt == nil ? "Open" : Format.rating(detail.session.nervousnessAfter))
-                }
-                ForEach(detail.prompts) { prompt in
-                    Section {
-                        if prompt.takes.isEmpty {
-                            Text("No takes").foregroundStyle(Theme.Colors.textSecondary)
+                    ForEach(prompt.takes) { take in
+                        NavigationLink(value: HistoryRoute.report(takeID: take.id)) {
+                            HistoryTakeRow(take: take)
                         }
-                        ForEach(prompt.takes) { take in
-                            NavigationLink(value: HistoryRoute.report(takeID: take.id)) {
-                                HistoryTakeRow(take: take, language: prompt.prompt.language)
-                            }
-                            .disabled(!(take.status == .done || take.status == .coaching))
-                        }
-                    } header: {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                            Text(prompt.prompt.kind.label.uppercased())
-                            Text(prompt.prompt.text)
-                                .font(Theme.Fonts.secondary.weight(.semibold))
-                                .foregroundStyle(Theme.Colors.textPrimary)
-                                .textCase(nil)
-                        }
+                        .disabled(!(take.status == .done || take.status == .coaching))
                     }
+                } header: {
+                    Text(prompt.prompt.text)
+                        .font(Theme.Fonts.title)
+                        .foregroundStyle(Theme.Colors.textPrimary)
+                        .textCase(nil)
+                        .padding(.bottom, Theme.Spacing.s)
                 }
             } else if let errorMessage {
                 Banner(
@@ -193,8 +196,8 @@ struct SessionDetailView: View {
                 .listRowBackground(Color.clear)
             }
         }
-        .overlay { if detail == nil && errorMessage == nil { ProgressView() } }
-        .navigationTitle("Session")
+        .overlay { if prompt == nil && errorMessage == nil { ProgressView() } }
+        .navigationTitle("Takes")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task(id: app.apiGeneration) { await load() }
@@ -202,7 +205,12 @@ struct SessionDetailView: View {
 
     private func load() async {
         do {
-            detail = try await app.api.session(id: sessionID)
+            let detail = try await app.api.session(id: sessionID)
+            guard let match = detail.prompts.first(where: { $0.prompt.id == promptID }) else {
+                errorMessage = "This topic is no longer on the server."
+                return
+            }
+            prompt = match
             errorMessage = nil
         } catch {
             errorMessage = APIError.wrap(error).userMessage
@@ -212,7 +220,6 @@ struct SessionDetailView: View {
 
 private struct HistoryTakeRow: View {
     let take: Take
-    let language: SpeechLanguage
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
@@ -227,22 +234,10 @@ private struct HistoryTakeRow: View {
             }
             if let verdict = take.summary?.verdict {
                 Text(verdict).font(Theme.Fonts.secondary).lineLimit(3)
-            } else if take.status == .done {
-                Text("No coaching").font(Theme.Fonts.secondary).foregroundStyle(Theme.Colors.textSecondary)
             } else if let error = take.error {
                 Text(error.message).font(Theme.Fonts.secondary).foregroundStyle(Theme.Colors.negative)
             }
-            if let summary = take.summary {
-                Text(metrics(summary)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-            }
         }
         .padding(.vertical, Theme.Spacing.xxs)
-    }
-
-    private func metrics(_ summary: TakeSummary) -> String {
-        var parts: [String] = []
-        if let fillers = summary.fillersPer100Words { parts.append("\(Format.decimal(fillers)) fillers per 100 \(language == .chinese ? "characters" : "words")") }
-        if let blocks = summary.blocks { parts.append(blocks == 1 ? "1 block" : "\(blocks) blocks") }
-        return parts.joined(separator: ", ")
     }
 }

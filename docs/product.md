@@ -164,6 +164,7 @@ At home, Ryan uses the full screen:
 
 The M1 home-mode screens: what each shows, its primary actions, and how they connect.
 Visual design is decided separately; this section is the behavior the app must have.
+Screens stay plain: a label only where the content does not speak for itself, and no explanatory captions (2026-11-10).
 Data shapes and endpoints are in [architecture.md#server-api](architecture.md#server-api).
 
 ### Navigation
@@ -176,7 +177,7 @@ Practice tab
   Home ──▶ Settings (sheet)
 
 History tab
-  Sessions ──▶ Session ──▶ Report ──▶ Comparison
+  Days ──▶ Topic ──▶ Report ──▶ Comparison
 ```
 
 The app has two tabs, Practice and History.
@@ -185,7 +186,7 @@ On first launch, with no server address or token, Settings opens first.
 
 ### Sessions in the app
 
-Sessions group takes for History; Ryan never manages them.
+Sessions group takes on the server; Ryan never sees or manages them, and History shows days instead.
 
 - A session opens when Ryan records his first take with no session open.
 - It stays open across topics and retries.
@@ -198,7 +199,7 @@ One screen: pick a topic, pick a length, record.
 
 Shows:
 
-- Server state: reachable, unreachable, or reachable without coaching; a gear opens Settings.
+- Server state only when something is wrong: unreachable, not set up, or reachable without coaching; a gear opens Settings.
 - Language: **English** or **中文**, remembered between launches.
   The take is transcribed, analyzed and coached in that language; questions stay in English for now, since Ryan mostly brings his own topic in Chinese.
 - A **Question / Your own** switch; Question shows category chips: Any, Decision, Status, Explain, Push back.
@@ -209,7 +210,7 @@ Shows:
     A **Show notes while recording** switch under the notes, remembered between launches, opens them on the recording screen from the start, for an outline of the argument and its order.
 - A target length picker: 30 seconds, 1, 1.5, 2, 3 or 5 minutes.
   A question brings its suggested length; Your own starts at the default from Settings (2 minutes).
-- The open session's takes, newest first: prompt text, attempt number, and status or verdict.
+- **Recent**: the open session's takes, newest first: prompt text, attempt number, and status or verdict.
   A take still on the phone shows "Not uploaded" with Retry upload.
 - Takes of ended sessions still on the phone, such as a drive's offline takes, under "Waiting to upload".
 
@@ -218,7 +219,7 @@ After a take starts, Home moves on to the next question, or clears a typed topic
 
 ### Recording
 
-Shows the prompt text, the prepared notes (open when Home's "Show notes while recording" is on, otherwise collapsed behind "Show notes"; a tap toggles them either way), the elapsed time against the target (it keeps counting past the target and never stops the take there), a live input level, and the microphone in use.
+Shows the prompt text, the prepared notes (open when Home's "Show notes while recording" is on, otherwise collapsed behind "Show notes"; a tap toggles them either way), the elapsed time against the target (it keeps counting past the target and never stops the take there; the bar turns orange), and a live input level.
 The screen stays awake.
 
 Actions: **Done** (primary; stops and keeps the take), Cancel (discards after a confirmation).
@@ -231,7 +232,7 @@ If a phone call or another app interrupts recording, the take stops and is kept 
 
 ### Processing
 
-Shows upload progress, then the stage from the take's status (Transcribing, Analyzing) and the elapsed time.
+Shows upload progress, then the stage from the take's status (Transcribing, Analyzing).
 After 3 minutes it adds "Taking longer than usual".
 As soon as analysis is done (the take's status is `coaching` or `done`), the app moves to the Report by itself: the transcript and metrics show at once, and Claude's feedback fills in when coaching finishes.
 
@@ -245,7 +246,7 @@ Actions: Back to Home (processing continues on the server and the take appears o
 
 Top to bottom:
 
-1. Header: prompt text, attempt number, length against target, date.
+1. Header: prompt text and length against target; the title is the attempt number.
 2. For attempt 2 or later, a comparison card: the comparison summary and each previous focus item's outcome; tapping it opens Comparison.
 3. **Verdict.**
 4. **Strength**, with its quote; tapping the quote plays that audio.
@@ -256,9 +257,9 @@ Top to bottom:
 9. **Annotated transcript**: fillers, blocks, repetitions, restarts and off-topic stretches marked inline, boundary pauses shown faintly, with a legend.
    Tapping a word plays from there; tapping a mark explains it.
 10. **Reference version**, collapsed until tapped.
-11. **Metrics**: fillers per 100 words with the normal range (about 2 to 6), blocks, restarts and repetitions; pace, pitch variation and volume variation marked "for information".
+11. **Metrics**: fillers per 100 words, blocks, restarts and repetitions; below a divider, ungraded, pace, pitch variation and volume variation.
     The fillers row expands to every filler with its timestamp and a play button.
-12. **Nervousness**: the signs found in this take, never as a score, next to the session's self-ratings when it has any.
+12. **Nervousness**: the signs found in this take, never as a score, next to the session's self-ratings when it has any; left out when there is neither.
 
 Until coaching is done, and without coaching, sections 3 to 5, 7, 8 and 10 are replaced by one banner; the transcript, metrics and nervousness remain, and the comparison card shows metric changes only:
 
@@ -271,7 +272,7 @@ Actions: **Retry**, New topic (back to Home with the session still open), play a
 
 ### Comparison
 
-Shows "Take n against take n - 1", the summary, each previous focus item with its outcome (improved, partly improved, not improved, not applicable), evidence and quote to play, the six dimension levels before and after, and the metric changes before and after (graded metrics marked better, same or worse; others marked "for information").
+Shows "Take n against take n - 1", the summary, each previous focus item with its outcome (improved, partly improved, not improved, not applicable), evidence and quote to play, the six dimension levels before and after, and the metric changes before and after (graded metrics marked better, same or worse; the ungraded ones below a divider).
 Two play buttons play the two takes, so Ryan can hear the difference.
 Without coaching on either take, only metric changes are shown, with a note why.
 
@@ -279,10 +280,11 @@ Actions: play either take, open either take's Report, **Retry** again.
 
 ### History
 
-**Sessions:** newest first, loading more on scroll.
-Each row shows the date, mode, the first prompt's text and the number of prompts, the number of takes, and nervousness before and after.
+**Days:** one section per day (Today, Yesterday, then the date), newest first, loading more on scroll (2026-11-10).
+Each row is a topic Ryan answered that day: its text, the time, and the number of takes.
+A day is the day its session started.
 
-**Session:** its prompts in order, each with its takes: attempt, length, verdict, fillers per 100 words and blocks.
+**Topic:** the topic's text and its takes in order: attempt, length and verdict.
 Tapping a take opens its Report.
 
 Trends over time and focus tracking are M3, per [Roadmap](#roadmap).

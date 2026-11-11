@@ -31,6 +31,7 @@ The M0 speech-to-text bake-off is built and waits on Ryan's recordings; see [bak
 - Analysis runs on the home Mac mini as a server; coaching uses Claude.
 - Working codename: SpeakUp.
 - 2026-11-10: Chinese practice now, the same loop as English, mostly with Ryan's own topics; the preset questions stay (in English). Notes can stay open while recording, by a switch on Home.
+- 2026-11-10: History is grouped by day, not by session, and the screens drop explanatory captions to stay plain.
 - 2026-11-09: build the core loop first, simply: open the app, pick a topic and a length, record, see the transcript and metrics right away, then Claude's report. Driving mode and the prepared/impromptu split come later; no nervousness self-ratings for now.
 
 ## Waiting on Ryan

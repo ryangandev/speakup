@@ -122,7 +122,7 @@ struct TopicPicker: View {
                     .accessibilityIdentifier("topic.ownTitle")
             }
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                FieldLabel("Notes", detail: "Optional. The points you want to make.")
+                FieldLabel("Notes")
                 TextEditor(text: $model.ownNotes)
                     .font(Theme.Fonts.body)
                     .focused(focusedField, equals: .notes)
@@ -300,7 +300,7 @@ struct LengthPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            FieldLabel("Target length", detail: "A guide only; recording never stops at it.")
+            FieldLabel("Target length")
             // Chips wrap onto a second line rather than truncate, at any text size.
             FlowLayout(spacing: Theme.Spacing.s, lineSpacing: Theme.Spacing.s) {
                 ForEach(options, id: \.self) { seconds in
@@ -314,21 +314,11 @@ struct LengthPicker: View {
 
 struct FieldLabel: View {
     let title: String
-    var detail: String?
 
-    init(_ title: String, detail: String? = nil) {
-        self.title = title
-        self.detail = detail
-    }
+    init(_ title: String) { self.title = title }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-            Text(title).font(Theme.Fonts.sectionTitle).foregroundStyle(Theme.Colors.textPrimary)
-            if let detail {
-                Text(detail).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        Text(title).font(Theme.Fonts.sectionTitle).foregroundStyle(Theme.Colors.textPrimary)
     }
 }
 

@@ -67,7 +67,9 @@ struct ReportView: View {
                     ReferenceCard(reference: coaching.referenceVersion)
                 }
                 MetricsCard(analysis: report.analysis, takeID: takeID)
-                NervousnessCard(signs: report.analysis.nervousnessSigns, ratings: model.ratings)
+                if NervousnessCard.hasContent(signs: report.analysis.nervousnessSigns, ratings: model.ratings) {
+                    NervousnessCard(signs: report.analysis.nervousnessSigns, ratings: model.ratings)
+                }
             }
             .screenContent()
         }
@@ -136,7 +138,7 @@ private struct ReportHeader: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(
-                "Take \(report.take.attempt) · \(Format.clock(report.take.durationS)) of \(Format.target(report.prompt.targetSeconds)) target · \(Format.dateTime(report.take.recordedAt))"
+                "\(Format.clock(report.take.durationS)) of \(Format.target(report.prompt.targetSeconds))"
             )
             .font(Theme.Fonts.secondary)
             .foregroundStyle(Theme.Colors.textSecondary)
@@ -340,8 +342,6 @@ private struct ReferenceCard: View {
                 Text(reference.text).font(Theme.Fonts.body)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
-                Text("A model of structure in your own content, not a script to memorize.")
-                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
             }
         }
     }
@@ -363,10 +363,7 @@ private struct MetricsCard: View {
                 HStack(alignment: .firstTextBaseline) {
                     ValueRow(
                         label: analysis.countsCharacters ? "Fillers per 100 characters" : "Fillers per 100 words",
-                        value: Format.decimal(metrics.fillers.per100Words),
-                        // The 2 to 6 norm is for English words; there is none yet for characters.
-                        note: analysis.countsCharacters
-                            ? "\(fillerCount) in this take." : "Normal is about 2 to 6. \(fillerCount) in this take.")
+                        value: Format.decimal(metrics.fillers.per100Words))
                     Image(systemName: showsFillers ? "chevron.up" : "chevron.down")
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
@@ -382,8 +379,6 @@ private struct MetricsCard: View {
             ValueRow(label: "Restarts", value: "\(metrics.restarts)")
             ValueRow(label: "Repetitions", value: "\(metrics.repetitions)")
             Divider()
-            Text("For information, not graded").font(Theme.Fonts.captionEmphasis)
-                .foregroundStyle(Theme.Colors.textSecondary)
             ValueRow(
                 label: "Pace",
                 value: "\(Int(metrics.pace.wpmVoiced.rounded())) \(analysis.countsCharacters ? "characters/min" : "wpm")")
@@ -394,11 +389,6 @@ private struct MetricsCard: View {
                 label: "Volume variation",
                 value: metrics.volume.map { "\(Format.decimal($0.variationDb)) dB" } ?? "Not measured")
         }
-    }
-
-    private var fillerCount: String {
-        let count = metrics.fillers.filledPauses + metrics.fillers.lexical
-        return count == 1 ? "1 filler" : "\(count) fillers"
     }
 
     private var fillerList: some View {
@@ -427,10 +417,20 @@ private struct NervousnessCard: View {
     let signs: [NervousnessSign]
     let ratings: (before: Int?, after: Int?, isOpen: Bool)?
 
+    /// Self-ratings are set aside (product.md#sessions-in-the-app), so most takes have none.
+    private static func hasRatings(_ ratings: (before: Int?, after: Int?, isOpen: Bool)?) -> Bool {
+        ratings?.before != nil || ratings?.after != nil
+    }
+
+    /// The card shows only when a sign was found or the session has a self-rating.
+    static func hasContent(signs: [NervousnessSign], ratings: (before: Int?, after: Int?, isOpen: Bool)?) -> Bool {
+        !signs.isEmpty || hasRatings(ratings)
+    }
+
     var body: some View {
         Card {
             SectionTitle("Nervousness")
-            if let ratings {
+            if let ratings, Self.hasRatings(ratings) {
                 VStack(spacing: Theme.Spacing.s) {
                     ValueRow(label: "Before", value: Format.rating(ratings.before))
                     ValueRow(
@@ -438,21 +438,14 @@ private struct NervousnessCard: View {
                         value: ratings.after.map { "\($0)/5" } ?? (ratings.isOpen ? "Session open" : "Skipped"))
                 }
             }
-            if signs.isEmpty {
-                Text("No signs of nervousness found in this take.")
-                    .font(Theme.Fonts.secondary).foregroundStyle(Theme.Colors.textSecondary)
-            } else {
-                ForEach(Array(signs.enumerated()), id: \.offset) { _, sign in
-                    Label {
-                        Text(sign.detail).font(Theme.Fonts.body)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } icon: {
-                        Image(systemName: "waveform.path.ecg").foregroundStyle(Theme.Colors.caution)
-                    }
+            ForEach(Array(signs.enumerated()), id: \.offset) { _, sign in
+                Label {
+                    Text(sign.detail).font(Theme.Fonts.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "waveform.path.ecg").foregroundStyle(Theme.Colors.caution)
                 }
             }
-            Text("Signs found in the audio, shown next to your own rating. Not a score.")
-                .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
         }
     }
 }

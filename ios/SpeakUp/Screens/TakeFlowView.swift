@@ -67,8 +67,6 @@ struct RecordingView: View {
         ) {
             Button("Discard take", role: .destructive) { flow.discard() }
             Button(flow.unsavedRecording == nil ? "Keep recording" : "Keep the take", role: .cancel) {}
-        } message: {
-            Text("The recording is deleted and does not count as an attempt.")
         }
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
@@ -133,22 +131,12 @@ struct RecordingView: View {
             }
             ProgressView(value: min(recorder.elapsed, target), total: max(target, 1))
                 .tint(recorder.elapsed > target ? Theme.Colors.caution : Theme.Colors.accent)
-            if recorder.elapsed > target {
-                Text("Past the target by \(Format.clock(recorder.elapsed - target)). Keep going or tap Done.")
-                    .font(Theme.Fonts.caption)
-                    .foregroundStyle(Theme.Colors.caution)
-            }
         }
         .accessibilityElement(children: .combine)
     }
 
     private var meter: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            LevelMeter(level: recorder.level)
-            Label(recorder.micName, systemImage: "mic")
-                .font(Theme.Fonts.caption)
-                .foregroundStyle(Theme.Colors.textSecondary)
-        }
+        LevelMeter(level: recorder.level)
     }
 }
 
@@ -224,8 +212,6 @@ struct ProcessingView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                 Text("Uploading").font(Theme.Fonts.sectionTitle)
                 ProgressView(value: progress)
-                Text("Saved on this phone. Sending it to your Mac mini.")
-                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
             }
         case .processing(let status):
             StageList(status: status, controller: controller)
@@ -270,7 +256,7 @@ struct ProcessingView: View {
     }
 }
 
-/// Transcribing and Analyzing, with the current one spinning and the elapsed time. The report
+/// Transcribing and Analyzing, with the current one spinning. The report
 /// opens once analysis is done, and shows coaching while it runs.
 private struct StageList: View {
     let status: TakeStatus
@@ -289,22 +275,11 @@ private struct StageList: View {
                 }
             }
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    if let started = controller.processingStartedAt {
-                        Text("Elapsed \(Format.clock(context.date.timeIntervalSince(started)))")
-                            .font(Theme.Fonts.secondary.monospacedDigit())
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                    }
-                    if controller.isSlow(at: context.date) {
-                        Label("Taking longer than usual", systemImage: "hourglass")
-                            .font(Theme.Fonts.secondary)
-                            .foregroundStyle(Theme.Colors.caution)
-                    }
+                if controller.isSlow(at: context.date) {
+                    Label("Taking longer than usual", systemImage: "hourglass")
+                        .font(Theme.Fonts.secondary)
+                        .foregroundStyle(Theme.Colors.caution)
                 }
-            }
-            if status == .uploaded {
-                Text("Waiting for the Mac mini to start.")
-                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
             }
         }
     }

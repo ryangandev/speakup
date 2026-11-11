@@ -190,8 +190,6 @@ struct ComparisonView: View {
             if !informational.isEmpty {
                 // Like the Report: pace, length, pitch and volume are context, not a grade.
                 Divider()
-                Text("For information, not graded").font(Theme.Fonts.captionEmphasis)
-                    .foregroundStyle(Theme.Colors.textSecondary)
                 ForEach(informational, id: \.metric) { metricRow($0, showsChange: false) }
             }
         }

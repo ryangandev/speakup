@@ -11,7 +11,7 @@ struct TranscriptCard: View {
     var body: some View {
         let tokens = TranscriptLayout.tokens(for: analysis)
         Card {
-            SectionTitle("Transcript", detail: "Tap a word to play from there")
+            SectionTitle("Transcript")
             Legend(kinds: TranscriptLayout.kindsPresent(in: analysis))
             FlowLayout(spacing: Theme.Spacing.xs, lineSpacing: Theme.Spacing.s) {
                 ForEach(tokens) { token in

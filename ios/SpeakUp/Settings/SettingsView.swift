@@ -83,8 +83,6 @@ struct SettingsView: View {
                 Text(saveError).foregroundStyle(Theme.Colors.negative)
             } else if !address.isEmpty && !addressIsValid {
                 Text("Enter a full address starting with https://.").foregroundStyle(Theme.Colors.negative)
-            } else {
-                Text("The Mac mini's Tailscale address. The token is kept in the Keychain.")
             }
         }
     }
@@ -142,8 +140,6 @@ struct SettingsView: View {
             }
         } header: {
             Text("Debug")
-        } footer: {
-            Text("Debug builds only. The mock server answers in memory, so every screen works without the Mac mini.")
         }
     }
     #endif

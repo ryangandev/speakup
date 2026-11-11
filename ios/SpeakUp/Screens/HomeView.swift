@@ -13,7 +13,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                ServerStatusRow(status: app.serverStatus)
+                if app.serverStatus.needsAttention { ServerStatusRow(status: app.serverStatus) }
                 TopicPicker(model: topic, focusedField: $focusedField)
                 if app.settings.showsDriving {
                     DriveCard { Task { await app.startDrive() } }
@@ -129,7 +129,18 @@ private struct DriveCard: View {
     }
 }
 
-/// Reachable, unreachable, or reachable without coaching.
+extension ServerStatus {
+    /// Home shows the server only when something is wrong; a healthy server stays out of the way.
+    var needsAttention: Bool {
+        switch self {
+        case .reachable(let health): return !health.coaching.available
+        case .checking: return false
+        case .unreachable, .failing, .notConfigured: return true
+        }
+    }
+}
+
+/// Unreachable, not set up, or reachable without coaching.
 struct ServerStatusRow: View {
     @Environment(AppModel.self) private var app
     let status: ServerStatus
@@ -209,7 +220,7 @@ private struct TakesList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            SectionTitle("This session")
+            SectionTitle("Recent")
             ForEach(session.takes.sorted { $0.recordedAt > $1.recordedAt }) { take in
                 TakeRow(take: take, prompt: session.prompts.first { $0.id == take.promptId })
             }
